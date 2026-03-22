@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import sys, json, subprocess; data = json.load(sys.stdin); fp = data.get('tool_input', {}).get('file_path', ''); fp.endswith('.java') and subprocess.run('mvn compile test -q', shell=True, cwd='C:/sandbox/PersonalTradeAssistant/PersonalTradeAssistant')\" 2>&1",
+            "statusMessage": "Compiling & testing Java..."
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import sys, json; data = json.load(sys.stdin); fp = data.get('tool_input', {}).get('file_path', ''); eng = '/engine/' in fp.replace('\\\\', '/') and fp.endswith('.java'); eng and print('REMINDER: Engine code changed — run /sync-docs to update requirements.md, features.md, and CLAUDE.md')\" 2>&1",
+            "statusMessage": "Checking doc sync..."
+          }
+        ]
+      }
+    ]
+  }
+}
