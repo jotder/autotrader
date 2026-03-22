@@ -418,7 +418,7 @@ All features are keyed by symbol. `FYERS_SYMBOLS` is a comma-separated list. The
 | Position reconciliation on startup | F-23 | P1 |
 | OMS state machine (full order lifecycle states) | F-24 | P1 |
 | Token auto-refresh | F-25 | P2 |
-| Emergency kill switch HTTP endpoint (`localhost:7777/kill`) | F-26 | P2 |
+| ~~Emergency kill switch HTTP endpoint~~ | ~~F-26~~ | ✅ Implemented via REST API |
 | Circuit breaker on broker API error rate | F-27 | P3 |
 | Runtime config hot-reload | F-28 | P3 |
 | Strategy auto-suspend tracker (intraday) | F-29 | P3 |
@@ -427,21 +427,28 @@ All features are keyed by symbol. `FYERS_SYMBOLS` is a comma-separated list. The
 
 ---
 
+## REST API (Implemented — Spring Boot on port 7777)
+
+All endpoints are live via `EngineController`. Server starts automatically with `mvn spring-boot:run`.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/status` | Engine running state, mode, active symbols |
+| GET | `/api/positions` | Open positions with real-time PnL |
+| GET | `/api/trades` | Closed trade history |
+| GET | `/api/metrics` | Session StrategyAnalyzer report |
+| GET | `/api/risk` | Daily PnL, kill switch status, exposure |
+| GET | `/api/health` | Component health checks |
+| GET | `/api/ticks/{symbol}` | Latest LTP for a symbol |
+| POST | `/api/kill?reason=...` | Activate kill switch |
+| POST | `/api/reset` | Reset daily risk state |
+| POST | `/api/exit/{correlationId}` | Manual exit a position |
+
+**Key class:** `com.rj.web.EngineController`
+
 ## UI Architecture Notes
 
-The backend is a single long-running JVM process. A UI layer should communicate with it via:
-
-1. **REST API** (to be built): expose engine state, journal queries, risk state, and manual controls
-   - `GET /api/status` — engine running, mode, active symbols
-   - `GET /api/positions` — open positions with real-time PnL
-   - `GET /api/trades` — closed trade history
-   - `GET /api/metrics` — session StrategyAnalyzer report
-   - `GET /api/risk` — daily PnL, kill switch status, exposure per symbol
-   - `GET /api/health` — last health check results
-   - `GET /api/ticks/{symbol}` — latest LTP
-   - `POST /api/kill` — activate kill switch
-   - `POST /api/reset` — day reset
-   - `POST /api/exit/{correlationId}` — manual exit single position
+The backend is a Spring Boot server on port 7777. A UI layer communicates via:
 
 2. **WebSocket push** (recommended for live data): push tick updates, position PnL changes, new signals, and health events to the UI without polling
 
