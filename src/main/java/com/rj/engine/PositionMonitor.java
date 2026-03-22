@@ -113,6 +113,20 @@ public class PositionMonitor {
     public int openPositionCount() { return positions.size(); }
     public boolean isRunning()     { return running.get();    }
 
+    /**
+     * Triggers a manual exit for the position with the given correlationId.
+     *
+     * @throws IllegalArgumentException if no open position matches the correlationId
+     */
+    public void requestManualExit(String correlationId) {
+        OpenPosition pos = positions.get(correlationId);
+        if (pos == null) {
+            throw new IllegalArgumentException("No open position with correlationId: " + correlationId);
+        }
+        log.info("[{}] Manual exit requested for {}", pos.getSymbol(), correlationId);
+        closePosition(pos, ExitReason.MANUAL);
+    }
+
     // ── Monitoring loop ───────────────────────────────────────────────────────
 
     private void monitorAll() {

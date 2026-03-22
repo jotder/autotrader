@@ -269,7 +269,7 @@ Personal algorithmic trading system for Indian equity markets (NSE/BSE) via the 
 | Position reconciliation on startup (diff in-memory vs Fyers positions API) | P1 |
 | OMS state machine with idempotent client order IDs and full lifecycle states | P1 |
 | Token auto-refresh (background refresh before 8-hour expiry) | P2 |
-| Kill switch HTTP endpoint (`localhost:7777/kill`) for out-of-band emergency halt | P2 |
+| ~~Kill switch HTTP endpoint~~ | ✅ Implemented — `POST /api/kill` on port 7777 |
 | Circuit breaker on API error rate (> 5 errors/min → open circuit for backoff) | P3 |
 | Runtime config hot-reload with rollback | P3 |
 | Multi-timeframe candle aggregation via second Disruptor consumer chain | P3 |

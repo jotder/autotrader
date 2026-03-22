@@ -1,21 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.4</version>
+        <relativePath/>
+    </parent>
 
     <groupId>com.rj</groupId>
     <artifactId>PersonalTradeAssistant</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
-        <java.version>26</java.version>
+        <java.version>25</java.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-
-        <!-- Dependencies Versions -->
-        <jackson.version>2.17.0</jackson.version>
-        <slf4j.version>2.0.12</slf4j.version>
-        <logback.version>1.5.3</logback.version>
     </properties>
 
     <repositories>
@@ -27,58 +30,46 @@
     </repositories>
 
     <dependencies>
-        <!-- JSON Processing -->
+        <!-- Spring Boot Web (embedded Tomcat, Jackson, Spring MVC) -->
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>${jackson.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.datatype</groupId>
-            <artifactId>jackson-datatype-jsr310</artifactId>
-            <version>${jackson.version}</version>
-        </dependency>
-
-        <!-- Logging API and Implementation -->
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>${slf4j.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-classic</artifactId>
-            <version>${logback.version}</version>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <exclusions>
+                <!-- Exclude log4j-to-slf4j: Fyers SDK ships slf4j-log4j12 which routes
+                     SLF4J → Log4j 1.x; adding the reverse bridge creates an infinite loop. -->
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-to-slf4j</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- Override the broken Log4j2 core bundled inside fyersjavasdk.jar.
-             The SDK ships Log4j2 classes compiled for old Java; Java 26's verifier
-             rejects the bytecode with VerifyError.  Declaring log4j-core here puts
-             a Java-26-compatible version earlier on the classpath so the JVM loads
-             it instead of the SDK's copy. -->
+             The SDK ships Log4j2 classes compiled for old Java; the JVM's verifier
+             rejects the bytecode.  Declaring log4j-core here puts a compatible
+             version earlier on the classpath.  Version managed by Spring Boot BOM
+             to stay aligned with log4j-api. -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
-            <version>2.23.1</version>
         </dependency>
 
-        <!-- Log4j 1.x API — needed to compile App.java (org.apache.log4j.*).
-             Do NOT use log4j-over-slf4j here: the SDK bundles slf4j-log4j12 which
-             routes SLF4J → Log4j 1.x; adding the reverse bridge creates a loop. -->
+        <!-- Log4j 1.x API — needed for Fyers SDK (org.apache.log4j.*).
+             Do NOT use log4j-over-slf4j here: see exclusion note above. -->
         <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
             <version>1.2.17</version>
         </dependency>
 
-        <!-- Dotenv for configuration -->
+        <!-- Dotenv for .env configuration (secrets stay out of application.yml) -->
         <dependency>
             <groupId>io.github.cdimascio</groupId>
             <artifactId>dotenv-java</artifactId>
             <version>3.1.0</version>
         </dependency>
 
-        <!-- FYERS Java SDK (official jar from fyers-java-sdk) -->
+        <!-- FYERS Java SDK (project-local Maven repo) -->
         <dependency>
             <groupId>com.tts.in</groupId>
             <artifactId>fyersjavasdk</artifactId>
@@ -99,19 +90,20 @@
             <version>3.4.4</version>
         </dependency>
 
-        <!-- Java native HttpClient/WebSocket client is available in java.net.http since Java 11 -->
-
         <!-- Testing -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
-            <version>5.10.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
-            <version>5.10.2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -132,12 +124,8 @@
                 <version>3.2.5</version>
             </plugin>
             <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.5.0</version>
-                <configuration>
-                    <mainClass>com.algo.engine.TraderBot</mainClass>
-                </configuration>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>

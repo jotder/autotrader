@@ -22,10 +22,11 @@ Personal algo trading system in Java. Fyers API v3 for NSE/BSE. Single JVM proce
 
 | Component | Choice | Version |
 |---|---|---|
-| Language | Java | 26+ (`maven.compiler.release=26`) |
+| Language | Java | 25 (`maven.compiler.release=25`) |
 | Build | Maven | 3.9+ — no Gradle |
-| JSON | Jackson | 2.17.0 |
-| Logging | SLF4J + Logback | 2.0.12 / 1.5.3 |
+| Web/REST | Spring Boot | 3.4.4 (embedded Tomcat on port 7777) |
+| JSON | Jackson | managed by Spring Boot BOM |
+| Logging | SLF4J + Logback | managed by Spring Boot BOM |
 | HTTP/WS | `java.net.http` | built-in — no OkHttp |
 | TA | ta4j | 0.15 |
 | Tick pipeline | LMAX Disruptor | 3.4.4 |
@@ -103,6 +104,9 @@ com.rj
 
 fyers/         FyersSocketListener, FyersDataApi, FyersOrderPlacement, FyersOrders,
                FyersPositions, FyersFund, TokenGenerator, FyersBrokerConfig, ...
+
+com.rj.web/           EngineController (REST API — 10 endpoints)
+com.rj.web.dto/       StatusResponse, RiskResponse, TickResponse, ActionResponse
 ```
 
 ---
@@ -247,7 +251,8 @@ Ring size `4096` (power-of-2, ~80 KB, L3-friendly). `SINGLE` producer. `Sleeping
 | Position Reconciler | **Planned** | Next milestone |
 | OMS State Machine | **Planned** | Idempotent clientOrderId |
 | Token Auto-Refresh | **Planned** | |
-| Kill Switch HTTP | **Planned** | `localhost:7777/kill` |
+| REST API (Spring Boot) | Done | 10 endpoints on port 7777 |
+| Kill Switch HTTP | Done | `POST localhost:7777/api/kill` |
 | Circuit Breaker | **Planned** | API error rate gating |
 | Config Hot Reload | **Planned** | Runtime refresh + rollback |
 | Strategy Tracker | **Planned** | Auto-suspend degraded strategies |
