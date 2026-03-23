@@ -286,7 +286,7 @@ All features keyed by symbol. `FYERS_SYMBOLS` comma-separated. Concurrent across
 
 | ID | Feature | PRD Refs | Priority |
 |---|---|---|---|
-| F-23 | Position reconciliation on startup | POS-09, NFR-11 | P1-Critical |
+| F-23 | Position reconciliation on startup | POS-09, NFR-11 | ✅ Done |
 | F-24 | OMS state machine (idempotent client order IDs) | ORD-09 | P1-Critical |
 | F-25 | Token auto-refresh (background, before 8h expiry) | CFG-07 | P1-High |
 | F-26 | YAML strategy configuration system | CFG-Y01–Y09 | P1-High |
@@ -346,6 +346,7 @@ All endpoints live via `EngineController`. Server starts with `mvn spring-boot:r
 | POST | `/api/kill?reason=...` | Activate kill switch | — |
 | POST | `/api/reset` | Reset daily risk state | — |
 | POST | `/api/exit/{correlationId}` | Manual exit a position | — |
+| GET | `/api/reconciliation` | Last startup reconciliation result | — |
 
 **Planned API additions (P2):**
 - `GET /api/strategies` — list strategies with config + status

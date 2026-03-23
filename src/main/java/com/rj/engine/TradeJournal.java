@@ -162,6 +162,16 @@ public class TradeJournal {
         write(event);
     }
 
+    /** Log a reconciliation event (startup diff between broker and engine). */
+    public void logReconciliation(String action, String symbol, int qty, String details) {
+        Map<String, Object> event = event("RECONCILIATION");
+        event.put("action", action);
+        event.put("symbol", symbol);
+        event.put("qty", qty);
+        event.put("details", details);
+        write(event);
+    }
+
     /** Generic event log (for custom entries from any layer). */
     public void log(String eventType, Map<String, Object> fields) {
         Map<String, Object> event = event(eventType);

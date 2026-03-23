@@ -151,7 +151,7 @@ Professional-grade multi-asset algorithmic trading system. Single JVM process ma
 | POS-06 | Trailing stop is monotonic (long SL only moves up; short only down) | P1 | ✅ |
 | POS-07 | Notify StrategyEvaluator on position close for cooldown reset | P1 | ✅ |
 | POS-08 | Price data from live TickStore (latest LTP) | P1 | ✅ |
-| POS-09 | Position reconciliation on startup (diff in-memory vs broker) | P1 | 📋 Planned |
+| POS-09 | Position reconciliation on startup (diff in-memory vs broker) | P1 | ✅ |
 | POS-10 | Manual exit via API (`POST /api/exit/{correlationId}`) | P1 | ✅ |
 
 ### 2.9 Order Execution (ORD)
@@ -305,7 +305,7 @@ Professional-grade multi-asset algorithmic trading system. Single JVM process ma
 | NFR-08 | Capital protection above availability — fail closed, not open | P1 | ✅ |
 | NFR-09 | Shutdown hook drains Disruptor ring buffer before exit | P1 | ✅ |
 | NFR-10 | Duplicate order prevention: symbol lock + stable correlationId | P1 | ✅ |
-| NFR-11 | Position reconciliation on startup | P1 | 📋 Planned |
+| NFR-11 | Position reconciliation on startup | P1 | ✅ |
 | NFR-12 | Circuit breaker on API error rate (> 5 errors/min → backoff) | P1 | 📋 Planned |
 
 ### 3.3 Security
