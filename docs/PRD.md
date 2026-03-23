@@ -98,8 +98,8 @@ Professional-grade multi-asset algorithmic trading system. Single JVM process ma
 | CFG-Y01 | YAML config files grouped by type: `config/strategies/intraday.yaml`, `positional.yaml`, `options.yaml` | P1 | ✅ |
 | CFG-Y02 | Each strategy section includes: enabled flag, symbols, timeframe, active hours, cooldown | P1 | ✅ |
 | CFG-Y03 | Per-strategy indicator config: all periods, thresholds, multipliers | P1 | ✅ |
-| CFG-Y04 | Per-strategy risk overrides: stop-loss method, TP method, position size %, max trades/day | P1 | 📋 Planned |
-| CFG-Y05 | Per-strategy order config: order type, slippage tolerance, product type | P1 | 📋 Planned |
+| CFG-Y04 | Per-strategy risk overrides: stop-loss method, TP method, position size %, max trades/day | P1 | ✅ |
+| CFG-Y05 | Per-strategy order config: order type, slippage tolerance, product type | P1 | ✅ |
 | CFG-Y06 | Global defaults in `config/defaults.yaml`; strategy YAML overrides specific values | P1 | ✅ |
 | CFG-Y07 | Hot-reload: file watcher detects YAML changes, validates, and applies without restart | P1 | 📋 Planned |
 | CFG-Y08 | UI can read/write strategy YAML; changes saved to file and applied immediately | P2 | 📋 Planned |
@@ -124,7 +124,7 @@ Professional-grade multi-asset algorithmic trading system. Single JVM process ma
 | RSK-12 | SL determined before order submission | P1 | ✅ |
 | RSK-13 | Daily risk state reset via `resetDay()` at session start | P1 | ✅ |
 | RSK-14 | **Anomaly auto-protection**: on flash crash / API down / unusual volume → close all positions, kill all strategies, go to cash, require manual restart | P1 | 📋 Planned |
-| RSK-15 | Per-strategy risk limits (override global defaults via YAML) | P1 | 📋 Planned |
+| RSK-15 | Per-strategy risk limits (override global defaults via YAML) | P1 | ✅ |
 | RSK-16 | Max portfolio-level drawdown limit (% of capital) → full auto-protection | P1 | 📋 Planned |
 | RSK-17 | F&O margin awareness: check margin requirement before order | P2 | 📋 Planned |
 | RSK-18 | Options-specific risk: max premium at risk, Greeks-based position limits | P2 | 📋 Planned |
