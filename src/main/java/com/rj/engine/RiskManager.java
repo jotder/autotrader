@@ -1,6 +1,7 @@
 package com.rj.engine;
 
 import com.rj.config.RiskConfig;
+import com.rj.config.StrategyRiskConfig;
 import com.rj.model.OpenPosition;
 import com.rj.model.TradeRecord;
 import com.rj.model.TradeSignal;
@@ -39,6 +40,9 @@ public class RiskManager {
     private final AtomicBoolean dailyProfitLocked = new AtomicBoolean(false);
     // Per-strategy consecutive loss counters (keyed by strategyId)
     private final java.util.concurrent.ConcurrentHashMap<String, AtomicInteger> consecutiveLosses
+            = new java.util.concurrent.ConcurrentHashMap<>();
+    // Per-strategy risk overrides loaded from YAML (keyed by strategyId)
+    private final java.util.concurrent.ConcurrentHashMap<String, StrategyRiskConfig> strategyRiskOverrides
             = new java.util.concurrent.ConcurrentHashMap<>();
     // Daily running totals
     private volatile double dailyRealizedPnl = 0;
@@ -91,10 +95,14 @@ public class RiskManager {
         }
 
         // ── Gate 5: consecutive loss limit per strategy ───────────────────────
+        StrategyRiskConfig stratOverride = strategyRiskOverrides.get(signal.getStrategyId());
+        int maxConsecLosses = stratOverride != null
+                ? stratOverride.maxConsecutiveLosses()
+                : riskConfig.getMaxConsecutiveLossesPerStrategy();
         int consec = consecutiveLosses
                 .computeIfAbsent(signal.getStrategyId(), k -> new AtomicInteger(0))
                 .get();
-        if (consec >= riskConfig.getMaxConsecutiveLossesPerStrategy()) {
+        if (consec >= maxConsecLosses) {
             return reject("Strategy [" + signal.getStrategyId() + "] suspended: "
                     + consec + " consecutive losses");
         }
@@ -104,7 +112,10 @@ public class RiskManager {
                 .filter(p -> p.getSymbol().equals(signal.getSymbol()))
                 .mapToDouble(p -> p.getEntryPrice() * p.getQuantity())
                 .sum();
-        double maxExposure = totalCapital * riskConfig.getMaxExposurePerSymbolPercent();
+        double maxExposureFraction = stratOverride != null
+                ? stratOverride.maxExposurePct() / 100.0
+                : riskConfig.getMaxExposurePerSymbolPercent();
+        double maxExposure = totalCapital * maxExposureFraction;
         if (currentExposure >= maxExposure) {
             return reject(String.format("Max exposure per symbol exceeded: %.0f >= %.0f",
                     currentExposure, maxExposure));
@@ -120,14 +131,20 @@ public class RiskManager {
             return reject("Stop loss is at or beyond entry price — risk per unit = 0");
         }
 
-        double riskBudget = totalCapital * riskConfig.getMaxRiskPerTradePercent();
+        double riskFraction = stratOverride != null
+                ? stratOverride.riskPerTradePct() / 100.0
+                : riskConfig.getMaxRiskPerTradePercent();
+        double riskBudget = totalCapital * riskFraction;
         int rawQty = (int) Math.floor(riskBudget / riskPerUnit);
         int lotSize = riskConfig.getInstrumentLotSize();
         int lotAlignedQty = lotSize > 1 ? (rawQty / lotSize) * lotSize : rawQty;
 
+        int maxQtyPerOrder = stratOverride != null
+                ? stratOverride.maxQty()
+                : riskConfig.getMaxQuantityPerOrder();
         int exposureCapQty = (int) Math.floor((maxExposure - currentExposure) / entry);
         int finalQty = Math.min(lotAlignedQty,
-                Math.min(riskConfig.getMaxQuantityPerOrder(), exposureCapQty));
+                Math.min(maxQtyPerOrder, exposureCapQty));
 
         if (finalQty <= 0) {
             return reject("Position sizing yields quantity 0 (risk budget too small for this SL distance)");
@@ -175,6 +192,29 @@ public class RiskManager {
         log.info("Daily PnL updated: {} (trade PnL={})",
                 String.format("%.2f", dailyRealizedPnl),
                 String.format("%.2f", trade.getPnl()));
+    }
+
+    /**
+     * Applies a per-strategy risk config override.
+     * When set, the override values take precedence over global {@link RiskConfig}
+     * for the given strategy in all {@link #preTradeCheck} evaluations.
+     *
+     * @param strategyId unique strategy identifier matching {@link com.rj.model.TradeSignal#getStrategyId()}
+     * @param override   risk config loaded from YAML; must not be {@code null}
+     */
+    public void applyStrategyRiskOverride(String strategyId, StrategyRiskConfig override) {
+        if (override == null) throw new IllegalArgumentException("override must not be null");
+        strategyRiskOverrides.put(strategyId, override);
+        log.info("Applied per-strategy risk override for strategy '{}'", strategyId);
+    }
+
+    /**
+     * Removes a previously applied per-strategy risk override,
+     * reverting to global {@link RiskConfig} values.
+     */
+    public void removeStrategyRiskOverride(String strategyId) {
+        strategyRiskOverrides.remove(strategyId);
+        log.info("Removed per-strategy risk override for strategy '{}'", strategyId);
     }
 
     public void activateKillSwitch(String reason) {

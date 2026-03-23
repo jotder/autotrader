@@ -146,7 +146,131 @@ public class YamlStrategyLoader {
         }
     }
 
+    /**
+     * Loads strategies from {@code strategiesPath}, merging each strategy with
+     * global defaults loaded from {@code defaultsPath}.
+     *
+     * <p>The merge is a deep map overlay: values present in a strategy block take
+     * precedence; any missing sections or fields fall back to the defaults block.
+     * If {@code defaultsPath} does not exist, behaviour is identical to
+     * {@link #load(Path)}.</p>
+     *
+     * @param strategiesPath path to a strategies YAML file
+     * @param defaultsPath   path to defaults.yaml
+     * @return immutable map of strategy name → config with defaults applied
+     */
+    public Map<String, StrategyYamlConfig> loadWithDefaults(Path strategiesPath, Path defaultsPath) {
+        Map<String, Object> defaultsMap = readRawDefaults(defaultsPath);
+
+        if (!Files.exists(strategiesPath)) {
+            log.warn("Strategy YAML file not found, skipping: {}", strategiesPath);
+            return Collections.emptyMap();
+        }
+
+        try (InputStream is = Files.newInputStream(strategiesPath)) {
+            Yaml yaml = new Yaml();
+            Object raw = yaml.load(is);
+
+            if (raw == null) {
+                log.warn("Strategy YAML file is empty: {}", strategiesPath);
+                return Collections.emptyMap();
+            }
+
+            if (!(raw instanceof Map)) {
+                throw new IllegalArgumentException("Expected YAML root to be a map in: " + strategiesPath);
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> root = (Map<String, Object>) raw;
+
+            if (!root.containsKey("strategies")) {
+                log.warn("No 'strategies' key found in: {}", strategiesPath);
+                return Collections.emptyMap();
+            }
+
+            Object strategiesRaw = root.get("strategies");
+            if (!(strategiesRaw instanceof Map)) {
+                throw new IllegalArgumentException("'strategies' must be a map in: " + strategiesPath);
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> strategiesMap = (Map<String, Object>) strategiesRaw;
+
+            Map<String, StrategyYamlConfig> result = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> entry : strategiesMap.entrySet()) {
+                String name = entry.getKey();
+                Object value = entry.getValue();
+                if (!(value instanceof Map)) {
+                    log.warn("Strategy '{}' has no body, skipping", name);
+                    continue;
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> stratMap = (Map<String, Object>) value;
+                Map<String, Object> merged = deepMerge(defaultsMap, stratMap);
+                result.put(name, parseStrategy(name, merged));
+                log.debug("Parsed strategy config (with defaults): {}", name);
+            }
+
+            log.info("Loaded {} strategies (with defaults) from {}", result.size(), strategiesPath.getFileName());
+            return Collections.unmodifiableMap(result);
+
+        } catch (YAMLException e) {
+            throw new IllegalArgumentException("Malformed YAML in: " + strategiesPath + " — " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Cannot read YAML file: " + strategiesPath, e);
+        } catch (ClassCastException e) {
+            throw new IllegalArgumentException("Unexpected YAML structure in: " + strategiesPath, e);
+        }
+    }
+
     // ── Private parsing helpers ───────────────────────────────────────────────
+
+    /**
+     * Reads the raw {@code defaults:} map from a defaults YAML file.
+     * Returns an empty map if the file does not exist or has no {@code defaults} key.
+     */
+    private Map<String, Object> readRawDefaults(Path defaultsPath) {
+        if (!Files.exists(defaultsPath)) {
+            return Collections.emptyMap();
+        }
+        try (InputStream is = Files.newInputStream(defaultsPath)) {
+            Yaml yaml = new Yaml();
+            Object raw = yaml.load(is);
+            if (raw instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> root = (Map<String, Object>) raw;
+                Object defaults = root.get("defaults");
+                if (defaults instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> defaultsMap = (Map<String, Object>) defaults;
+                    return defaultsMap;
+                }
+            }
+        } catch (IOException | YAMLException e) {
+            log.warn("Could not read defaults YAML {}: {}", defaultsPath, e.getMessage());
+        }
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Deep-merges two maps: {@code base} provides fallback values,
+     * {@code overlay} takes precedence. Nested {@code Map} values are merged
+     * recursively; all other value types are overwritten by {@code overlay}.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> deepMerge(Map<String, Object> base, Map<String, Object> overlay) {
+        Map<String, Object> result = new LinkedHashMap<>(base);
+        for (Map.Entry<String, Object> e : overlay.entrySet()) {
+            Object baseVal = result.get(e.getKey());
+            if (baseVal instanceof Map && e.getValue() instanceof Map) {
+                result.put(e.getKey(),
+                        deepMerge((Map<String, Object>) baseVal, (Map<String, Object>) e.getValue()));
+            } else {
+                result.put(e.getKey(), e.getValue());
+            }
+        }
+        return result;
+    }
 
     private StrategyYamlConfig parseStrategy(String name, Map<String, Object> map) {
         StrategyYamlConfig cfg = new StrategyYamlConfig();

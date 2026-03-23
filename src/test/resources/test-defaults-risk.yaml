@@ -1,0 +1,36 @@
+defaults:
+  timeframe: M5
+  cooldown_minutes: 25
+  max_trades_per_day: 10
+
+  active_hours:
+    start: "09:15"
+    end: "15:00"
+
+  indicators:
+    ema_fast: 20
+    ema_slow: 50
+    rsi_period: 14
+    atr_period: 14
+    rel_vol_period: 20
+    min_candles: 21
+
+  entry:
+    min_confidence: 0.85
+    rel_vol_threshold: 1.2
+    trend_strength: STRONG_BULLISH
+
+  risk:
+    risk_per_trade_pct: 1.0
+    sl_atr_multiplier: 1.5
+    tp_r_multiple: 3.0
+    trailing_activation_pct: 0.7
+    trailing_step_pct: 0.3
+    max_exposure_pct: 10.0
+    max_qty: 200
+    max_consecutive_losses: 2
+
+  order:
+    type: LIMIT
+    slippage_tolerance: 0.01
+    product_type: CNC
