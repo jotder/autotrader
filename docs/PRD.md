@@ -103,7 +103,7 @@ Professional-grade multi-asset algorithmic trading system. Single JVM process ma
 | CFG-Y06 | Global defaults in `config/defaults.yaml`; strategy YAML overrides specific values | P1 | ✅ |
 | CFG-Y07 | Hot-reload: file watcher detects YAML changes, validates, and applies without restart | P1 | 📋 Planned |
 | CFG-Y08 | UI can read/write strategy YAML; changes saved to file and applied immediately | P2 | 📋 Planned |
-| CFG-Y09 | Validation: reject invalid config with rollback to previous values + WARN log | P1 | 📋 Planned |
+| CFG-Y09 | Validation: reject invalid config with rollback to previous values + WARN log | P1 | ✅ |
 | CFG-Y10 | Version history: keep last 5 config snapshots for rollback | P2 | 📋 Planned |
 
 ### 2.6 Risk Management (RSK)
