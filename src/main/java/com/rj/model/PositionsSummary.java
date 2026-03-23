@@ -11,6 +11,28 @@ public class PositionsSummary {
     public final List<NetPosition> netPositions;
     public final Overall overall;
 
+    private PositionsSummary(List<NetPosition> netPositions, Overall overall) {
+        this.netPositions = Collections.unmodifiableList(netPositions);
+        this.overall = overall;
+    }
+
+    public static PositionsSummary from(JSONObject json) {
+        if (json == null) return null;
+        List<NetPosition> positions = new ArrayList<>();
+        JSONArray arr = json.optJSONArray("netPositions");
+        if (arr != null) {
+            for (int i = 0; i < arr.length(); i++) {
+                positions.add(NetPosition.from(arr.getJSONObject(i)));
+            }
+        }
+        return new PositionsSummary(positions, Overall.from(json.optJSONObject("overall")));
+    }
+
+    @Override
+    public String toString() {
+        return "PositionsSummary{positions=" + netPositions.size() + ", overall=" + overall + "}";
+    }
+
     public static class NetPosition {
         public final String symbol;
         public final String id;
@@ -46,38 +68,55 @@ public class PositionsSummary {
                             int dayBuyQty, int daySellQty, int cfBuyQty, int cfSellQty, int qty, int qtyMultiCom, int slNo,
                             double buyAvg, double sellAvg, double netAvg, double buyVal, double sellVal,
                             double ltp, double pl, double realizedProfit, double unrealizedProfit, double rbiRefRate) {
-            this.symbol = symbol; this.id = id; this.productType = productType;
-            this.fyToken = fyToken; this.crossCurrency = crossCurrency;
-            this.segment = segment; this.exchange = exchange; this.side = side;
-            this.netQty = netQty; this.buyQty = buyQty; this.sellQty = sellQty;
-            this.dayBuyQty = dayBuyQty; this.daySellQty = daySellQty;
-            this.cfBuyQty = cfBuyQty; this.cfSellQty = cfSellQty;
-            this.qty = qty; this.qtyMultiCom = qtyMultiCom; this.slNo = slNo;
-            this.buyAvg = buyAvg; this.sellAvg = sellAvg; this.netAvg = netAvg;
-            this.buyVal = buyVal; this.sellVal = sellVal;
-            this.ltp = ltp; this.pl = pl;
-            this.realizedProfit = realizedProfit; this.unrealizedProfit = unrealizedProfit;
+            this.symbol = symbol;
+            this.id = id;
+            this.productType = productType;
+            this.fyToken = fyToken;
+            this.crossCurrency = crossCurrency;
+            this.segment = segment;
+            this.exchange = exchange;
+            this.side = side;
+            this.netQty = netQty;
+            this.buyQty = buyQty;
+            this.sellQty = sellQty;
+            this.dayBuyQty = dayBuyQty;
+            this.daySellQty = daySellQty;
+            this.cfBuyQty = cfBuyQty;
+            this.cfSellQty = cfSellQty;
+            this.qty = qty;
+            this.qtyMultiCom = qtyMultiCom;
+            this.slNo = slNo;
+            this.buyAvg = buyAvg;
+            this.sellAvg = sellAvg;
+            this.netAvg = netAvg;
+            this.buyVal = buyVal;
+            this.sellVal = sellVal;
+            this.ltp = ltp;
+            this.pl = pl;
+            this.realizedProfit = realizedProfit;
+            this.unrealizedProfit = unrealizedProfit;
             this.rbiRefRate = rbiRefRate;
         }
 
         static NetPosition from(JSONObject j) {
             return new NetPosition(
-                j.optString("symbol"), j.optString("id"), j.optString("productType"),
-                j.optString("fyToken"), j.optString("crossCurrency"),
-                j.optInt("segment"), j.optInt("exchange"), j.optInt("side"),
-                j.optInt("netQty"), j.optInt("buyQty"), j.optInt("sellQty"),
-                j.optInt("dayBuyQty"), j.optInt("daySellQty"),
-                j.optInt("cfBuyQty"), j.optInt("cfSellQty"),
-                j.optInt("qty"), j.optInt("qtyMulti_com"), j.optInt("slNo"),
-                j.optDouble("buyAvg"), j.optDouble("sellAvg"), j.optDouble("netAvg"),
-                j.optDouble("buyVal"), j.optDouble("sellVal"),
-                j.optDouble("ltp"), j.optDouble("pl"),
-                j.optDouble("realized_profit"), j.optDouble("unrealized_profit"),
-                j.optDouble("rbiRefRate")
+                    j.optString("symbol"), j.optString("id"), j.optString("productType"),
+                    j.optString("fyToken"), j.optString("crossCurrency"),
+                    j.optInt("segment"), j.optInt("exchange"), j.optInt("side"),
+                    j.optInt("netQty"), j.optInt("buyQty"), j.optInt("sellQty"),
+                    j.optInt("dayBuyQty"), j.optInt("daySellQty"),
+                    j.optInt("cfBuyQty"), j.optInt("cfSellQty"),
+                    j.optInt("qty"), j.optInt("qtyMulti_com"), j.optInt("slNo"),
+                    j.optDouble("buyAvg"), j.optDouble("sellAvg"), j.optDouble("netAvg"),
+                    j.optDouble("buyVal"), j.optDouble("sellVal"),
+                    j.optDouble("ltp"), j.optDouble("pl"),
+                    j.optDouble("realized_profit"), j.optDouble("unrealized_profit"),
+                    j.optDouble("rbiRefRate")
             );
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "NetPosition{symbol='" + symbol + "', netQty=" + netQty + ", ltp=" + ltp + ", pl=" + pl + "}";
         }
     }
@@ -90,41 +129,24 @@ public class PositionsSummary {
         public final double plTotal;
 
         private Overall(int countOpen, int countTotal, double plRealized, double plUnrealized, double plTotal) {
-            this.countOpen = countOpen; this.countTotal = countTotal;
-            this.plRealized = plRealized; this.plUnrealized = plUnrealized; this.plTotal = plTotal;
+            this.countOpen = countOpen;
+            this.countTotal = countTotal;
+            this.plRealized = plRealized;
+            this.plUnrealized = plUnrealized;
+            this.plTotal = plTotal;
         }
 
         static Overall from(JSONObject j) {
             if (j == null) return new Overall(0, 0, 0, 0, 0);
             return new Overall(
-                j.optInt("count_open"), j.optInt("count_total"),
-                j.optDouble("pl_realized"), j.optDouble("pl_unrealized"), j.optDouble("pl_total")
+                    j.optInt("count_open"), j.optInt("count_total"),
+                    j.optDouble("pl_realized"), j.optDouble("pl_unrealized"), j.optDouble("pl_total")
             );
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "Overall{countOpen=" + countOpen + ", plTotal=" + plTotal + "}";
         }
-    }
-
-    private PositionsSummary(List<NetPosition> netPositions, Overall overall) {
-        this.netPositions = Collections.unmodifiableList(netPositions);
-        this.overall = overall;
-    }
-
-    public static PositionsSummary from(JSONObject json) {
-        if (json == null) return null;
-        List<NetPosition> positions = new ArrayList<>();
-        JSONArray arr = json.optJSONArray("netPositions");
-        if (arr != null) {
-            for (int i = 0; i < arr.length(); i++) {
-                positions.add(NetPosition.from(arr.getJSONObject(i)));
-            }
-        }
-        return new PositionsSummary(positions, Overall.from(json.optJSONObject("overall")));
-    }
-
-    @Override public String toString() {
-        return "PositionsSummary{positions=" + netPositions.size() + ", overall=" + overall + "}";
     }
 }

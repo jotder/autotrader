@@ -36,32 +36,32 @@ class CandleAnalyzer {
     // Minimum bars required before emitting directional signals
     private static final int MIN_BARS_FOR_SIGNAL = 21;
 
-    private final String    symbol;
+    private final String symbol;
     private final Timeframe timeframe;
     private final BarSeries series;
 
     // ta4j indicators
     private final ClosePriceIndicator closePrice;
-    private final EMAIndicator        ema20;
-    private final EMAIndicator        ema50;
-    private final RSIIndicator        rsi14;
-    private final ATRIndicator        atr14;
+    private final EMAIndicator ema20;
+    private final EMAIndicator ema50;
+    private final RSIIndicator rsi14;
+    private final ATRIndicator atr14;
 
     // Rolling 20-bar volume window for relative-volume calculation
     private final double[] volumeWindow = new double[20];
     private int volumeCount = 0;
 
     CandleAnalyzer(String symbol, Timeframe timeframe) {
-        this.symbol    = symbol;
+        this.symbol = symbol;
         this.timeframe = timeframe;
-        this.series    = new BaseBarSeries(symbol + "_" + timeframe.getLabel());
+        this.series = new BaseBarSeries(symbol + "_" + timeframe.getLabel());
         this.series.setMaximumBarCount(200);
 
         this.closePrice = new ClosePriceIndicator(series);
-        this.ema20      = new EMAIndicator(closePrice, 20);
-        this.ema50      = new EMAIndicator(closePrice, 50);
-        this.rsi14      = new RSIIndicator(closePrice, 14);
-        this.atr14      = new ATRIndicator(series, 14);
+        this.ema20 = new EMAIndicator(closePrice, 20);
+        this.ema50 = new EMAIndicator(closePrice, 50);
+        this.rsi14 = new RSIIndicator(closePrice, 14);
+        this.atr14 = new ATRIndicator(series, 14);
     }
 
     /**
@@ -77,7 +77,9 @@ class CandleAnalyzer {
         return analyze(candle, windowStart, windowEnd);
     }
 
-    int barCount() { return series.getBarCount(); }
+    int barCount() {
+        return series.getBarCount();
+    }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
@@ -111,42 +113,52 @@ class CandleAnalyzer {
             return insufficientData(candle, windowStart, windowEnd);
         }
 
-        double close     = candle.close;
-        double e20       = ema20.getValue(last).doubleValue();
-        double e50       = ema50.getValue(last).doubleValue();
-        double rsi       = last >= 14 ? rsi14.getValue(last).doubleValue() : 50.0;
-        double atr       = last >= 14 ? atr14.getValue(last).doubleValue() : 0.0;
-        double relVol    = computeRelVolume(candle.volume);
+        double close = candle.close;
+        double e20 = ema20.getValue(last).doubleValue();
+        double e50 = ema50.getValue(last).doubleValue();
+        double rsi = last >= 14 ? rsi14.getValue(last).doubleValue() : 50.0;
+        double atr = last >= 14 ? atr14.getValue(last).doubleValue() : 0.0;
+        double relVol = computeRelVolume(candle.volume);
 
         // ── Trend classification ──────────────────────────────────────────────
-        boolean bullish  = close > e20 && e20 > e50;
-        boolean bearish  = close < e20 && e20 < e50;
+        boolean bullish = close > e20 && e20 > e50;
+        boolean bearish = close < e20 && e20 < e50;
         boolean sideways = !bullish && !bearish;
 
         // ── Strategy selection (highest-priority wins) ────────────────────────
-        Signal signal     = Signal.HOLD;
+        Signal signal = Signal.HOLD;
         double confidence = 0.0;
-        String source     = "NONE";
+        String source = "NONE";
 
         // 1. Trend Following (confidence 0.85)
         if (bullish && relVol > 1.2) {
-            signal = Signal.BUY;  confidence = 0.85; source = "TREND_FOLLOWING";
+            signal = Signal.BUY;
+            confidence = 0.85;
+            source = "TREND_FOLLOWING";
         } else if (bearish && relVol > 1.2) {
-            signal = Signal.SELL; confidence = 0.85; source = "TREND_FOLLOWING";
+            signal = Signal.SELL;
+            confidence = 0.85;
+            source = "TREND_FOLLOWING";
         }
 
         // 2. Mean Reversion (confidence 0.70) — only applied when sideways
         if (sideways && rsi < 30) {
-            signal = Signal.BUY;  confidence = 0.70; source = "MEAN_REVERSION";
+            signal = Signal.BUY;
+            confidence = 0.70;
+            source = "MEAN_REVERSION";
         } else if (sideways && rsi > 70) {
-            signal = Signal.SELL; confidence = 0.70; source = "MEAN_REVERSION";
+            signal = Signal.SELL;
+            confidence = 0.70;
+            source = "MEAN_REVERSION";
         }
 
         // 3. Volatility Breakout (confidence 0.90) — overrides when relVol > 2.0
         if (relVol > 2.0 && atr > 0) {
             Signal breakout = bullish ? Signal.BUY : (bearish ? Signal.SELL : Signal.HOLD);
             if (breakout != Signal.HOLD) {
-                signal = breakout; confidence = 0.90; source = "VOLATILITY_BREAKOUT";
+                signal = breakout;
+                confidence = 0.90;
+                source = "VOLATILITY_BREAKOUT";
             }
         }
 

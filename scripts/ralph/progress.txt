@@ -1,0 +1,48 @@
+# Ralph Progress Log
+Started: Mon Mar 23 11:33:58 IST 2026
+---
+
+## AT-001 - YAML strategy config file structure and loader — 2026-03-23
+- What was implemented: `StrategyYamlConfig` POJO with all nested sections (ActiveHours, Indicators, Entry, Risk, Order); `YamlStrategyLoader` using SnakeYAML Map-based parsing with explicit snake_case key extraction; `config/strategies/intraday.yaml` with trend_following, mean_reversion, volatility_breakout; `config/defaults.yaml` with global defaults.
+- Files changed: `config/defaults.yaml`, `config/strategies/intraday.yaml`, `src/main/java/com/rj/config/StrategyYamlConfig.java`, `src/main/java/com/rj/config/YamlStrategyLoader.java`, `src/test/java/com/rj/config/YamlStrategyLoaderTest.java`, `src/test/resources/test-strategies.yaml`, `src/test/resources/test-defaults.yaml`
+- Tests added: 19 new test methods
+- **Codebase Patterns:**
+  - SnakeYAML is available as a Spring Boot BOM transitive dependency — no explicit pom.xml addition needed.
+  - YAML uses snake_case keys (e.g., `ema_fast`, `active_hours`). SnakeYAML's JavaBean mapper does NOT auto-convert snake_case → camelCase. Use `Map<String, Object>` deserialization and extract keys manually.
+  - Tests go in `src/test/java/com/rj/config/` (mirroring source package). Test YAML resources go in `src/test/resources/` and are loaded via `getClass().getClassLoader().getResource(name)`.
+  - `@TempDir` from JUnit 5 is available for writing temp YAML files in tests — no extra dependency needed.
+  - Production YAML at `config/strategies/intraday.yaml` is loaded via `Path.of("config/strategies/intraday.yaml")` relative to project root (works when running from project root with Maven).
+  - The existing tests in `src/test/java/com/rj/` are NOT JUnit tests — they are Java 21+ "void main()" scripts used for manual API exploration. Do not follow that pattern for new tests.
+- **Gotchas:**
+  - `mvn test -q` suppresses all output including test results. Use `mvn test 2>&1 | grep -E "BUILD|Tests run"` to confirm pass/fail.
+  - The `config/` directory is at project root (not `src/main/resources/`); it's meant to be user-edited at deployment time.
+  - Use `org.junit.jupiter.api.Assumptions.assumeTrue(path.toFile().exists(), ...)` for tests that depend on optional files like the production `intraday.yaml`.
+---
+
+## AT-002 - Per-strategy risk and order config in YAML — 2026-03-23
+- What was implemented: `StrategyRiskConfig` record (8 fields) + `StrategyOrderConfig` record (3 fields) in `com.rj.config`; `YamlStrategyLoader.loadWithDefaults(strategiesPath, defaultsPath)` with deep-merge of defaults.yaml; `RiskManager.applyStrategyRiskOverride()` / `removeStrategyRiskOverride()` with per-strategy gates in `preTradeCheck` (riskBudget, maxExposure, maxQty, maxConsecutiveLosses all strategy-overrideable).
+- Files changed: `src/main/java/com/rj/config/StrategyRiskConfig.java` (new), `src/main/java/com/rj/config/StrategyOrderConfig.java` (new), `src/main/java/com/rj/config/YamlStrategyLoader.java` (added loadWithDefaults, deepMerge, readRawDefaults), `src/main/java/com/rj/engine/RiskManager.java` (strategy override map + usage in preTradeCheck), `src/test/java/com/rj/config/PerStrategyConfigTest.java` (new), `src/test/java/com/rj/engine/RiskManagerStrategyOverrideTest.java` (new), `src/test/resources/test-strategies-no-risk.yaml` (new), `src/test/resources/test-defaults-risk.yaml` (new)
+- Tests added: 18 new test methods (11 in PerStrategyConfigTest + 7 in RiskManagerStrategyOverrideTest)
+- **Codebase Patterns:**
+  - `TradeRecord` constructor requires ALL fields: `(correlationId, symbol, strategyId, ExecutionMode, Signal, entryPrice, qty, initialSL, tp, entryTime, entryAtr, entryConfidence, Map<Timeframe,Signal>)`. The short constructor does not exist.
+  - `TradeRecord.close()` requires `(double exitPx, Instant exitTs, PositionMonitor.ExitReason reason)` — three args, not two. `ExitReason` lives in `PositionMonitor`, not `TradeRecord`.
+  - `RiskConfig.defaults()` uses fractions (e.g. 0.02 = 2%); `StrategyYamlConfig.Risk` stores percentages (e.g. 2.0 = 2%). When using YAML values in RiskManager, divide by 100.
+  - Exposure cap (`exposureCapQty = maxExposure / entry`) can silently cap quantity tests. Use low entry prices (e.g. 100 INR) + large SL distances to keep rawQty away from both the maxQty and exposure caps in unit tests.
+- **Gotchas:**
+  - `mvn test -q` hides test class names. Use `mvn test 2>&1 | grep -E "Tests run|BUILD"` for per-class pass counts.
+  - Deep merge for YAML defaults must be recursive (nested maps like `risk:`, `order:` need field-level merging, not block-level replacement).
+---
+
+## AT-003 - YAML config validation with rollback — 2026-03-23
+- What was implemented: `ConfigValidator` class with `validate(name, cfg)` and `validateAll(map)` methods; validates required fields (symbols non-empty), numeric ranges (risk_per_trade_pct 0.1–10.0, confidence 0–1, exposure 0–100, positive periods), enum values (timeframe, order type, product type, trend strength), cross-field constraint (ema_fast < ema_slow); `YamlStrategyLoader.reloadWithRollback(strategiesPath, defaultsPath, validator)` keeps `lastValidConfig` and returns it when new load fails validation or is malformed YAML; `getLastValidConfig()` accessor.
+- Files changed: `src/main/java/com/rj/config/ConfigValidator.java` (new), `src/main/java/com/rj/config/YamlStrategyLoader.java` (added `lastValidConfig` field + `reloadWithRollback()` + `getLastValidConfig()`), `src/test/java/com/rj/config/ConfigValidatorTest.java` (new), `src/test/resources/test-strategies-valid.yaml` (new)
+- Tests added: 17 new test methods
+- **Codebase Patterns:**
+  - `ConfigValidator` uses a `record ValidationResult(boolean valid, List<String> errors)` inner type — clean pattern for returning pass/fail + reasons together without exceptions.
+  - `YamlStrategyLoader` is stateful when rollback is needed — added a `volatile Map` field. The `reloadWithRollback` method wraps `loadWithDefaults` in a try/catch for `IllegalArgumentException` (malformed YAML) and then runs the validator, falling back to `lastValidConfig` in both failure cases.
+  - Test YAML for integration-style tests (loading from file) goes in `src/test/resources/` and is referenced via `Path.of("src/test/resources/...")` (relative to project root when run by Maven).
+  - `@TempDir` is the right tool for rollback tests — write YAML files on-the-fly to verify state machine behavior without polluting `src/test/resources/`.
+- **Gotchas:**
+  - `Set.of(...)` produces unordered sets in Java; error messages like "must be one of [M5, M15, D, M1, H1]" may list elements in any order. Tests should use `.anyMatch(e -> e.contains("timeframe"))` rather than asserting exact message text.
+  - The `validConfig()` helper in tests must set ALL indicator fields explicitly (`ema_fast`, `ema_slow`, etc.) because defaults still satisfy constraints, but cross-field checks (ema_fast < ema_slow) depend on both values being set consistently.
+---

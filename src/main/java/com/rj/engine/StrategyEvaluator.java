@@ -2,7 +2,6 @@ package com.rj.engine;
 
 import com.rj.config.RiskConfig;
 import com.rj.model.CandleRecommendation;
-import com.rj.model.OpenPosition;
 import com.rj.model.Signal;
 import com.rj.model.Timeframe;
 import com.rj.model.TradeSignal;
@@ -11,14 +10,12 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalTime;
 import java.time.ZonedDateTime;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -47,30 +44,28 @@ public class StrategyEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(StrategyEvaluator.class);
 
-    private static final double   MIN_CONFIDENCE    = 0.70;
+    private static final double MIN_CONFIDENCE = 0.70;
     private static final Duration COOLDOWN_DURATION = Duration.ofMinutes(25); // 5 candles × 5 min
 
     private final BlockingQueue<CandleRecommendation> inQueue;
-    private final Consumer<TradeSignal>               signalConsumer;
-    private final RiskConfig                          riskConfig;
-    private final PositionMonitor                     positionMonitor;
-    private final AtomicBoolean                       running   = new AtomicBoolean(false);
-    private volatile Thread                           thread;
-
+    private final Consumer<TradeSignal> signalConsumer;
+    private final RiskConfig riskConfig;
+    private final PositionMonitor positionMonitor;
+    private final AtomicBoolean running = new AtomicBoolean(false);
     // Latest recommendation per (symbol → (timeframe → recommendation))
     private final ConcurrentHashMap<String, Map<Timeframe, CandleRecommendation>> latestRecs
             = new ConcurrentHashMap<>();
-
     // Cooldown: symbol → time of last exit (set by PositionMonitor via onPositionClosed)
     private final ConcurrentHashMap<String, Instant> lastExitTime = new ConcurrentHashMap<>();
+    private volatile Thread thread;
 
     public StrategyEvaluator(BlockingQueue<CandleRecommendation> inQueue,
                              Consumer<TradeSignal> signalConsumer,
                              RiskConfig riskConfig,
                              PositionMonitor positionMonitor) {
-        this.inQueue         = inQueue;
-        this.signalConsumer  = signalConsumer;
-        this.riskConfig      = riskConfig;
+        this.inQueue = inQueue;
+        this.signalConsumer = signalConsumer;
+        this.riskConfig = riskConfig;
         this.positionMonitor = positionMonitor;
     }
 
@@ -93,7 +88,9 @@ public class StrategyEvaluator {
         log.info("StrategyEvaluator stopped");
     }
 
-    public boolean isRunning() { return running.get(); }
+    public boolean isRunning() {
+        return running.get();
+    }
 
     // ── Called by PositionMonitor when a position is closed ───────────────────
 
@@ -148,9 +145,9 @@ public class StrategyEvaluator {
     private Optional<TradeSignal> buildCompoundSignal(
             String symbol, Map<Timeframe, CandleRecommendation> votes) {
 
-        CandleRecommendation m5  = votes.get(Timeframe.M5);
+        CandleRecommendation m5 = votes.get(Timeframe.M5);
         CandleRecommendation m15 = votes.get(Timeframe.M15);
-        CandleRecommendation h1  = votes.get(Timeframe.H1);
+        CandleRecommendation h1 = votes.get(Timeframe.H1);
 
         // ── Gate 1: require M5 and M15 ───────────────────────────────────────
         if (m5 == null || m15 == null) {
@@ -204,9 +201,9 @@ public class StrategyEvaluator {
 
         // ── Build trade signal ────────────────────────────────────────────────
         double entry = m5.getCandle().close;
-        double atr   = m5.getAtr14() > 0 ? m5.getAtr14() : entry * 0.01; // fallback 1%
-        double sl    = m5Signal == Signal.BUY ? entry - (2 * atr) : entry + (2 * atr);
-        double tp    = m5Signal == Signal.BUY ? entry + (4 * atr) : entry - (4 * atr); // 2R
+        double atr = m5.getAtr14() > 0 ? m5.getAtr14() : entry * 0.01; // fallback 1%
+        double sl = m5Signal == Signal.BUY ? entry - (2 * atr) : entry + (2 * atr);
+        double tp = m5Signal == Signal.BUY ? entry + (4 * atr) : entry - (4 * atr); // 2R
 
         String correlationId = symbol + "_" + m5Signal + "_" + m5.getWindowStart().getEpochSecond();
 
@@ -241,10 +238,12 @@ public class StrategyEvaluator {
                                      CandleRecommendation m15,
                                      CandleRecommendation h1,
                                      Signal direction) {
-        double base  = (m5.getConfidence() + m15.getConfidence()) / 2.0;
+        double base = (m5.getConfidence() + m15.getConfidence()) / 2.0;
         double boost = (h1 != null && h1.getSignal() == direction) ? 0.05 : 0.0;
         return Math.min(1.0, base + boost);
     }
 
-    public int queueDepth() { return inQueue.size(); }
+    public int queueDepth() {
+        return inQueue.size();
+    }
 }

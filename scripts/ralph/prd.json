@@ -1,0 +1,314 @@
+{
+  "project": "AutoTrader",
+  "branchName": "ralph/p1-hardening",
+  "description": "Phase 1 - Core Engine Hardening: YAML config, pluggable strategies, position reconciliation, OMS state machine, token refresh, anomaly protection, circuit breaker",
+  "userStories": [
+    {
+      "id": "AT-001",
+      "title": "YAML strategy config file structure and loader",
+      "description": "Create config/strategies/intraday.yaml with the schema from PRD section 6. Create config/defaults.yaml with global defaults. Implement YamlStrategyLoader in com.rj.config that reads YAML files at startup using SnakeYAML (already a Spring Boot dependency via spring-boot-starter). Parse into typed config objects.",
+      "acceptanceCriteria": [
+        "config/strategies/intraday.yaml exists with trend_following, mean_reversion, volatility_breakout strategy sections matching PRD YAML schema",
+        "config/defaults.yaml exists with global risk and indicator defaults",
+        "YamlStrategyLoader class in com.rj.config loads and parses YAML into typed StrategyYamlConfig objects",
+        "Each strategy config has: enabled, symbols, timeframe, active_hours, cooldown_minutes, indicators, entry, risk, order sections",
+        "Unit tests verify: loading valid YAML, handling missing file gracefully, rejecting malformed YAML",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "PRD: CFG-Y01, CFG-Y02, CFG-Y03, CFG-Y06. Foundation for all other YAML stories. SnakeYAML is transitive via Spring Boot."
+    },
+    {
+      "id": "AT-002",
+      "title": "Per-strategy risk and order config in YAML",
+      "description": "Extend YamlStrategyLoader to fully parse the risk overrides section (sl_atr_multiplier, tp_r_multiple, trailing_activation_pct, etc.) and order config section (type, slippage_tolerance, product_type). Create a StrategyRiskConfig record that RiskManager can use for per-strategy limits.",
+      "acceptanceCriteria": [
+        "YAML risk section parsed into StrategyRiskConfig record with all fields from PRD schema",
+        "YAML order section parsed into StrategyOrderConfig record",
+        "RiskManager has a method to accept per-strategy risk config overrides",
+        "Defaults from config/defaults.yaml used when strategy YAML omits a field",
+        "Unit tests verify risk override loading, order config loading, and fallback to defaults",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "PRD: CFG-Y04, CFG-Y05, RSK-15. Depends on AT-001."
+    },
+    {
+      "id": "AT-003",
+      "title": "YAML config validation with rollback",
+      "description": "Create ConfigValidator in com.rj.config that checks YAML values against constraints: positive numbers, valid enums (MARKET/LIMIT, INTRADAY/CNC), required fields present, ranges (0-100 for percentages). On invalid config, reject and keep previous valid values with WARN log.",
+      "acceptanceCriteria": [
+        "ConfigValidator validates all required fields are present",
+        "Validates numeric ranges (e.g., risk_per_trade_pct between 0.1 and 10.0)",
+        "Validates enum values (order type, product type, timeframe, trend strength)",
+        "Invalid config is rejected; previous config retained in YamlStrategyLoader",
+        "WARN log emitted with specific validation failure reason",
+        "Unit tests for: valid config passes, missing required field, out-of-range value, invalid enum, rollback on failure",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "PRD: CFG-Y09. Depends on AT-001, AT-002."
+    },
+    {
+      "id": "AT-004",
+      "title": "YAML hot-reload via file watcher",
+      "description": "Implement ConfigFileWatcher in com.rj.config using java.nio.file.WatchService on config/strategies/ directory. On file change event, reload YAML, validate via ConfigValidator, and apply to running strategy configs without restart. Run on a virtual thread.",
+      "acceptanceCriteria": [
+        "ConfigFileWatcher uses WatchService to detect MODIFY events in config/strategies/",
+        "On change: reload file, validate, apply if valid",
+        "Invalid changes rejected with rollback to previous config",
+        "Runs on a virtual thread (Thread.ofVirtual())",
+        "Reload completes in < 500ms",
+        "Unit tests verify: change detection triggers reload, invalid config rejected, valid config applied",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "PRD: CFG-Y07, CFG-06, NFR-05. Depends on AT-001, AT-003."
+    },
+    {
+      "id": "AT-005",
+      "title": "Wire YAML config into StrategyEvaluator and CandleAnalyzer",
+      "description": "Replace hardcoded indicator periods and thresholds in StrategyEvaluator and CandleAnalyzer with values from loaded YAML config. Strategy enable/disable controlled by YAML enabled flag. Active hours from YAML config.",
+      "acceptanceCriteria": [
+        "CandleAnalyzer reads EMA fast/slow periods, RSI period, ATR period from YAML config",
+        "StrategyEvaluator reads confidence threshold, relVol threshold from YAML config per strategy",
+        "Strategy can be enabled/disabled via YAML enabled flag at runtime",
+        "Active hours from YAML config control when each strategy evaluates",
+        "Cooldown period from YAML config",
+        "Unit tests verify: strategy uses YAML values, disabled strategy is skipped, active hours respected",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "PRD: TA-07, STR-08, STR-09. Depends on AT-001, AT-002."
+    },
+    {
+      "id": "AT-006",
+      "title": "Pluggable strategy interface",
+      "description": "Extract a Strategy interface from existing strategy evaluation logic. Existing strategies (TrendFollowing, MeanReversion, VolatilityBreakout) implement this interface. StrategyEvaluator discovers strategies via registration map, not hardcoded if/else. New strategies added by implementing interface + YAML config.",
+      "acceptanceCriteria": [
+        "Strategy interface defined with evaluate(CandleRecommendation, StrategyYamlConfig) method",
+        "TrendFollowingStrategy, MeanReversionStrategy, VolatilityBreakoutStrategy classes implement interface",
+        "StrategyEvaluator uses a Map<String, Strategy> registry instead of hardcoded strategy logic",
+        "Strategies register by name matching YAML config key",
+        "Adding a new strategy requires only: implement interface + add YAML config block",
+        "Unit tests verify: strategy registration, evaluation delegation, unknown strategy name handled",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "PRD: STR-10, NFR-26. Core architectural improvement for strategy extensibility."
+    },
+    {
+      "id": "AT-007",
+      "title": "Historical candle seeding on startup",
+      "description": "On startup (before WebSocket connects), fetch historical M5 candles from Fyers REST API for all configured symbols. Feed into CandleService/CandleAnalyzer to seed indicator calculations so strategies have enough data (min 21 candles) immediately when live ticks arrive.",
+      "acceptanceCriteria": [
+        "On startup, FyersDataApi fetches last 50 M5 candles per symbol via REST API",
+        "Fetched candles fed into CandleAnalyzer to seed EMA/RSI/ATR indicator series",
+        "After seeding, indicators have >= 21 data points (min_candles threshold satisfied)",
+        "Seeding runs before WebSocket connection is established",
+        "Graceful fallback if historical API fails (log WARN, proceed without seeding)",
+        "Unit tests with mocked FyersDataApi verify seeding populates indicators",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "PRD: MKT-06. Prevents cold-start problem where strategies can't signal for first 21 candles."
+    },
+    {
+      "id": "AT-008",
+      "title": "WebSocket reconnect with bounded exponential backoff",
+      "description": "Improve FyersSocketListener to handle disconnects with bounded exponential backoff (1s, 2s, 4s, 8s, 16s). After max 5 attempts, mark feed as permanently stale and send CRITICAL alert. Successful reconnect resets attempt counter and re-subscribes to symbols.",
+      "acceptanceCriteria": [
+        "On WS disconnect, automatic reconnect attempt with exponential backoff",
+        "Backoff intervals: 1s, 2s, 4s, 8s, 16s (bounded, not infinite)",
+        "Max 5 reconnect attempts before giving up",
+        "After max attempts: feed marked stale, CRITICAL log, new signals blocked",
+        "Successful reconnect: counter reset, symbols re-subscribed, feed marked active",
+        "Unit tests verify backoff timing progression, max-attempt behavior, successful recovery",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "PRD: MKT-05 (currently Partial). Critical for live trading reliability."
+    },
+    {
+      "id": "AT-009",
+      "title": "Position reconciliation on startup",
+      "description": "On startup, query Fyers positions API and compare against in-memory PositionMonitor state. In paper mode, just log any discrepancies. In live mode, adopt broker positions as source of truth. Create PositionReconciler class in com.rj.engine.",
+      "acceptanceCriteria": [
+        "PositionReconciler class queries FyersPositions API for open positions",
+        "Compares broker positions vs in-memory PositionMonitor state",
+        "Logs discrepancies at WARN level with full details (symbol, side, qty mismatch)",
+        "In live mode: adopts broker state as truth, updates PositionMonitor",
+        "In paper mode: log-only, no state changes",
+        "Runs during startup sequence after auth, before WebSocket connect",
+        "Unit tests with mocked FyersPositions verify: no discrepancy, extra broker position, missing broker position",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "PRD: POS-09, NFR-11. Critical for live safety — prevents ghost positions."
+    },
+    {
+      "id": "AT-010",
+      "title": "OMS state machine with idempotent client order IDs",
+      "description": "Implement order lifecycle state machine in com.rj.engine. States: PENDING, SUBMITTED, PARTIALLY_FILLED, FILLED, REJECTED, CANCELLED. Transitions validated — no invalid jumps. Client order ID generated deterministically from correlationId for idempotency.",
+      "acceptanceCriteria": [
+        "OrderState enum: PENDING, SUBMITTED, PARTIALLY_FILLED, FILLED, REJECTED, CANCELLED",
+        "OrderStateMachine class enforces valid transitions (e.g., PENDING->SUBMITTED ok, FILLED->PENDING rejected)",
+        "Client order ID = deterministic hash of correlationId (stable across retries)",
+        "Duplicate order submissions detected and rejected by comparing client order IDs",
+        "State transitions logged at INFO level",
+        "Unit tests: all valid transitions succeed, all invalid transitions throw, duplicate detection works",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "PRD: ORD-09. Prevents duplicate orders and tracks full lifecycle."
+    },
+    {
+      "id": "AT-011",
+      "title": "Token auto-refresh before expiry",
+      "description": "Background scheduled task that tracks Fyers access token age and refreshes before the 8-hour expiry. Store new token in memory only. WARN log on refresh failure with retry. Create TokenRefreshManager in com.rj.config.",
+      "acceptanceCriteria": [
+        "TokenRefreshManager tracks token creation time",
+        "Scheduled check runs every 30 minutes (ScheduledExecutorService)",
+        "Triggers refresh when token age > 7 hours (configurable threshold)",
+        "New token stored in memory, injected into FyersOrderPlacement and FyersDataApi",
+        "Refresh failure: WARN log, retry on next scheduled check",
+        "3 consecutive failures: CRITICAL log",
+        "Unit tests with mocked auth verify: refresh timing, token injection, failure handling",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "PRD: CFG-07. Eliminates manual token refresh — critical for unattended operation."
+    },
+    {
+      "id": "AT-012",
+      "title": "Anomaly auto-protection: close all and go to cash",
+      "description": "Detect three anomaly types: flash crash (price drop > 5% in 5 minutes), API outage (error rate > 5/min for 2 min), unusual volume spike (> 10x average). On any detection: close all positions, activate kill switch, send CRITICAL alert, set flag requiring manual restart.",
+      "acceptanceCriteria": [
+        "AnomalyDetector class in com.rj.engine monitors for three anomaly types",
+        "Flash crash: configurable price drop % and time window",
+        "API outage: configurable error rate threshold and duration",
+        "Volume spike: configurable multiplier over N-period average",
+        "On anomaly: close all positions via PositionMonitor, activate kill switch, CRITICAL log",
+        "Anomaly flag persisted (requires manual restart or explicit reset to clear)",
+        "Unit tests for each anomaly type: trigger condition met, trigger condition not met, response actions executed",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "PRD: RSK-14. Top user concern: system reliability. Full auto-protection on anomalies."
+    },
+    {
+      "id": "AT-013",
+      "title": "Circuit breaker on Fyers API error rate",
+      "description": "Track Fyers API error rate with sliding window. If > 5 errors/min for 1 min, trip circuit breaker: block non-critical API calls (orders), allow read-only (positions, quotes). After configurable cooldown, half-open: test with single read call. If ok, close circuit.",
+      "acceptanceCriteria": [
+        "CircuitBreaker class in com.rj.engine with states: CLOSED, OPEN, HALF_OPEN",
+        "Error counter uses sliding window (1 minute)",
+        "CLOSED->OPEN when error count > configurable threshold (default 5/min)",
+        "OPEN state: block order placement, allow position queries",
+        "HALF_OPEN after configurable cooldown (default 60s): test with one API call",
+        "HALF_OPEN->CLOSED on success, HALF_OPEN->OPEN on failure",
+        "Unit tests: trip on threshold, block during open, half-open test, recovery to closed",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "PRD: NFR-12. Prevents cascading failures when Fyers API is degraded."
+    },
+    {
+      "id": "AT-014",
+      "title": "Max portfolio drawdown limit with auto-protection",
+      "description": "Track portfolio equity curve high-water mark. If drawdown from peak exceeds configurable % of capital (default 5%), trigger full auto-protection (same as anomaly response: close all, kill switch, require manual restart).",
+      "acceptanceCriteria": [
+        "DrawdownMonitor class tracks running portfolio equity and high-water mark",
+        "Drawdown calculated as (peak - current) / peak",
+        "Trigger auto-protection when drawdown > configurable % (default 5%)",
+        "Uses same close-all + kill-switch mechanism as AnomalyDetector",
+        "Drawdown check runs every position monitor cycle (every 1 second)",
+        "Unit tests: drawdown calculation, trigger at threshold, no trigger below threshold",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "PRD: RSK-16. Portfolio-level protection beyond per-trade limits."
+    },
+    {
+      "id": "AT-015",
+      "title": "Fyers API health tracking metrics",
+      "description": "Track per-endpoint API error count, response latency (for p99 calculation), and 429 rate-limit hit count using a sliding window. Expose metrics via HealthMonitor. WARN log when thresholds exceeded.",
+      "acceptanceCriteria": [
+        "ApiHealthTracker class records each API call: endpoint, success/failure, latency_ms",
+        "Sliding window (5 minutes) for all metrics",
+        "Computes: error rate, p99 latency, 429 count per window",
+        "HealthMonitor includes API health in periodic health check output",
+        "WARN log when error rate > 10% or p99 > 2000ms or 429 count > 3",
+        "Metrics exposed via GET /api/health endpoint",
+        "Unit tests: metric recording, threshold alerting, window sliding/expiry",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": "PRD: HLT-08. Visibility into broker API reliability."
+    },
+    {
+      "id": "AT-016",
+      "title": "Suppress health check stale warnings outside market hours",
+      "description": "Fix partial implementation of HLT-07. HealthMonitor should suppress tick staleness WARN logs outside the 09:15-15:30 IST market window and on weekends (Saturday/Sunday). Market hours should be configurable.",
+      "acceptanceCriteria": [
+        "No tick staleness WARN logs between 15:30 IST and 09:15 IST next day",
+        "No tick staleness WARN logs on Saturday or Sunday",
+        "Market hours configurable via .env (HEALTH_MARKET_START, HEALTH_MARKET_END)",
+        "Other health checks (heap, queue depth) still run outside market hours",
+        "Unit tests verify: suppression during off-hours, active during market hours, weekend suppression",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": "PRD: HLT-07 (currently Partial). Eliminates noisy false-positive alerts."
+    },
+    {
+      "id": "AT-017",
+      "title": "Fixed capital allocation per strategy in YAML",
+      "description": "Allow each strategy to have a capital_allocation field in YAML config. RiskManager uses per-strategy capital for position sizing instead of global capital. If not specified, falls back to equal share of global capital divided by number of enabled strategies.",
+      "acceptanceCriteria": [
+        "YAML config supports optional capital_allocation field per strategy (in INR)",
+        "RiskManager.preTradeCheck() uses per-strategy capital when computing risk_budget",
+        "If capital_allocation not set: falls back to RISK_INITIAL_CAPITAL_INR / enabled_strategy_count",
+        "Sum of all strategy allocations cannot exceed total capital (validated by ConfigValidator)",
+        "Unit tests: per-strategy sizing, fallback to equal share, over-allocation rejected",
+        "mvn compile passes",
+        "mvn test passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": "PRD: CAP-05. Initial phase: fixed capital per strategy before dynamic allocation in P4."
+    }
+  ]
+}

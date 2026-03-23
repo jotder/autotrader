@@ -1,8 +1,7 @@
-
-import fyers.FyersProfile;
 import com.rj.model.ClientProfile;
+import fyers.FyersProfile;
 
-void main(String[] args) {
+void main() {
 
     FyersProfile fyersProfile = new FyersProfile();
     ClientProfile profile = fyersProfile.getProfile();

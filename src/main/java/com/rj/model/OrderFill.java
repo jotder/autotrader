@@ -8,20 +8,20 @@ import java.time.Instant;
  */
 public final class OrderFill {
 
-    private final String        orderId;
-    private final double        fillPrice;
-    private final int           fillQuantity;
-    private final Instant       fillTime;
-    private final boolean       success;
-    private final String        rejectReason;   // null when success
+    private final String orderId;
+    private final double fillPrice;
+    private final int fillQuantity;
+    private final Instant fillTime;
+    private final boolean success;
+    private final String rejectReason;   // null when success
 
     private OrderFill(String orderId, double fillPrice, int fillQuantity,
                       Instant fillTime, boolean success, String rejectReason) {
-        this.orderId      = orderId;
-        this.fillPrice    = fillPrice;
+        this.orderId = orderId;
+        this.fillPrice = fillPrice;
         this.fillQuantity = fillQuantity;
-        this.fillTime     = fillTime;
-        this.success      = success;
+        this.fillTime = fillTime;
+        this.success = success;
         this.rejectReason = rejectReason;
     }
 
@@ -34,12 +34,29 @@ public final class OrderFill {
         return new OrderFill(null, 0, 0, Instant.now(), false, reason);
     }
 
-    public String  getOrderId()      { return orderId;      }
-    public double  getFillPrice()    { return fillPrice;    }
-    public int     getFillQuantity() { return fillQuantity; }
-    public Instant getFillTime()     { return fillTime;     }
-    public boolean isSuccess()       { return success;      }
-    public String  getRejectReason() { return rejectReason; }
+    public String getOrderId() {
+        return orderId;
+    }
+
+    public double getFillPrice() {
+        return fillPrice;
+    }
+
+    public int getFillQuantity() {
+        return fillQuantity;
+    }
+
+    public Instant getFillTime() {
+        return fillTime;
+    }
+
+    public boolean isSuccess() {
+        return success;
+    }
+
+    public String getRejectReason() {
+        return rejectReason;
+    }
 
     @Override
     public String toString() {

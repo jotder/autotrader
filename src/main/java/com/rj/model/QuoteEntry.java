@@ -32,24 +32,35 @@ public class QuoteEntry {
                        String shortName, double lastPrice, double change, double changePercent,
                        double openPrice, double highPrice, double lowPrice, double prevClosePrice,
                        double atp, double bid, double ask, double spread, long volume, long timestamp) {
-        this.symbol = symbol; this.fyToken = fyToken; this.description = description;
-        this.exchange = exchange; this.shortName = shortName;
-        this.lastPrice = lastPrice; this.change = change; this.changePercent = changePercent;
-        this.openPrice = openPrice; this.highPrice = highPrice; this.lowPrice = lowPrice;
-        this.prevClosePrice = prevClosePrice; this.atp = atp;
-        this.bid = bid; this.ask = ask; this.spread = spread;
-        this.volume = volume; this.timestamp = timestamp;
+        this.symbol = symbol;
+        this.fyToken = fyToken;
+        this.description = description;
+        this.exchange = exchange;
+        this.shortName = shortName;
+        this.lastPrice = lastPrice;
+        this.change = change;
+        this.changePercent = changePercent;
+        this.openPrice = openPrice;
+        this.highPrice = highPrice;
+        this.lowPrice = lowPrice;
+        this.prevClosePrice = prevClosePrice;
+        this.atp = atp;
+        this.bid = bid;
+        this.ask = ask;
+        this.spread = spread;
+        this.volume = volume;
+        this.timestamp = timestamp;
     }
 
     static QuoteEntry from(JSONObject v) {
         return new QuoteEntry(
-            v.optString("symbol"), v.optString("fyToken"), v.optString("description"),
-            v.optString("exchange"), v.optString("short_name"),
-            v.optDouble("lp"), v.optDouble("ch"), v.optDouble("chp"),
-            v.optDouble("open_price"), v.optDouble("high_price"), v.optDouble("low_price"),
-            v.optDouble("prev_close_price"), v.optDouble("atp"),
-            v.optDouble("bid"), v.optDouble("ask"), v.optDouble("spread"),
-            v.optLong("volume"), v.optLong("tt")
+                v.optString("symbol"), v.optString("fyToken"), v.optString("description"),
+                v.optString("exchange"), v.optString("short_name"),
+                v.optDouble("lp"), v.optDouble("ch"), v.optDouble("chp"),
+                v.optDouble("open_price"), v.optDouble("high_price"), v.optDouble("low_price"),
+                v.optDouble("prev_close_price"), v.optDouble("atp"),
+                v.optDouble("bid"), v.optDouble("ask"), v.optDouble("spread"),
+                v.optLong("volume"), v.optLong("tt")
         );
     }
 
@@ -70,8 +81,9 @@ public class QuoteEntry {
         return Collections.unmodifiableList(quotes);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "QuoteEntry{symbol='" + symbol + "', lp=" + lastPrice +
-               ", ch=" + change + "(" + changePercent + "%)}";
+                ", ch=" + change + "(" + changePercent + "%)}";
     }
 }

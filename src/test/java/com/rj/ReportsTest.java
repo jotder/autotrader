@@ -1,6 +1,6 @@
-import fyers.FyersReports;
 import com.rj.model.ReportOrder;
 import com.rj.model.ReportTrade;
+import fyers.FyersReports;
 
 void main() {
     FyersReports app = new FyersReports();
@@ -11,7 +11,7 @@ void main() {
 
     // 2. Order history — filtered by symbol and date range
     List<ReportOrder> filtered = app.getOrderByTag("symbol=NSE:SBIN-EQ&from_date=2025-01-01&to_date=2025-01-31");
-     System.out.println("Order History (filtered): " + filtered);
+    System.out.println("Order History (filtered): " + filtered);
 
     // 3. Trade Book — full current financial year
 
@@ -21,5 +21,5 @@ void main() {
     // 4. Trade history — filtered by symbol
 
     List<ReportTrade> tradeFiltered = app.getTradeByTag("symbol=NSE:IDEA-EQ");
-     System.out.println("Trade History (filtered): " + tradeFiltered);
+    System.out.println("Trade History (filtered): " + tradeFiltered);
 }

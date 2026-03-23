@@ -1,5 +1,5 @@
-import fyers.FyersTransactionInfo;
 import com.rj.model.TradeEntry;
+import fyers.FyersTransactionInfo;
 
 void main(String[] args) {
     FyersTransactionInfo app = new FyersTransactionInfo();

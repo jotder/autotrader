@@ -1,0 +1,36 @@
+defaults:
+  timeframe: M5
+  cooldown_minutes: 25
+  max_trades_per_day: 10
+
+  active_hours:
+    start: "09:15"
+    end: "15:00"
+
+  indicators:
+    ema_fast: 20
+    ema_slow: 50
+    rsi_period: 14
+    atr_period: 14
+    rel_vol_period: 20
+    min_candles: 21
+
+  entry:
+    min_confidence: 0.85
+    rel_vol_threshold: 1.2
+    trend_strength: STRONG_BULLISH
+
+  risk:
+    risk_per_trade_pct: 2.0
+    sl_atr_multiplier: 2.0
+    tp_r_multiple: 2.0
+    trailing_activation_pct: 1.0
+    trailing_step_pct: 1.0
+    max_exposure_pct: 20.0
+    max_qty: 1000
+    max_consecutive_losses: 3
+
+  order:
+    type: MARKET
+    slippage_tolerance: 0.05
+    product_type: INTRADAY

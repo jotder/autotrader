@@ -25,7 +25,7 @@ public class TickBuffer {
     /** @param initialCapacity hint — e.g. expected ticks per session for this symbol */
     public TickBuffer(String symbol, int initialCapacity) {
         this.symbol = symbol;
-        this.ticks  = new ArrayDeque<>(initialCapacity);
+        this.ticks = new ArrayDeque<>(initialCapacity);
     }
 
     public TickBuffer(String symbol) {
@@ -102,19 +102,27 @@ public class TickBuffer {
 
     // ── Diagnostics ──────────────────────────────────────────────────────────
 
-    public String getSymbol() { return symbol; }
+    public String getSymbol() {
+        return symbol;
+    }
 
     /** Approximate size — may be stale by the time caller uses it. */
     public int size() {
         lock.readLock().lock();
-        try { return ticks.size(); }
-        finally { lock.readLock().unlock(); }
+        try {
+            return ticks.size();
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     public boolean isEmpty() {
         lock.readLock().lock();
-        try { return ticks.isEmpty(); }
-        finally { lock.readLock().unlock(); }
+        try {
+            return ticks.isEmpty();
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     /** Oldest buffered tick's feedTime, or {@code Instant.EPOCH} if empty. */
@@ -142,6 +150,6 @@ public class TickBuffer {
     @Override
     public String toString() {
         return "TickBuffer{symbol='" + symbol + "', size=" + size() +
-               ", oldest=" + oldestTime() + ", newest=" + newestTime() + "}";
+                ", oldest=" + oldestTime() + ", newest=" + newestTime() + "}";
     }
 }

@@ -28,12 +28,12 @@ public class Candle {
     /** Parse from a candle array [epoch, open, high, low, close, volume]. */
     static Candle from(JSONArray arr) {
         return new Candle(
-            arr.getLong(0),
-            arr.getDouble(1),
-            arr.getDouble(2),
-            arr.getDouble(3),
-            arr.getDouble(4),
-            arr.getLong(5)
+                arr.getLong(0),
+                arr.getDouble(1),
+                arr.getDouble(2),
+                arr.getDouble(3),
+                arr.getDouble(4),
+                arr.getLong(5)
         );
     }
 
@@ -56,8 +56,9 @@ public class Candle {
         return new Candle(timestamp, open, high, low, close, volume);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "Candle{ts=" + timestamp + ", o=" + open + ", h=" + high +
-               ", l=" + low + ", c=" + close + ", vol=" + volume + "}";
+                ", l=" + low + ", c=" + close + ", vol=" + volume + "}";
     }
 }

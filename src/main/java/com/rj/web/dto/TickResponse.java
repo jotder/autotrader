@@ -7,4 +7,5 @@ public record TickResponse(
         double ltp,
         int bufferSize,
         Instant lastTickTime
-) {}
+) {
+}

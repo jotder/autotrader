@@ -10,36 +10,6 @@ import java.util.List;
 public class MarketStatus {
     public final List<Segment> segments;
 
-    public static class Segment {
-        public final int segment;
-        public final int exchange;
-        public final String marketType;
-        public final String status;
-
-        private Segment(int segment, int exchange, String marketType, String status) {
-            this.segment = segment;
-            this.exchange = exchange;
-            this.marketType = marketType;
-            this.status = status;
-        }
-
-        static Segment from(JSONObject j) {
-            return new Segment(
-                j.optInt("segment"),
-                j.optInt("exchange"),
-                j.optString("market_type"),
-                j.optString("status")
-            );
-        }
-
-        public boolean isOpen() { return "OPEN".equals(status); }
-
-        @Override public String toString() {
-            return "Segment{segment=" + segment + ", exchange=" + exchange +
-                   ", marketType='" + marketType + "', status='" + status + "'}";
-        }
-    }
-
     private MarketStatus(List<Segment> segments) {
         this.segments = Collections.unmodifiableList(segments);
     }
@@ -56,7 +26,41 @@ public class MarketStatus {
         return new MarketStatus(segments);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "MarketStatus{segments=" + segments + "}";
+    }
+
+    public static class Segment {
+        public final int segment;
+        public final int exchange;
+        public final String marketType;
+        public final String status;
+
+        private Segment(int segment, int exchange, String marketType, String status) {
+            this.segment = segment;
+            this.exchange = exchange;
+            this.marketType = marketType;
+            this.status = status;
+        }
+
+        static Segment from(JSONObject j) {
+            return new Segment(
+                    j.optInt("segment"),
+                    j.optInt("exchange"),
+                    j.optString("market_type"),
+                    j.optString("status")
+            );
+        }
+
+        public boolean isOpen() {
+            return "OPEN".equals(status);
+        }
+
+        @Override
+        public String toString() {
+            return "Segment=" + segment + ",\t exchange=" + exchange +
+                    ",\t marketType='" + marketType + "',\t status='" + status + "'\n";
+        }
     }
 }

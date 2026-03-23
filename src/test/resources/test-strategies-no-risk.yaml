@@ -1,0 +1,11 @@
+strategies:
+  no_risk_strat:
+    enabled: true
+    symbols: ["NSE:TEST-EQ"]
+    timeframe: M5
+    active_hours:
+      start: "09:15"
+      end: "15:00"
+    cooldown_minutes: 30
+    max_trades_per_day: 5
+    # risk and order sections intentionally omitted — should fall back to defaults

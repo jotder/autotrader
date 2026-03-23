@@ -12,7 +12,7 @@ public enum Signal {
 
     public Signal opposite() {
         return switch (this) {
-            case BUY  -> SELL;
+            case BUY -> SELL;
             case SELL -> BUY;
             case HOLD -> HOLD;
         };

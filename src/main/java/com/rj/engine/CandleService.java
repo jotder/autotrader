@@ -1,11 +1,6 @@
 package com.rj.engine;
 
-import com.rj.model.Candle;
-import com.rj.model.CandleRecommendation;
-import com.rj.model.Tick;
-import com.rj.model.TickBuffer;
-import com.rj.model.TickStore;
-import com.rj.model.Timeframe;
+import com.rj.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,22 +28,20 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class CandleService {
 
-    private static final Logger log = LoggerFactory.getLogger(CandleService.class);
-    private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
-
     // Default timeframes analyzed for every symbol
     static final Timeframe[] DEFAULT_TIMEFRAMES = {
             Timeframe.M5,
             Timeframe.M15,
             Timeframe.H1
     };
-
-    private final TickStore                              tickStore;
-    private final BlockingQueue<CandleRecommendation>   outQueue;
-    private final Timeframe[]                           timeframes;
-    private final AtomicBoolean                         running   = new AtomicBoolean(false);
-    private final ConcurrentHashMap<String, Thread>     workers   = new ConcurrentHashMap<>();
-    private final AtomicInteger                         workerCount = new AtomicInteger(0);
+    private static final Logger log = LoggerFactory.getLogger(CandleService.class);
+    private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
+    private final TickStore tickStore;
+    private final BlockingQueue<CandleRecommendation> outQueue;
+    private final Timeframe[] timeframes;
+    private final AtomicBoolean running = new AtomicBoolean(false);
+    private final ConcurrentHashMap<String, Thread> workers = new ConcurrentHashMap<>();
+    private final AtomicInteger workerCount = new AtomicInteger(0);
 
     public CandleService(TickStore tickStore,
                          BlockingQueue<CandleRecommendation> outQueue) {
@@ -58,9 +51,29 @@ public class CandleService {
     public CandleService(TickStore tickStore,
                          BlockingQueue<CandleRecommendation> outQueue,
                          Timeframe[] timeframes) {
-        this.tickStore  = tickStore;
-        this.outQueue   = outQueue;
+        this.tickStore = tickStore;
+        this.outQueue = outQueue;
         this.timeframes = Arrays.copyOf(timeframes, timeframes.length);
+    }
+
+    /**
+     * Aggregates a list of ticks (already filtered to a time window) into one OHLCV candle.
+     *
+     * <ul>
+     *   <li>Open  = first tick LTP</li>
+     *   <li>High  = max LTP</li>
+     *   <li>Low   = min LTP</li>
+     *   <li>Close = last tick LTP</li>
+     *   <li>Volume = sum of {@code lastTradedQty} across all ticks in the window</li>
+     * </ul>
+     */
+    static Candle buildCandle(List<Tick> ticks, Instant windowStart) {
+        double open = ticks.get(0).getLtp();
+        double close = ticks.get(ticks.size() - 1).getLtp();
+        double high = ticks.stream().mapToDouble(Tick::getLtp).max().orElse(open);
+        double low = ticks.stream().mapToDouble(Tick::getLtp).min().orElse(open);
+        long volume = ticks.stream().mapToLong(Tick::getLastTradedQty).sum();
+        return Candle.of(windowStart.getEpochSecond(), open, high, low, close, volume);
     }
 
     /**
@@ -90,10 +103,17 @@ public class CandleService {
         workers.clear();
     }
 
-    public boolean isRunning()   { return running.get();         }
-    public int     workerCount() { return workerCount.get();     }
+    public boolean isRunning() {
+        return running.get();
+    }
 
     // ── Worker lifecycle ──────────────────────────────────────────────────────
+
+    public int workerCount() {
+        return workerCount.get();
+    }
+
+    // ── Per-worker loop ───────────────────────────────────────────────────────
 
     private void startWorker(String symbol, Timeframe tf) {
         String threadName = "candle-" + symbol.replace(":", "_") + "-" + tf.getLabel();
@@ -105,29 +125,29 @@ public class CandleService {
         log.debug("Started candle worker: {}", threadName);
     }
 
-    // ── Per-worker loop ───────────────────────────────────────────────────────
+    // ── Candle construction from ticks ────────────────────────────────────────
 
     private void runCandleLoop(String symbol, Timeframe tf) {
         log.info("[{}][{}] Candle worker started", symbol, tf);
-        CandleAnalyzer analyzer       = new CandleAnalyzer(symbol, tf);
-        Instant        lastEmittedWin = Instant.EPOCH;
+        CandleAnalyzer analyzer = new CandleAnalyzer(symbol, tf);
+        Instant lastEmittedWin = Instant.EPOCH;
 
         while (!Thread.currentThread().isInterrupted() && running.get()) {
             try {
                 // Sleep until just after the next candle boundary
-                ZonedDateTime now      = ZonedDateTime.now(IST);
-                long          sleepMs  = tf.millisUntilNextBoundaryWithBuffer(now);
+                ZonedDateTime now = ZonedDateTime.now(IST);
+                long sleepMs = tf.millisUntilNextBoundaryWithBuffer(now);
                 sleepMs = Math.max(sleepMs, 200L); // guard against negative/tiny values
                 Thread.sleep(sleepMs);
 
                 // After sleep we should be in the new candle window;
                 // the *previous* window is now fully closed.
-                ZonedDateTime afterSleep      = ZonedDateTime.now(IST);
+                ZonedDateTime afterSleep = ZonedDateTime.now(IST);
                 ZonedDateTime currentWinStart = tf.truncate(afterSleep);
-                ZonedDateTime prevWinStart    = currentWinStart.minus(tf.getDuration());
+                ZonedDateTime prevWinStart = currentWinStart.minus(tf.getDuration());
 
                 Instant winStart = prevWinStart.toInstant();
-                Instant winEnd   = currentWinStart.toInstant();
+                Instant winEnd = currentWinStart.toInstant();
 
                 if (winStart.equals(lastEmittedWin)) continue; // already processed
 
@@ -140,7 +160,7 @@ public class CandleService {
                 List<Tick> snapshot = buffer.snapshot();
                 List<Tick> windowTicks = snapshot.stream()
                         .filter(t -> !t.getFeedTime().isBefore(winStart)
-                                  &&  t.getFeedTime().isBefore(winEnd))
+                                && t.getFeedTime().isBefore(winEnd))
                         .toList();
 
                 if (windowTicks.isEmpty()) {
@@ -176,27 +196,5 @@ public class CandleService {
         }
         workerCount.decrementAndGet();
         log.info("[{}][{}] Candle worker stopped", symbol, tf);
-    }
-
-    // ── Candle construction from ticks ────────────────────────────────────────
-
-    /**
-     * Aggregates a list of ticks (already filtered to a time window) into one OHLCV candle.
-     *
-     * <ul>
-     *   <li>Open  = first tick LTP</li>
-     *   <li>High  = max LTP</li>
-     *   <li>Low   = min LTP</li>
-     *   <li>Close = last tick LTP</li>
-     *   <li>Volume = sum of {@code lastTradedQty} across all ticks in the window</li>
-     * </ul>
-     */
-    static Candle buildCandle(List<Tick> ticks, Instant windowStart) {
-        double open   = ticks.get(0).getLtp();
-        double close  = ticks.get(ticks.size() - 1).getLtp();
-        double high   = ticks.stream().mapToDouble(Tick::getLtp).max().orElse(open);
-        double low    = ticks.stream().mapToDouble(Tick::getLtp).min().orElse(open);
-        long   volume = ticks.stream().mapToLong(Tick::getLastTradedQty).sum();
-        return Candle.of(windowStart.getEpochSecond(), open, high, low, close, volume);
     }
 }

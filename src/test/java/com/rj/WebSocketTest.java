@@ -1,13 +1,10 @@
 import com.rj.config.ConfigManager;
-import fyers.FyersSocketListener;
 import com.tts.in.utilities.Tuple;
 import com.tts.in.websocket.FyersSocket;
+import fyers.FyersSocketListener;
 import org.json.JSONObject;
 
-import java.util.Arrays;
-import java.util.List;
-
-void main() throws InterruptedException {
+void main() {
     FyersSocketListener app = new FyersSocketListener();
     ConfigManager conf = ConfigManager.getInstance();
 

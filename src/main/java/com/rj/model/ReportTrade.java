@@ -29,24 +29,32 @@ public class ReportTrade {
                         String orderNumber, String tradeNumber, String exchangeOrderNo,
                         String productType, int side, int exchange, int segment,
                         int tradedQty, boolean isSymbolActive, double tradePrice, double tradeValue) {
-        this.symbol = symbol; this.clientId = clientId; this.description = description;
-        this.orderDateTime = orderDateTime; this.orderNumber = orderNumber;
-        this.tradeNumber = tradeNumber; this.exchangeOrderNo = exchangeOrderNo;
-        this.productType = productType; this.side = side;
-        this.exchange = exchange; this.segment = segment;
-        this.tradedQty = tradedQty; this.isSymbolActive = isSymbolActive;
-        this.tradePrice = tradePrice; this.tradeValue = tradeValue;
+        this.symbol = symbol;
+        this.clientId = clientId;
+        this.description = description;
+        this.orderDateTime = orderDateTime;
+        this.orderNumber = orderNumber;
+        this.tradeNumber = tradeNumber;
+        this.exchangeOrderNo = exchangeOrderNo;
+        this.productType = productType;
+        this.side = side;
+        this.exchange = exchange;
+        this.segment = segment;
+        this.tradedQty = tradedQty;
+        this.isSymbolActive = isSymbolActive;
+        this.tradePrice = tradePrice;
+        this.tradeValue = tradeValue;
     }
 
     static ReportTrade from(JSONObject j) {
         return new ReportTrade(
-            j.optString("symbol"), j.optString("clientId"), j.optString("description"),
-            j.optString("orderDateTime"), j.optString("orderNumber"),
-            j.optString("tradeNumber"), j.optString("exchangeOrderNo"),
-            j.optString("product_type"), j.optInt("side"),
-            j.optInt("exchange"), j.optInt("segment"),
-            j.optInt("traded_qty"), j.optBoolean("is_symbol_active"),
-            j.optDouble("trade_price"), j.optDouble("trade_value")
+                j.optString("symbol"), j.optString("clientId"), j.optString("description"),
+                j.optString("orderDateTime"), j.optString("orderNumber"),
+                j.optString("tradeNumber"), j.optString("exchangeOrderNo"),
+                j.optString("product_type"), j.optInt("side"),
+                j.optInt("exchange"), j.optInt("segment"),
+                j.optInt("traded_qty"), j.optBoolean("is_symbol_active"),
+                j.optDouble("trade_price"), j.optDouble("trade_value")
         );
     }
 
@@ -62,8 +70,9 @@ public class ReportTrade {
         return Collections.unmodifiableList(result);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "ReportTrade{symbol='" + symbol + "', tradedQty=" + tradedQty +
-               ", tradePrice=" + tradePrice + ", tradeValue=" + tradeValue + "}";
+                ", tradePrice=" + tradePrice + ", tradeValue=" + tradeValue + "}";
     }
 }

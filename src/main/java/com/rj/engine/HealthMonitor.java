@@ -33,31 +33,31 @@ public class HealthMonitor {
 
     private static final Logger log = LoggerFactory.getLogger(HealthMonitor.class);
 
-    private static final Duration MAX_TICK_STALENESS  = Duration.ofSeconds(30);
-    private static final int      MAX_QUEUE_DEPTH     = 500;
-    private static final double   HEAP_WARN_THRESHOLD = 0.80;
-    private static final double   HEAP_CRIT_THRESHOLD = 0.90;
+    private static final Duration MAX_TICK_STALENESS = Duration.ofSeconds(30);
+    private static final int MAX_QUEUE_DEPTH = 500;
+    private static final double HEAP_WARN_THRESHOLD = 0.80;
+    private static final double HEAP_CRIT_THRESHOLD = 0.90;
 
-    private final TickStore          tickStore;
-    private final CandleService      candleService;
-    private final StrategyEvaluator  strategyEvaluator;
-    private final PositionMonitor    positionMonitor;
-    private final String[]           activeSymbols;
+    private final TickStore tickStore;
+    private final CandleService candleService;
+    private final StrategyEvaluator strategyEvaluator;
+    private final PositionMonitor positionMonitor;
+    private final String[] activeSymbols;
 
-    private final AtomicBoolean            running   = new AtomicBoolean(false);
-    private       ScheduledExecutorService scheduler;
-    private final MemoryMXBean             memBean   = ManagementFactory.getMemoryMXBean();
+    private final AtomicBoolean running = new AtomicBoolean(false);
+    private final MemoryMXBean memBean = ManagementFactory.getMemoryMXBean();
+    private ScheduledExecutorService scheduler;
 
     public HealthMonitor(TickStore tickStore,
                          CandleService candleService,
                          StrategyEvaluator strategyEvaluator,
                          PositionMonitor positionMonitor,
                          String[] activeSymbols) {
-        this.tickStore         = tickStore;
-        this.candleService     = candleService;
+        this.tickStore = tickStore;
+        this.candleService = candleService;
         this.strategyEvaluator = strategyEvaluator;
-        this.positionMonitor   = positionMonitor;
-        this.activeSymbols     = activeSymbols;
+        this.positionMonitor = positionMonitor;
+        this.activeSymbols = activeSymbols;
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -79,7 +79,9 @@ public class HealthMonitor {
         log.info("HealthMonitor stopped");
     }
 
-    public boolean isRunning() { return running.get(); }
+    public boolean isRunning() {
+        return running.get();
+    }
 
     // ── Health check cycle ────────────────────────────────────────────────────
 
@@ -121,7 +123,7 @@ public class HealthMonitor {
 
     private void checkCandleWorkers() {
         int expected = activeSymbols.length * CandleService.DEFAULT_TIMEFRAMES.length;
-        int actual   = candleService.workerCount();
+        int actual = candleService.workerCount();
         if (actual < expected) {
             log.error("[HealthMonitor] CANDLE Workers: {}/{} — some workers have died",
                     actual, expected);
@@ -133,7 +135,7 @@ public class HealthMonitor {
 
     private void checkStrategyEvaluator() {
         boolean alive = strategyEvaluator.isRunning();
-        int     depth = strategyEvaluator.queueDepth();
+        int depth = strategyEvaluator.queueDepth();
         if (!alive) {
             log.error("[HealthMonitor] STRATEGY Evaluator is NOT running!");
         } else if (depth > MAX_QUEUE_DEPTH) {
@@ -145,8 +147,8 @@ public class HealthMonitor {
     }
 
     private void checkPositionMonitor() {
-        boolean alive     = positionMonitor.isRunning();
-        int     openCount = positionMonitor.openPositionCount();
+        boolean alive = positionMonitor.isRunning();
+        int openCount = positionMonitor.openPositionCount();
         if (!alive) {
             log.error("[HealthMonitor] POSITIONS Monitor is NOT running! {} positions unmonitored",
                     openCount);
@@ -160,11 +162,11 @@ public class HealthMonitor {
     }
 
     private void checkHeapUsage() {
-        long used  = memBean.getHeapMemoryUsage().getUsed();
-        long max   = memBean.getHeapMemoryUsage().getMax();
+        long used = memBean.getHeapMemoryUsage().getUsed();
+        long max = memBean.getHeapMemoryUsage().getMax();
         if (max <= 0) return;
         double ratio = (double) used / max;
-        String pct   = String.format("%.1f%%", ratio * 100);
+        String pct = String.format("%.1f%%", ratio * 100);
         if (ratio >= HEAP_CRIT_THRESHOLD) {
             log.error("[HealthMonitor] HEAP CRITICAL: {} used={} MB max={} MB",
                     pct, used / 1_048_576, max / 1_048_576);

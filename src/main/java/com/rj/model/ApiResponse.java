@@ -14,18 +14,21 @@ public class ApiResponse {
         this.message = message;
     }
 
-    public boolean isOk() { return "ok".equals(status); }
-
     public static ApiResponse from(JSONObject json) {
         if (json == null) return null;
         return new ApiResponse(
-            json.optInt("code"),
-            json.optString("s"),
-            json.optString("message")
+                json.optInt("code"),
+                json.optString("s"),
+                json.optString("message")
         );
     }
 
-    @Override public String toString() {
+    public boolean isOk() {
+        return "ok".equals(status);
+    }
+
+    @Override
+    public String toString() {
         return "ApiResponse{code=" + code + ", status='" + status + "', message='" + message + "'}";
     }
 }

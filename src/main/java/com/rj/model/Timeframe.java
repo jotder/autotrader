@@ -11,30 +11,35 @@ import java.time.ZonedDateTime;
  */
 public enum Timeframe {
 
-    M1 (Duration.ofMinutes(1),  "1m"),
-    M5 (Duration.ofMinutes(5),  "5m"),
+    M1(Duration.ofMinutes(1), "1m"),
+    M5(Duration.ofMinutes(5), "5m"),
     M15(Duration.ofMinutes(15), "15m"),
-    H1 (Duration.ofHours(1),    "1h");
+    H1(Duration.ofHours(1), "1h");
 
     private final Duration duration;
-    private final String   label;
+    private final String label;
 
     Timeframe(Duration duration, String label) {
         this.duration = duration;
-        this.label    = label;
+        this.label = label;
     }
 
-    public Duration getDuration() { return duration; }
-    public String   getLabel()    { return label;    }
+    public Duration getDuration() {
+        return duration;
+    }
+
+    public String getLabel() {
+        return label;
+    }
 
     /**
      * Floor {@code dt} to the nearest lower candle-boundary for this timeframe.
      * Works by truncating epoch-seconds to the nearest multiple of the period.
      */
     public ZonedDateTime truncate(ZonedDateTime dt) {
-        long epochSecs  = dt.toEpochSecond();
+        long epochSecs = dt.toEpochSecond();
         long periodSecs = duration.toSeconds();
-        long floored    = (epochSecs / periodSecs) * periodSecs;
+        long floored = (epochSecs / periodSecs) * periodSecs;
         return ZonedDateTime.ofInstant(Instant.ofEpochSecond(floored), dt.getZone());
     }
 
@@ -43,12 +48,14 @@ public enum Timeframe {
      * Adds a 500 ms buffer so the boundary candle is fully closed when the worker wakes.
      */
     public long millisUntilNextBoundaryWithBuffer(ZonedDateTime now) {
-        ZonedDateTime current    = truncate(now);
-        ZonedDateTime nextBound  = current.plus(duration);
+        ZonedDateTime current = truncate(now);
+        ZonedDateTime nextBound = current.plus(duration);
         long raw = nextBound.toInstant().toEpochMilli() - now.toInstant().toEpochMilli();
         return raw + 500L; // 500 ms buffer
     }
 
     @Override
-    public String toString() { return label; }
+    public String toString() {
+        return label;
+    }
 }

@@ -16,19 +16,22 @@ public class OrderResult {
         this.message = message;
     }
 
-    public boolean isOk() { return "ok".equals(status); }
-
     public static OrderResult from(JSONObject json) {
         if (json == null) return null;
         return new OrderResult(
-            json.optInt("code"),
-            json.optString("s"),
-            json.optString("id"),
-            json.optString("message")
+                json.optInt("code"),
+                json.optString("s"),
+                json.optString("id"),
+                json.optString("message")
         );
     }
 
-    @Override public String toString() {
+    public boolean isOk() {
+        return "ok".equals(status);
+    }
+
+    @Override
+    public String toString() {
         return "OrderResult{code=" + code + ", id='" + id + "', message='" + message + "'}";
     }
 }
