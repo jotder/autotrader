@@ -17,7 +17,7 @@
         "mvn test passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "PRD: CFG-Y01, CFG-Y02, CFG-Y03, CFG-Y06. Foundation for all other YAML stories. SnakeYAML is transitive via Spring Boot."
     },
     {
