@@ -32,3 +32,17 @@ Started: Mon Mar 23 11:33:58 IST 2026
   - `mvn test -q` hides test class names. Use `mvn test 2>&1 | grep -E "Tests run|BUILD"` for per-class pass counts.
   - Deep merge for YAML defaults must be recursive (nested maps like `risk:`, `order:` need field-level merging, not block-level replacement).
 ---
+
+## AT-003 - YAML config validation with rollback — 2026-03-23
+- What was implemented: `ConfigValidator` class with `validate(name, cfg)` and `validateAll(map)` methods; validates required fields (symbols non-empty), numeric ranges (risk_per_trade_pct 0.1–10.0, confidence 0–1, exposure 0–100, positive periods), enum values (timeframe, order type, product type, trend strength), cross-field constraint (ema_fast < ema_slow); `YamlStrategyLoader.reloadWithRollback(strategiesPath, defaultsPath, validator)` keeps `lastValidConfig` and returns it when new load fails validation or is malformed YAML; `getLastValidConfig()` accessor.
+- Files changed: `src/main/java/com/rj/config/ConfigValidator.java` (new), `src/main/java/com/rj/config/YamlStrategyLoader.java` (added `lastValidConfig` field + `reloadWithRollback()` + `getLastValidConfig()`), `src/test/java/com/rj/config/ConfigValidatorTest.java` (new), `src/test/resources/test-strategies-valid.yaml` (new)
+- Tests added: 17 new test methods
+- **Codebase Patterns:**
+  - `ConfigValidator` uses a `record ValidationResult(boolean valid, List<String> errors)` inner type — clean pattern for returning pass/fail + reasons together without exceptions.
+  - `YamlStrategyLoader` is stateful when rollback is needed — added a `volatile Map` field. The `reloadWithRollback` method wraps `loadWithDefaults` in a try/catch for `IllegalArgumentException` (malformed YAML) and then runs the validator, falling back to `lastValidConfig` in both failure cases.
+  - Test YAML for integration-style tests (loading from file) goes in `src/test/resources/` and is referenced via `Path.of("src/test/resources/...")` (relative to project root when run by Maven).
+  - `@TempDir` is the right tool for rollback tests — write YAML files on-the-fly to verify state machine behavior without polluting `src/test/resources/`.
+- **Gotchas:**
+  - `Set.of(...)` produces unordered sets in Java; error messages like "must be one of [M5, M15, D, M1, H1]" may list elements in any order. Tests should use `.anyMatch(e -> e.contains("timeframe"))` rather than asserting exact message text.
+  - The `validConfig()` helper in tests must set ALL indicator fields explicitly (`ema_fast`, `ema_slow`, etc.) because defaults still satisfy constraints, but cross-field checks (ema_fast < ema_slow) depend on both values being set consistently.
+---
