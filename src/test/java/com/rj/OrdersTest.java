@@ -1,8 +1,5 @@
-
-import fyers.FyersOrders;
 import com.rj.model.OrderEntry;
-
-import java.util.List;
+import fyers.FyersOrders;
 
 void main() {
     FyersOrders app = new FyersOrders();
@@ -12,6 +9,6 @@ void main() {
     System.out.println("All Orders: " + orders);
 
     // 2. Filter by a specific order id
-     List<OrderEntry> byId = app.getOrderById("24092500183464");
-     System.out.println("Order By Id: " + byId);
+    List<OrderEntry> byId = app.getOrderById("??/");
+    System.out.println("Order By Id: " + byId);
 }

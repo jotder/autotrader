@@ -2,13 +2,7 @@ package com.rj.engine;
 
 import com.rj.config.ConfigManager;
 import com.rj.config.RiskConfig;
-import com.rj.model.CandleRecommendation;
-import com.rj.model.ExecutionMode;
-import com.rj.model.OpenPosition;
-import com.rj.model.OrderFill;
-import com.rj.model.TickStore;
-import com.rj.model.TradeRecord;
-import com.rj.model.TradeSignal;
+import com.rj.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,15 +32,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TradingEngine {
 
     private static final Logger log = LoggerFactory.getLogger(TradingEngine.class);
-    private static final int    REC_QUEUE_CAPACITY = 2048;
+    private static final int REC_QUEUE_CAPACITY = 2048;
 
     // ── Core dependencies ─────────────────────────────────────────────────────
 
-    private final ExecutionMode  mode;
+    private final ExecutionMode mode;
     private final IOrderExecutor executor;
-    private final RiskManager    riskManager;
-    private final TradeJournal   journal;
-    private final ConfigManager  config;
+    private final RiskManager riskManager;
+    private final TradeJournal journal;
+    private final ConfigManager config;
 
     /**
      * Open trade records keyed by correlationId.
@@ -55,15 +49,23 @@ public class TradingEngine {
     private final ConcurrentHashMap<String, TradeRecord> openRecords = new ConcurrentHashMap<>();
 
     // ── Services ──────────────────────────────────────────────────────────────
-
-    private CandleService     candleService;
-    private StrategyEvaluator strategyEvaluator;
-    private PositionMonitor   positionMonitor;
-    private HealthMonitor     healthMonitor;
-
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private CandleService candleService;
+    private StrategyEvaluator strategyEvaluator;
+    private PositionMonitor positionMonitor;
+    private HealthMonitor healthMonitor;
 
     // ── Factory ───────────────────────────────────────────────────────────────
+
+    private TradingEngine(ExecutionMode mode, IOrderExecutor executor,
+                          RiskManager riskManager, TradeJournal journal,
+                          ConfigManager config) {
+        this.mode = mode;
+        this.executor = executor;
+        this.riskManager = riskManager;
+        this.journal = journal;
+        this.config = config;
+    }
 
     /**
      * Creates a fully wired TradingEngine.
@@ -71,15 +73,15 @@ public class TradingEngine {
      * that {@code FyersSocketListener.OnScrips} feeds into {@link TickStore}.
      */
     public static TradingEngine create() {
-        ConfigManager config    = ConfigManager.getInstance();
-        RiskConfig    riskCfg   = config.getRiskConfig();
-        TickStore     tickStore = TickStore.getInstance();
+        ConfigManager config = ConfigManager.getInstance();
+        RiskConfig riskCfg = config.getRiskConfig();
+        TickStore tickStore = TickStore.getInstance();
 
-        ExecutionMode mode     = resolveMode(config.getProperty("APP_ENV"));
+        ExecutionMode mode = resolveMode(config.getProperty("APP_ENV"));
         IOrderExecutor executor = createExecutor(mode, tickStore);
 
-        TradeJournal journal    = new TradeJournal(mode);
-        RiskManager  riskMgr   = new RiskManager(riskCfg);
+        TradeJournal journal = new TradeJournal(mode);
+        RiskManager riskMgr = new RiskManager(riskCfg);
 
         TradingEngine engine = new TradingEngine(mode, executor, riskMgr, journal, config);
 
@@ -113,17 +115,30 @@ public class TradingEngine {
         return engine;
     }
 
-    private TradingEngine(ExecutionMode mode, IOrderExecutor executor,
-                          RiskManager riskManager, TradeJournal journal,
-                          ConfigManager config) {
-        this.mode        = mode;
-        this.executor    = executor;
-        this.riskManager = riskManager;
-        this.journal     = journal;
-        this.config      = config;
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    private static ExecutionMode resolveMode(String appEnv) {
+        if (appEnv == null) return ExecutionMode.PAPER;
+        return switch (appEnv.trim().toUpperCase()) {
+            case "LIVE" -> ExecutionMode.LIVE;
+            case "BACKTEST" -> ExecutionMode.BACKTEST;
+            default -> ExecutionMode.PAPER;
+        };
     }
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
+    private static IOrderExecutor createExecutor(ExecutionMode mode, TickStore tickStore) {
+        return switch (mode) {
+            case LIVE -> {
+                log.warn("LIVE mode selected — real orders will be placed. Ensure go-live checklist is complete.");
+                yield new LiveOrderExecutor();
+            }
+            case BACKTEST -> new BacktestOrderExecutor();
+            default -> {
+                log.info("PAPER mode — orders will be simulated at live price");
+                yield new PaperOrderExecutor(tickStore);
+            }
+        };
+    }
 
     public void start() {
         if (!running.compareAndSet(false, true)) {
@@ -142,6 +157,8 @@ public class TradingEngine {
                 String.join(", ", config.getActiveSymbols()));
     }
 
+    // ── Accessors ─────────────────────────────────────────────────────────────
+
     public void stop() {
         if (!running.compareAndSet(true, false)) return;
         log.info("TradingEngine stopping...");
@@ -153,24 +170,48 @@ public class TradingEngine {
                 journal.closedTradeCount());
     }
 
-    public boolean isRunning() { return running.get(); }
+    public boolean isRunning() {
+        return running.get();
+    }
 
-    // ── Accessors ─────────────────────────────────────────────────────────────
+    public CandleService getCandleService() {
+        return candleService;
+    }
 
-    public CandleService     getCandleService()     { return candleService;     }
-    public StrategyEvaluator getStrategyEvaluator() { return strategyEvaluator; }
-    public PositionMonitor   getPositionMonitor()   { return positionMonitor;   }
-    public HealthMonitor     getHealthMonitor()      { return healthMonitor;     }
-    public RiskManager       getRiskManager()        { return riskManager;       }
-    public TradeJournal      getJournal()            { return journal;           }
-    public ExecutionMode     getMode()               { return mode;              }
+    public StrategyEvaluator getStrategyEvaluator() {
+        return strategyEvaluator;
+    }
+
+    public PositionMonitor getPositionMonitor() {
+        return positionMonitor;
+    }
+
+    public HealthMonitor getHealthMonitor() {
+        return healthMonitor;
+    }
+
+    public RiskManager getRiskManager() {
+        return riskManager;
+    }
+
+    public TradeJournal getJournal() {
+        return journal;
+    }
+
+    // ── Signal handler (Thread 3 → entry pipeline) ───────────────────────────
+
+    public ExecutionMode getMode() {
+        return mode;
+    }
+
+    // ── Exit handler (Thread 4 → exit pipeline) ───────────────────────────────
 
     /** Run strategy analyzer on all trades closed this session. */
     public StrategyAnalyzer.Report analyzeSession() {
         return StrategyAnalyzer.analyze(journal.closedTrades());
     }
 
-    // ── Signal handler (Thread 3 → entry pipeline) ───────────────────────────
+    // ── Mode resolution ───────────────────────────────────────────────────────
 
     /**
      * Called by StrategyEvaluator when a compound signal passes all strategy gates.
@@ -237,8 +278,6 @@ public class TradingEngine {
         log.info("[{}] Position OPENED: {}", signal.getSymbol(), pos);
     }
 
-    // ── Exit handler (Thread 4 → exit pipeline) ───────────────────────────────
-
     /**
      * Called by PositionMonitor when SL, TP, trailing stop, or time-based exit fires.
      * Runs: place exit order → close trade record → update risk accounting → journal.
@@ -247,8 +286,8 @@ public class TradingEngine {
         // Determine the trigger price based on exit reason
         double triggerPrice = switch (reason) {
             case STOP_LOSS, TRAILING_STOP -> position.getCurrentStopLoss();
-            case TAKE_PROFIT              -> position.getTakeProfit();
-            default                       -> 0; // executor uses live price
+            case TAKE_PROFIT -> position.getTakeProfit();
+            default -> 0; // executor uses live price
         };
 
         log.info("[{}] Exit triggered: reason={} triggerPrice={}",
@@ -259,7 +298,7 @@ public class TradingEngine {
         journal.logOrderExit(position, fill, reason);
 
         double actualExit = fill.isSuccess() ? fill.getFillPrice() : triggerPrice;
-        Instant exitTime  = fill.isSuccess() ? fill.getFillTime()  : Instant.now();
+        Instant exitTime = fill.isSuccess() ? fill.getFillTime() : Instant.now();
 
         if (!fill.isSuccess()) {
             log.error("[{}] Exit order FAILED: {} — using trigger price as fill",
@@ -282,31 +321,6 @@ public class TradingEngine {
             log.warn("[{}] No TradeRecord found for correlationId={}",
                     position.getSymbol(), position.getCorrelationId());
         }
-    }
-
-    // ── Mode resolution ───────────────────────────────────────────────────────
-
-    private static ExecutionMode resolveMode(String appEnv) {
-        if (appEnv == null) return ExecutionMode.PAPER;
-        return switch (appEnv.trim().toUpperCase()) {
-            case "LIVE"     -> ExecutionMode.LIVE;
-            case "BACKTEST" -> ExecutionMode.BACKTEST;
-            default         -> ExecutionMode.PAPER;
-        };
-    }
-
-    private static IOrderExecutor createExecutor(ExecutionMode mode, TickStore tickStore) {
-        return switch (mode) {
-            case LIVE     -> {
-                log.warn("LIVE mode selected — real orders will be placed. Ensure go-live checklist is complete.");
-                yield new LiveOrderExecutor();
-            }
-            case BACKTEST -> new BacktestOrderExecutor();
-            default       -> {
-                log.info("PAPER mode — orders will be simulated at live price");
-                yield new PaperOrderExecutor(tickStore);
-            }
-        };
     }
 
     // ── Shutdown hook ─────────────────────────────────────────────────────────

@@ -1,68 +1,79 @@
-# Go-Live Checklist
+# Go-Live Checklist — AutoTrader
 
-Use this checklist before enabling live capital.
+> Must be 100% cleared before `APP_ENV=live`. Run `/deploy-check` to audit progress.
 
-## 1. Build and Runtime Baseline
+## 1. Build & Runtime
 
-- [ ] JDK 26+ installed and verified on runtime host
-- [ ] `mvn clean test` passes
+- [ ] JDK 25+ installed and verified on runtime host
+- [ ] `mvn clean test` passes with zero failures
 - [ ] Artifact built from tagged commit
 - [ ] Dependency versions pinned and reviewed
+- [ ] Spring Boot starts cleanly on port 7777
 
-## 2. Configuration and Secrets
+## 2. Configuration & Secrets
 
-- [ ] `.env` contains all required keys and no placeholder values
-- [ ] Secrets are not present in source control
-- [ ] Separate credentials for non-prod and prod
-- [ ] Active symbols and strategy settings reviewed
+- [ ] `.env` contains all required keys — no placeholders
+- [ ] Secrets not in source control (`.gitignore` verified)
+- [ ] Separate credentials for paper vs live
+- [ ] `config/strategies/*.yaml` reviewed — all thresholds validated
+- [ ] YAML validation rejects bad config with rollback
 
-## 3. Strategy and Risk Validation
+## 3. Strategy & Risk Validation
 
-- [ ] Backtest or simulation results reviewed for active strategies
+- [ ] Backtest results reviewed for each active strategy
 - [ ] Position sizing formula verified for long and short
-- [ ] Kill switches validated (daily loss, exposure, cut-off times)
-- [ ] Trailing-stop and square-off logic tested
+- [ ] Kill switches validated: daily loss, exposure, time cutoff
+- [ ] Trailing stop + force square-off tested
+- [ ] Per-strategy risk overrides in YAML verified
+- [ ] Anomaly auto-protection tested (close all → cash → manual restart)
+- [ ] Portfolio-level drawdown limit configured
 
-## 4. Broker Integration Readiness
+## 4. Broker Integration
 
 - [ ] Auth flow tested end-to-end
-- [ ] Token refresh flow implemented and tested (not a stub) — or manual restart procedure documented and rehearsed
-- [ ] Order placement/modify/cancel tested in low-risk mode
-- [ ] Order update stream reconciles with internal state
+- [ ] Token auto-refresh working (or manual restart procedure documented)
+- [ ] Order placement tested in paper mode with live data
+- [ ] Order lifecycle reconciles with internal state
 - [ ] Duplicate-order prevention verified
+- [ ] Rate-limit handling tested (429 backoff)
 
 ## 5. Data Reliability
 
-- [ ] Historical data payload parsing verified
-- [ ] Simulation/fallback mode confirmed disabled (live auth token in use, real candles being fetched)
-- [ ] WebSocket callbacks wired end-to-end: live ticks update candle cache and trigger analysis cycle
-- [ ] Market-data freshness checks implemented
-- [ ] Stale-feed behavior blocks new entries
-- [ ] Timezone handling verified as `Asia/Kolkata`
+- [ ] Historical data parsing verified (no synthetic/fallback candles)
+- [ ] WebSocket ticks → candle cache → analysis pipeline end-to-end
+- [ ] Market-data freshness checks block new signals when stale
+- [ ] Timezone `Asia/Kolkata` verified throughout
+- [ ] All indicator seeding complete before first signal
 
-## 6. Persistence and Audit
+## 6. Persistence & Audit
 
-- [ ] Persistence layer implemented (orders, fills, PnL, rejects) — not stubs
-- [ ] End-of-day PnL and daily summary can be retrieved from storage
-- [ ] Audit records for all approved and rejected signals are being written
+- [ ] NDJSON journal writing for all event types
+- [ ] End-of-day PnL retrievable from journal
+- [ ] Every approved AND rejected signal has audit record
+- [ ] 30-day retention policy active
 
-## 7. Observability and Ops
+## 7. Observability & Ops
 
-- [ ] Structured logs include signal, risk, and order correlation IDs
-- [ ] Alerts configured for auth failures, API 429 spikes, and risk breaches
-- [ ] Notification delivery verified (not stub/log-only)
-- [ ] Operations runbook reviewed
-- [ ] On-call response flow tested
+- [ ] Structured logs with correlation IDs (signal → risk → order)
+- [ ] Health monitor running: tick freshness, heap, queue depth
+- [ ] Webhook notifications verified (not stub/log-only)
+- [ ] Operations runbook reviewed (pre-market, intraday, incidents, EOD)
 
 ## 8. Controlled Rollout
 
-- [ ] Paper-trading burn-in completed for at least 10 sessions
-- [ ] Start with reduced position size cap
-- [ ] Daily manual review of all trades during initial rollout window
+- [ ] Paper trading burn-in: minimum 10 full sessions
+- [ ] Paper results match backtest profile (no drift)
+- [ ] Start live with reduced position size cap (50% of target)
+- [ ] Daily manual review of all trades during first 2 weeks
 - [ ] Explicit go/no-go signoff recorded
 
-## 9. Post-Go-Live Safeguards
+## 9. Post-Go-Live
 
-- [ ] Daily PnL, reject reasons, and incident summary archived
-- [ ] Weekly strategy drift review scheduled
-- [ ] Monthly risk-threshold calibration scheduled
+- [ ] Daily: PnL, reject reasons, incident summary archived
+- [ ] Weekly: strategy drift review
+- [ ] Monthly: risk threshold calibration
+- [ ] Auto-start configured (system boot → app start before 09:10 IST)
+
+---
+
+*Last updated: 2026-03-23*

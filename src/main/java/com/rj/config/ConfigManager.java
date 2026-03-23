@@ -1,5 +1,9 @@
 package com.rj.config;
 
+import io.github.cdimascio.dotenv.Dotenv;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -9,14 +13,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import io.github.cdimascio.dotenv.Dotenv;
-
 public class ConfigManager implements IConfiguration {
     private static final Logger log = LoggerFactory.getLogger(ConfigManager.class);
-    private static final String[] REQUIRED_KEYS = new String[] {
+    private static final String[] REQUIRED_KEYS = new String[]{
             "FYERS_APP_ID",
             "FYERS_SECRET_KEY",
             "FYERS_REDIRECT_URI",
@@ -25,11 +24,10 @@ public class ConfigManager implements IConfiguration {
             "APP_ENV",
             "LOG_LEVEL"
     };
-
+    private static volatile ConfigManager manager;
     private Dotenv dotenv;
     private boolean loaded;
-    private static volatile ConfigManager manager;
-    private String[] activeSymbols = new String[] { "NSE:NIFTY50-INDEX" };
+    private String[] activeSymbols = new String[]{"NSE:NIFTY50-INDEX"};
     private Set<String> activeSymbolSet = new LinkedHashSet<>(Arrays.asList(activeSymbols));
     private RiskConfig riskConfig = RiskConfig.defaults();
     private StrategyConfig strategyConfig = StrategyConfig.defaults();

@@ -38,29 +38,41 @@ public class ReportOrder {
                         int exchange, int segment, int instrument, int qty, int tradedQty,
                         boolean isSymbolActive, long tradeDateTimeEpoch,
                         double tradedPrice, double limitPrice) {
-        this.symbol = symbol; this.clientId = clientId; this.idFyers = idFyers;
-        this.exchOrdId = exchOrdId; this.description = description;
-        this.tradeDate = tradeDate; this.transactionType = transactionType;
-        this.productType = productType; this.status = status; this.orderType = orderType;
-        this.ordSource = ordSource; this.rejectionReason = rejectionReason;
-        this.exchange = exchange; this.segment = segment; this.instrument = instrument;
-        this.qty = qty; this.tradedQty = tradedQty; this.isSymbolActive = isSymbolActive;
+        this.symbol = symbol;
+        this.clientId = clientId;
+        this.idFyers = idFyers;
+        this.exchOrdId = exchOrdId;
+        this.description = description;
+        this.tradeDate = tradeDate;
+        this.transactionType = transactionType;
+        this.productType = productType;
+        this.status = status;
+        this.orderType = orderType;
+        this.ordSource = ordSource;
+        this.rejectionReason = rejectionReason;
+        this.exchange = exchange;
+        this.segment = segment;
+        this.instrument = instrument;
+        this.qty = qty;
+        this.tradedQty = tradedQty;
+        this.isSymbolActive = isSymbolActive;
         this.tradeDateTimeEpoch = tradeDateTimeEpoch;
-        this.tradedPrice = tradedPrice; this.limitPrice = limitPrice;
+        this.tradedPrice = tradedPrice;
+        this.limitPrice = limitPrice;
     }
 
     static ReportOrder from(JSONObject j) {
         return new ReportOrder(
-            j.optString("symbol"), j.optString("clientId"), j.optString("id_fyers"),
-            j.optString("exchOrdId"), j.optString("description"),
-            j.optString("trade_date ").trim(), j.optString("transaction_type"),
-            j.optString("product_type"), j.optString("status"), j.optString("ordertype"),
-            j.optString("ord_source"), j.optString("rejection_reason"),
-            j.optInt("exchange"), j.optInt("segment"), j.optInt("instrument"),
-            j.optInt("qty"), j.optInt("tradedqty"),
-            j.optBoolean("is_symbol_active"),
-            j.optLong("trade_date_time"),
-            j.optDouble("traded_price"), j.optDouble("limit_price")
+                j.optString("symbol"), j.optString("clientId"), j.optString("id_fyers"),
+                j.optString("exchOrdId"), j.optString("description"),
+                j.optString("trade_date ").trim(), j.optString("transaction_type"),
+                j.optString("product_type"), j.optString("status"), j.optString("ordertype"),
+                j.optString("ord_source"), j.optString("rejection_reason"),
+                j.optInt("exchange"), j.optInt("segment"), j.optInt("instrument"),
+                j.optInt("qty"), j.optInt("tradedqty"),
+                j.optBoolean("is_symbol_active"),
+                j.optLong("trade_date_time"),
+                j.optDouble("traded_price"), j.optDouble("limit_price")
         );
     }
 
@@ -76,8 +88,9 @@ public class ReportOrder {
         return Collections.unmodifiableList(result);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "ReportOrder{symbol='" + symbol + "', status='" + status +
-               "', qty=" + qty + ", tradedPrice=" + tradedPrice + "}";
+                "', qty=" + qty + ", tradedPrice=" + tradedPrice + "}";
     }
 }

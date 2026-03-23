@@ -24,12 +24,17 @@ public class SmartExitTrigger {
     public final long expiryTimestamp;
 
     private SmartExitTrigger(String flowId, String name, double profitRate, double lossRate,
-                              int type, int waitTime, int activeStatus, int status, int exitStatus,
-                              long createdTimestamp, long updatedTimestamp, long expiryTimestamp) {
-        this.flowId = flowId; this.name = name;
-        this.profitRate = profitRate; this.lossRate = lossRate;
-        this.type = type; this.waitTime = waitTime;
-        this.activeStatus = activeStatus; this.status = status; this.exitStatus = exitStatus;
+                             int type, int waitTime, int activeStatus, int status, int exitStatus,
+                             long createdTimestamp, long updatedTimestamp, long expiryTimestamp) {
+        this.flowId = flowId;
+        this.name = name;
+        this.profitRate = profitRate;
+        this.lossRate = lossRate;
+        this.type = type;
+        this.waitTime = waitTime;
+        this.activeStatus = activeStatus;
+        this.status = status;
+        this.exitStatus = exitStatus;
         this.createdTimestamp = createdTimestamp;
         this.updatedTimestamp = updatedTimestamp;
         this.expiryTimestamp = expiryTimestamp;
@@ -40,13 +45,13 @@ public class SmartExitTrigger {
         if (j == null) return null;
         // create uses "profit_rate"/"loss_rate"; update/list uses "profitRate"/"lossRate"
         double profitRate = j.has("profitRate") ? j.optDouble("profitRate") : j.optDouble("profit_rate");
-        double lossRate   = j.has("lossRate")   ? j.optDouble("lossRate")   : j.optDouble("loss_rate");
+        double lossRate = j.has("lossRate") ? j.optDouble("lossRate") : j.optDouble("loss_rate");
         return new SmartExitTrigger(
-            j.optString("flowId"), j.optString("name"),
-            profitRate, lossRate,
-            j.optInt("type"), j.optInt("waitTime"),
-            j.optInt("activeStatus"), j.optInt("status"), j.optInt("exitStatus"),
-            j.optLong("createdTimestamp"), j.optLong("updatedTimestamp"), j.optLong("expiryTimestamp")
+                j.optString("flowId"), j.optString("name"),
+                profitRate, lossRate,
+                j.optInt("type"), j.optInt("waitTime"),
+                j.optInt("activeStatus"), j.optInt("status"), j.optInt("exitStatus"),
+                j.optLong("createdTimestamp"), j.optLong("updatedTimestamp"), j.optLong("expiryTimestamp")
         );
     }
 
@@ -69,8 +74,9 @@ public class SmartExitTrigger {
         return from(json.optJSONObject("data"));
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "SmartExitTrigger{flowId='" + flowId + "', name='" + name +
-               "', profitRate=" + profitRate + ", lossRate=" + lossRate + "}";
+                "', profitRate=" + profitRate + ", lossRate=" + lossRate + "}";
     }
 }

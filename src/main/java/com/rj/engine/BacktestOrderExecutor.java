@@ -26,12 +26,12 @@ public class BacktestOrderExecutor implements IOrderExecutor {
     /** Default slippage as fraction of price (0.0005 = 0.05 %). */
     private static final double DEFAULT_SLIPPAGE = 0.0005;
 
-    private final double         slippageFraction;
-    private final AtomicInteger  orderSeq = new AtomicInteger(0);
+    private final double slippageFraction;
+    private final AtomicInteger orderSeq = new AtomicInteger(0);
 
     // Injected by BacktestEngine before each candle so fills use the right price
     private volatile double nextBarOpenPrice = 0;
-    private volatile Instant nextBarTime     = Instant.EPOCH;
+    private volatile Instant nextBarTime = Instant.EPOCH;
 
     public BacktestOrderExecutor() {
         this(DEFAULT_SLIPPAGE);
@@ -44,7 +44,7 @@ public class BacktestOrderExecutor implements IOrderExecutor {
     /** Called by BacktestEngine before processing each new candle. */
     public void setNextBar(double openPrice, Instant barTime) {
         this.nextBarOpenPrice = openPrice;
-        this.nextBarTime      = barTime;
+        this.nextBarTime = barTime;
     }
 
     @Override
@@ -58,7 +58,7 @@ public class BacktestOrderExecutor implements IOrderExecutor {
 
         // Apply slippage in the direction of the trade (adverse to the trader)
         double slippage = nextBarOpenPrice * slippageFraction;
-        double fillPx   = signal.getDirection().toString().equals("BUY")
+        double fillPx = signal.getDirection().toString().equals("BUY")
                 ? nextBarOpenPrice + slippage
                 : nextBarOpenPrice - slippage;
 

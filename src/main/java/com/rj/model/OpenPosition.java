@@ -12,36 +12,36 @@ import java.time.Instant;
 public class OpenPosition {
 
     // ── Immutable identity ────────────────────────────────────────────────────
-    private final String  symbol;
-    private final String  correlationId;
-    private final String  strategyId;
-    private final Signal  direction;       // BUY or SELL
-    private final double  entryPrice;
-    private final int     quantity;
-    private final double  initialStopLoss;
-    private final double  takeProfit;
+    private final String symbol;
+    private final String correlationId;
+    private final String strategyId;
+    private final Signal direction;       // BUY or SELL
+    private final double entryPrice;
+    private final int quantity;
+    private final double initialStopLoss;
+    private final double takeProfit;
     private final Instant entryTime;
 
     // ── Mutable — written by position-monitor thread only ────────────────────
-    private volatile double  currentStopLoss;
+    private volatile double currentStopLoss;
     private volatile boolean trailingActivated;
-    private volatile double  highWaterMark;   // best price reached since entry
+    private volatile double highWaterMark;   // best price reached since entry
 
     public OpenPosition(String symbol, String correlationId, String strategyId,
                         Signal direction, double entryPrice, int quantity,
                         double stopLoss, double takeProfit, Instant entryTime) {
-        this.symbol           = symbol;
-        this.correlationId    = correlationId;
-        this.strategyId       = strategyId;
-        this.direction        = direction;
-        this.entryPrice       = entryPrice;
-        this.quantity         = quantity;
-        this.initialStopLoss  = stopLoss;
-        this.currentStopLoss  = stopLoss;
-        this.takeProfit       = takeProfit;
-        this.entryTime        = entryTime;
+        this.symbol = symbol;
+        this.correlationId = correlationId;
+        this.strategyId = strategyId;
+        this.direction = direction;
+        this.entryPrice = entryPrice;
+        this.quantity = quantity;
+        this.initialStopLoss = stopLoss;
+        this.currentStopLoss = stopLoss;
+        this.takeProfit = takeProfit;
+        this.entryTime = entryTime;
         this.trailingActivated = false;
-        this.highWaterMark    = entryPrice;
+        this.highWaterMark = entryPrice;
     }
 
     // ── Trailing stop management ──────────────────────────────────────────────
@@ -51,7 +51,7 @@ public class OpenPosition {
      * Long: tracks the highest price seen; Short: tracks the lowest.
      */
     public void updateHighWaterMark(double price) {
-        if (direction == Signal.BUY  && price > highWaterMark) highWaterMark = price;
+        if (direction == Signal.BUY && price > highWaterMark) highWaterMark = price;
         if (direction == Signal.SELL && price < highWaterMark) highWaterMark = price;
     }
 
@@ -62,8 +62,14 @@ public class OpenPosition {
      * @return true if the stop was actually moved
      */
     public boolean stepTrailingStop(double newStop) {
-        if (direction == Signal.BUY  && newStop > currentStopLoss) { currentStopLoss = newStop; return true; }
-        if (direction == Signal.SELL && newStop < currentStopLoss) { currentStopLoss = newStop; return true; }
+        if (direction == Signal.BUY && newStop > currentStopLoss) {
+            currentStopLoss = newStop;
+            return true;
+        }
+        if (direction == Signal.SELL && newStop < currentStopLoss) {
+            currentStopLoss = newStop;
+            return true;
+        }
         return false;
     }
 
@@ -100,20 +106,57 @@ public class OpenPosition {
 
     // ── Getters ───────────────────────────────────────────────────────────────
 
-    public String  getSymbol()            { return symbol;            }
-    public String  getCorrelationId()     { return correlationId;     }
-    public String  getStrategyId()        { return strategyId;        }
-    public Signal  getDirection()         { return direction;         }
-    public double  getEntryPrice()        { return entryPrice;        }
-    public int     getQuantity()          { return quantity;          }
-    public double  getInitialStopLoss()   { return initialStopLoss;   }
-    public double  getCurrentStopLoss()   { return currentStopLoss;   }
-    public double  getTakeProfit()        { return takeProfit;        }
-    public Instant getEntryTime()         { return entryTime;         }
-    public boolean isTrailingActivated()  { return trailingActivated; }
-    public double  getHighWaterMark()     { return highWaterMark;     }
+    public String getSymbol() {
+        return symbol;
+    }
 
-    public void setTrailingActivated(boolean v) { trailingActivated = v; }
+    public String getCorrelationId() {
+        return correlationId;
+    }
+
+    public String getStrategyId() {
+        return strategyId;
+    }
+
+    public Signal getDirection() {
+        return direction;
+    }
+
+    public double getEntryPrice() {
+        return entryPrice;
+    }
+
+    public int getQuantity() {
+        return quantity;
+    }
+
+    public double getInitialStopLoss() {
+        return initialStopLoss;
+    }
+
+    public double getCurrentStopLoss() {
+        return currentStopLoss;
+    }
+
+    public double getTakeProfit() {
+        return takeProfit;
+    }
+
+    public Instant getEntryTime() {
+        return entryTime;
+    }
+
+    public boolean isTrailingActivated() {
+        return trailingActivated;
+    }
+
+    public void setTrailingActivated(boolean v) {
+        trailingActivated = v;
+    }
+
+    public double getHighWaterMark() {
+        return highWaterMark;
+    }
 
     @Override
     public String toString() {

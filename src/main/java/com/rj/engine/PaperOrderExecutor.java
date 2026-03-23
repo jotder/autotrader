@@ -1,10 +1,6 @@
 package com.rj.engine;
 
-import com.rj.model.OpenPosition;
-import com.rj.model.OrderFill;
-import com.rj.model.TickBuffer;
-import com.rj.model.TickStore;
-import com.rj.model.TradeSignal;
+import com.rj.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,7 +22,7 @@ public class PaperOrderExecutor implements IOrderExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(PaperOrderExecutor.class);
 
-    private final TickStore    tickStore;
+    private final TickStore tickStore;
     private final AtomicInteger orderSeq = new AtomicInteger(0);
 
     public PaperOrderExecutor(TickStore tickStore) {

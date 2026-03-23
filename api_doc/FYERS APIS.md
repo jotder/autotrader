@@ -2,7 +2,7 @@ FYERS APIS
 Fyers API is a set of REST-like APIs that provide integration with our in-house trading platform with which you can build your own customized trading applications.
 
 # Introduction
-Fyers API is a set of REST-like APIs that provide integration with our in-house trading platform with which you can build your own customized trading applications. You can place fresh single or multiple orders, modify and cancel existing orders in real-time. You can also get account related information such as orderbook, tradebook, net positions, holdings, and funds.
+Fyers API is a set of REST-like APIs that provide integration with our in-house trading platform with which you can build your own customized trading applications. You can place fresh single or multiple orders, modify and cancel existing orders in real-time. You can also get account related information such as orderbook, trade book, net positions, holdings, and funds.
 We have ensured maximum security for our APIs which prevent unauthorised transactions. All API requests and received only over HTTPS protocol.
 
 # Libraries and SDKs

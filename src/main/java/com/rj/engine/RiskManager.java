@@ -34,23 +34,27 @@ public class RiskManager {
     private static final Logger log = LoggerFactory.getLogger(RiskManager.class);
 
     private final RiskConfig riskConfig;
-
-    // Daily running totals
-    private volatile double dailyRealizedPnl = 0;
-
     // Kill switches
-    private final AtomicBoolean killSwitchActive   = new AtomicBoolean(false);
-    private final AtomicBoolean dailyProfitLocked  = new AtomicBoolean(false);
-
+    private final AtomicBoolean killSwitchActive = new AtomicBoolean(false);
+    private final AtomicBoolean dailyProfitLocked = new AtomicBoolean(false);
     // Per-strategy consecutive loss counters (keyed by strategyId)
     private final java.util.concurrent.ConcurrentHashMap<String, AtomicInteger> consecutiveLosses
             = new java.util.concurrent.ConcurrentHashMap<>();
+    // Daily running totals
+    private volatile double dailyRealizedPnl = 0;
 
     public RiskManager(RiskConfig riskConfig) {
         this.riskConfig = riskConfig;
     }
 
     // ── Pre-trade check ───────────────────────────────────────────────────────
+
+    private static PreTradeResult reject(String reason) {
+        log.info("Pre-trade REJECTED: {}", reason);
+        return new PreTradeResult(false, 0, 0, 0, reason);
+    }
+
+    // ── Post-trade accounting ─────────────────────────────────────────────────
 
     /**
      * Runs all pre-trade risk gates.  Returns a result indicating whether the trade
@@ -107,22 +111,22 @@ public class RiskManager {
         }
 
         // ── Gate 7: position sizing ───────────────────────────────────────────
-        double entry      = signal.getSuggestedEntry();
-        double sl         = signal.getSuggestedStopLoss();
-        double tp         = signal.getSuggestedTarget();
+        double entry = signal.getSuggestedEntry();
+        double sl = signal.getSuggestedStopLoss();
+        double tp = signal.getSuggestedTarget();
         double riskPerUnit = Math.abs(entry - sl);
 
         if (riskPerUnit <= 0) {
             return reject("Stop loss is at or beyond entry price — risk per unit = 0");
         }
 
-        double riskBudget    = totalCapital * riskConfig.getMaxRiskPerTradePercent();
-        int    rawQty        = (int) Math.floor(riskBudget / riskPerUnit);
-        int    lotSize       = riskConfig.getInstrumentLotSize();
-        int    lotAlignedQty = lotSize > 1 ? (rawQty / lotSize) * lotSize : rawQty;
+        double riskBudget = totalCapital * riskConfig.getMaxRiskPerTradePercent();
+        int rawQty = (int) Math.floor(riskBudget / riskPerUnit);
+        int lotSize = riskConfig.getInstrumentLotSize();
+        int lotAlignedQty = lotSize > 1 ? (rawQty / lotSize) * lotSize : rawQty;
 
-        int    exposureCapQty = (int) Math.floor((maxExposure - currentExposure) / entry);
-        int    finalQty       = Math.min(lotAlignedQty,
+        int exposureCapQty = (int) Math.floor((maxExposure - currentExposure) / entry);
+        int finalQty = Math.min(lotAlignedQty,
                 Math.min(riskConfig.getMaxQuantityPerOrder(), exposureCapQty));
 
         if (finalQty <= 0) {
@@ -138,7 +142,7 @@ public class RiskManager {
         return new PreTradeResult(true, finalQty, sl, tp, null);
     }
 
-    // ── Post-trade accounting ─────────────────────────────────────────────────
+    // ── Manual kill switch ────────────────────────────────────────────────────
 
     /**
      * Updates daily PnL and strategy loss counters from a closed trade.
@@ -173,12 +177,12 @@ public class RiskManager {
                 String.format("%.2f", trade.getPnl()));
     }
 
-    // ── Manual kill switch ────────────────────────────────────────────────────
-
     public void activateKillSwitch(String reason) {
         killSwitchActive.set(true);
         log.error("KILL SWITCH ACTIVATED: {}", reason);
     }
+
+    // ── Accessors ─────────────────────────────────────────────────────────────
 
     public void resetDay() {
         dailyRealizedPnl = 0;
@@ -188,23 +192,25 @@ public class RiskManager {
         log.info("RiskManager day reset complete");
     }
 
-    // ── Accessors ─────────────────────────────────────────────────────────────
+    public double getDailyRealizedPnl() {
+        return dailyRealizedPnl;
+    }
 
-    public double  getDailyRealizedPnl()  { return dailyRealizedPnl;      }
-    public boolean isKillSwitchActive()   { return killSwitchActive.get(); }
-    public boolean isDailyProfitLocked()  { return dailyProfitLocked.get();}
+    public boolean isKillSwitchActive() {
+        return killSwitchActive.get();
+    }
 
     // ── Result type ───────────────────────────────────────────────────────────
 
-    private static PreTradeResult reject(String reason) {
-        log.info("Pre-trade REJECTED: {}", reason);
-        return new PreTradeResult(false, 0, 0, 0, reason);
+    public boolean isDailyProfitLocked() {
+        return dailyProfitLocked.get();
     }
 
     public record PreTradeResult(
             boolean approved,
-            int     quantity,
-            double  stopLoss,
-            double  takeProfit,
-            String  rejectReason) {}
+            int quantity,
+            double stopLoss,
+            double takeProfit,
+            String rejectReason) {
+    }
 }

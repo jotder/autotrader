@@ -8,4 +8,5 @@ public record StatusResponse(
         String mode,
         List<String> symbols,
         Instant timestamp
-) {}
+) {
+}

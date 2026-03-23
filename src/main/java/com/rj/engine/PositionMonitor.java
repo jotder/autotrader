@@ -38,36 +38,27 @@ import java.util.function.BiConsumer;
 public class PositionMonitor {
 
     private static final Logger log = LoggerFactory.getLogger(PositionMonitor.class);
-
-    /** Reasons an exit can be triggered. */
-    public enum ExitReason { STOP_LOSS, TAKE_PROFIT, TRAILING_STOP, FORCE_SQUAREOFF, MANUAL }
+    private final TickStore tickStore;
 
     // ── Dependencies ──────────────────────────────────────────────────────────
-
-    private final TickStore                             tickStore;
-    private final RiskConfig                            riskConfig;
-    private final BiConsumer<OpenPosition, ExitReason>  exitHandler;
-    private volatile StrategyEvaluator                  strategyEvaluator; // notified on close; settable post-construction
-
-    // ── State ─────────────────────────────────────────────────────────────────
-
+    private final RiskConfig riskConfig;
+    private final BiConsumer<OpenPosition, ExitReason> exitHandler;
     /** Active positions keyed by correlationId. */
     private final ConcurrentHashMap<String, OpenPosition> positions = new ConcurrentHashMap<>();
+    private final AtomicBoolean running = new AtomicBoolean(false);
 
-    private final AtomicBoolean            running   = new AtomicBoolean(false);
-    private       ScheduledExecutorService scheduler;
-
+    // ── State ─────────────────────────────────────────────────────────────────
+    private volatile StrategyEvaluator strategyEvaluator; // notified on close; settable post-construction
+    private ScheduledExecutorService scheduler;
     public PositionMonitor(TickStore tickStore,
                            RiskConfig riskConfig,
                            BiConsumer<OpenPosition, ExitReason> exitHandler,
                            StrategyEvaluator strategyEvaluator) {
-        this.tickStore         = tickStore;
-        this.riskConfig        = riskConfig;
-        this.exitHandler       = exitHandler;
+        this.tickStore = tickStore;
+        this.riskConfig = riskConfig;
+        this.exitHandler = exitHandler;
         this.strategyEvaluator = strategyEvaluator;
     }
-
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     public void start() {
         if (!running.compareAndSet(false, true)) {
@@ -80,13 +71,13 @@ public class PositionMonitor {
         log.info("PositionMonitor started (1 s interval)");
     }
 
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
     public void stop() {
         if (!running.compareAndSet(true, false)) return;
         if (scheduler != null) scheduler.shutdownNow();
         log.info("PositionMonitor stopped. {} positions still open at shutdown", positions.size());
     }
-
-    // ── Position registry ─────────────────────────────────────────────────────
 
     /**
      * Registers a new open position for monitoring.
@@ -96,6 +87,8 @@ public class PositionMonitor {
         positions.put(position.getCorrelationId(), position);
         log.info("[{}] Position added to monitor: {}", position.getSymbol(), position);
     }
+
+    // ── Position registry ─────────────────────────────────────────────────────
 
     /** Returns true if there is at least one open position for the given symbol. */
     public boolean hasOpenPosition(String symbol) {
@@ -108,10 +101,17 @@ public class PositionMonitor {
     }
 
     /** Wire in StrategyEvaluator after construction to avoid circular dependency. */
-    public void setStrategyEvaluator(StrategyEvaluator se) { this.strategyEvaluator = se; }
+    public void setStrategyEvaluator(StrategyEvaluator se) {
+        this.strategyEvaluator = se;
+    }
 
-    public int openPositionCount() { return positions.size(); }
-    public boolean isRunning()     { return running.get();    }
+    public int openPositionCount() {
+        return positions.size();
+    }
+
+    public boolean isRunning() {
+        return running.get();
+    }
 
     /**
      * Triggers a manual exit for the position with the given correlationId.
@@ -127,8 +127,6 @@ public class PositionMonitor {
         closePosition(pos, ExitReason.MANUAL);
     }
 
-    // ── Monitoring loop ───────────────────────────────────────────────────────
-
     private void monitorAll() {
         if (positions.isEmpty()) return;
 
@@ -143,6 +141,8 @@ public class PositionMonitor {
             }
         }
     }
+
+    // ── Monitoring loop ───────────────────────────────────────────────────────
 
     private void monitorPosition(OpenPosition pos, ZonedDateTime now) {
         // ── Time-based force square-off ───────────────────────────────────────
@@ -188,8 +188,6 @@ public class PositionMonitor {
                 String.format("%.2f", pos.unrealizedPnl(currentPrice)));
     }
 
-    // ── Trailing stop logic ───────────────────────────────────────────────────
-
     private void updateTrailingStop(OpenPosition pos, double price) {
         double pnlPct = pos.getDirection() == Signal.BUY
                 ? (price - pos.getEntryPrice()) / pos.getEntryPrice()
@@ -206,8 +204,8 @@ public class PositionMonitor {
         if (!pos.isTrailingActivated()) return;
 
         pos.updateHighWaterMark(price);
-        double hwm      = pos.getHighWaterMark();
-        double stepPct  = riskConfig.getTrailingStepPercent();
+        double hwm = pos.getHighWaterMark();
+        double stepPct = riskConfig.getTrailingStepPercent();
 
         double newStop = pos.getDirection() == Signal.BUY
                 ? hwm * (1.0 - stepPct)
@@ -223,7 +221,7 @@ public class PositionMonitor {
         }
     }
 
-    // ── Position close ────────────────────────────────────────────────────────
+    // ── Trailing stop logic ───────────────────────────────────────────────────
 
     private void closePosition(OpenPosition pos, ExitReason reason) {
         positions.remove(pos.getCorrelationId());
@@ -239,7 +237,7 @@ public class PositionMonitor {
         }
     }
 
-    // ── Tick data ─────────────────────────────────────────────────────────────
+    // ── Position close ────────────────────────────────────────────────────────
 
     private double latestPrice(String symbol) {
         TickBuffer buf = tickStore.bufferFor(symbol);
@@ -248,4 +246,9 @@ public class PositionMonitor {
         var snapshot = buf.snapshot();
         return snapshot.isEmpty() ? 0 : snapshot.get(snapshot.size() - 1).getLtp();
     }
+
+    // ── Tick data ─────────────────────────────────────────────────────────────
+
+    /** Reasons an exit can be triggered. */
+    public enum ExitReason {STOP_LOSS, TAKE_PROFIT, TRAILING_STOP, FORCE_SQUAREOFF, MANUAL}
 }

@@ -1,15 +1,10 @@
 package com.rj.engine;
 
-import com.rj.model.Signal;
 import com.rj.model.TradeRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -42,9 +37,9 @@ public class StrategyAnalyzer {
             return Report.empty();
         }
 
-        Metrics overall      = computeMetrics(closed);
+        Metrics overall = computeMetrics(closed);
         Map<String, Metrics> byStrategy = groupAndCompute(closed, TradeRecord::getStrategyId);
-        Map<String, Metrics> bySymbol   = groupAndCompute(closed, TradeRecord::getSymbol);
+        Map<String, Metrics> bySymbol = groupAndCompute(closed, TradeRecord::getSymbol);
 
         List<String> suggestions = generateSuggestions(overall, byStrategy, bySymbol, closed);
 
@@ -56,29 +51,29 @@ public class StrategyAnalyzer {
     private static Metrics computeMetrics(List<TradeRecord> trades) {
         if (trades.isEmpty()) return Metrics.ZERO;
 
-        int    wins      = (int) trades.stream().filter(TradeRecord::isWinner).count();
-        int    losses    = (int) trades.stream().filter(TradeRecord::isLoser).count();
-        int    total     = trades.size();
-        double winRate   = total > 0 ? (double) wins / total : 0;
+        int wins = (int) trades.stream().filter(TradeRecord::isWinner).count();
+        int losses = (int) trades.stream().filter(TradeRecord::isLoser).count();
+        int total = trades.size();
+        double winRate = total > 0 ? (double) wins / total : 0;
 
         double grossProfit = trades.stream()
                 .filter(TradeRecord::isWinner)
                 .mapToDouble(t -> t.getPnl()).sum();
-        double grossLoss   = Math.abs(trades.stream()
+        double grossLoss = Math.abs(trades.stream()
                 .filter(TradeRecord::isLoser)
                 .mapToDouble(t -> t.getPnl()).sum());
 
         double profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Double.MAX_VALUE : 0;
-        double totalPnl     = grossProfit - grossLoss;
+        double totalPnl = grossProfit - grossLoss;
 
-        double avgWin  = wins  > 0 ? grossProfit / wins  : 0;
-        double avgLoss = losses > 0 ? grossLoss   / losses : 0;
+        double avgWin = wins > 0 ? grossProfit / wins : 0;
+        double avgLoss = losses > 0 ? grossLoss / losses : 0;
         double expectancy = (winRate * avgWin) - ((1 - winRate) * avgLoss);
 
         // Per-trade returns for Sharpe
-        double[] returns  = trades.stream().mapToDouble(t -> t.getPnl()).toArray();
-        double   mean     = totalPnl / total;
-        double   variance = 0;
+        double[] returns = trades.stream().mapToDouble(t -> t.getPnl()).toArray();
+        double mean = totalPnl / total;
+        double variance = 0;
         for (double r : returns) variance += Math.pow(r - mean, 2);
         variance /= total;
         double stdDev = Math.sqrt(variance);
@@ -119,8 +114,12 @@ public class StrategyAnalyzer {
     private static int maxConsecutiveLosses(List<TradeRecord> trades) {
         int max = 0, cur = 0;
         for (TradeRecord t : trades) {
-            if (t.isLoser()) { cur++; max = Math.max(max, cur); }
-            else             { cur = 0; }
+            if (t.isLoser()) {
+                cur++;
+                max = Math.max(max, cur);
+            } else {
+                cur = 0;
+            }
         }
         return max;
     }
@@ -130,8 +129,8 @@ public class StrategyAnalyzer {
             java.util.function.Function<TradeRecord, String> keyFn) {
         Map<String, Metrics> result = new LinkedHashMap<>();
         trades.stream()
-              .collect(Collectors.groupingBy(keyFn))
-              .forEach((k, v) -> result.put(k, computeMetrics(v)));
+                .collect(Collectors.groupingBy(keyFn))
+                .forEach((k, v) -> result.put(k, computeMetrics(v)));
         return result;
     }
 
@@ -202,16 +201,16 @@ public class StrategyAnalyzer {
         });
 
         // ── Exit reason analysis ──────────────────────────────────────────────
-        long slCount  = trades.stream().filter(t -> t.getExitReason() == PositionMonitor.ExitReason.STOP_LOSS).count();
-        long tpCount  = trades.stream().filter(t -> t.getExitReason() == PositionMonitor.ExitReason.TAKE_PROFIT).count();
-        long trCount  = trades.stream().filter(t -> t.getExitReason() == PositionMonitor.ExitReason.TRAILING_STOP).count();
-        long sqCount  = trades.stream().filter(t -> t.getExitReason() == PositionMonitor.ExitReason.FORCE_SQUAREOFF).count();
-        double slPct  = (double) slCount / trades.size();
+        long slCount = trades.stream().filter(t -> t.getExitReason() == PositionMonitor.ExitReason.STOP_LOSS).count();
+        long tpCount = trades.stream().filter(t -> t.getExitReason() == PositionMonitor.ExitReason.TAKE_PROFIT).count();
+        long trCount = trades.stream().filter(t -> t.getExitReason() == PositionMonitor.ExitReason.TRAILING_STOP).count();
+        long sqCount = trades.stream().filter(t -> t.getExitReason() == PositionMonitor.ExitReason.FORCE_SQUAREOFF).count();
+        double slPct = (double) slCount / trades.size();
         if (slPct > 0.60) {
             s.add("EXIT: " + pct(slPct) + " of trades exit via stop loss. Entries may be poor quality or SL is too tight.");
         }
         if (sqCount > trades.size() * 0.20) {
-            s.add("EXIT: " + sqCount + " trades force-closed at EOD (" + pct((double)sqCount/trades.size()) + "). Consider earlier target/trail or avoid late entries.");
+            s.add("EXIT: " + sqCount + " trades force-closed at EOD (" + pct((double) sqCount / trades.size()) + "). Consider earlier target/trail or avoid late entries.");
         }
         if (trCount > tpCount && trCount > 0) {
             s.add("EXIT: More trailing exits (" + trCount + ") than TP exits (" + tpCount + "). Trailing is capturing profits well — this is positive.");
@@ -226,21 +225,33 @@ public class StrategyAnalyzer {
 
     // ── Report ────────────────────────────────────────────────────────────────
 
+    private static String pct(double v) {
+        return String.format("%.1f%%", v * 100);
+    }
+
+    // ── Metrics value object ──────────────────────────────────────────────────
+
+    private static String fmt2(double v) {
+        return String.format("%.2f", v);
+    }
+
+    // ── Formatting helpers ────────────────────────────────────────────────────
+
     public static final class Report {
-        private final int                    totalTrades;
-        private final Metrics                overall;
-        private final Map<String, Metrics>   byStrategy;
-        private final Map<String, Metrics>   bySymbol;
-        private final List<String>           suggestions;
-        private final List<Double>           equityCurve;
+        private final int totalTrades;
+        private final Metrics overall;
+        private final Map<String, Metrics> byStrategy;
+        private final Map<String, Metrics> bySymbol;
+        private final List<String> suggestions;
+        private final List<Double> equityCurve;
 
         Report(int totalTrades, Metrics overall,
                Map<String, Metrics> byStrategy, Map<String, Metrics> bySymbol,
                List<String> suggestions, List<Double> equityCurve) {
             this.totalTrades = totalTrades;
-            this.overall     = overall;
-            this.byStrategy  = byStrategy;
-            this.bySymbol    = bySymbol;
+            this.overall = overall;
+            this.byStrategy = byStrategy;
+            this.bySymbol = bySymbol;
             this.suggestions = suggestions;
             this.equityCurve = equityCurve;
         }
@@ -251,12 +262,29 @@ public class StrategyAnalyzer {
                     List.of("No closed trades to analyze."), new ArrayList<>());
         }
 
-        public int              totalTrades()  { return totalTrades; }
-        public Metrics          overall()      { return overall;     }
-        public Map<String,Metrics> byStrategy(){ return byStrategy;  }
-        public Map<String,Metrics> bySymbol()  { return bySymbol;    }
-        public List<String>     suggestions()  { return suggestions; }
-        public List<Double>     equityCurve()  { return equityCurve; }
+        public int totalTrades() {
+            return totalTrades;
+        }
+
+        public Metrics overall() {
+            return overall;
+        }
+
+        public Map<String, Metrics> byStrategy() {
+            return byStrategy;
+        }
+
+        public Map<String, Metrics> bySymbol() {
+            return bySymbol;
+        }
+
+        public List<String> suggestions() {
+            return suggestions;
+        }
+
+        public List<Double> equityCurve() {
+            return equityCurve;
+        }
 
         /** Human-readable summary. */
         public String summary() {
@@ -293,17 +321,18 @@ public class StrategyAnalyzer {
             return sb.toString();
         }
 
-        @Override public String toString() { return summary(); }
+        @Override
+        public String toString() {
+            return summary();
+        }
     }
 
-    // ── Metrics value object ──────────────────────────────────────────────────
-
     public static final class Metrics {
-        static final Metrics ZERO = new Metrics(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+        static final Metrics ZERO = new Metrics(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
-        public final int    total;
-        public final int    wins;
-        public final int    losses;
+        public final int total;
+        public final int wins;
+        public final int losses;
         public final double winRate;
         public final double totalPnl;
         public final double grossProfit;
@@ -316,34 +345,29 @@ public class StrategyAnalyzer {
         public final double avgWin;
         public final double avgLoss;
         public final double avgHoldMinutes;
-        public final int    maxConsecLosses;
+        public final int maxConsecLosses;
 
         Metrics(int total, int wins, int losses, double winRate,
                 double totalPnl, double grossProfit, double grossLoss,
                 double profitFactor, double expectancy, double sharpe,
                 double maxDrawdown, double avgR, double avgWin, double avgLoss,
                 double avgHoldMinutes, int maxConsecLosses) {
-            this.total           = total;
-            this.wins            = wins;
-            this.losses          = losses;
-            this.winRate         = winRate;
-            this.totalPnl        = totalPnl;
-            this.grossProfit     = grossProfit;
-            this.grossLoss       = grossLoss;
-            this.profitFactor    = profitFactor;
-            this.expectancy      = expectancy;
-            this.sharpe          = sharpe;
-            this.maxDrawdown     = maxDrawdown;
-            this.avgR            = avgR;
-            this.avgWin          = avgWin;
-            this.avgLoss         = avgLoss;
-            this.avgHoldMinutes  = avgHoldMinutes;
+            this.total = total;
+            this.wins = wins;
+            this.losses = losses;
+            this.winRate = winRate;
+            this.totalPnl = totalPnl;
+            this.grossProfit = grossProfit;
+            this.grossLoss = grossLoss;
+            this.profitFactor = profitFactor;
+            this.expectancy = expectancy;
+            this.sharpe = sharpe;
+            this.maxDrawdown = maxDrawdown;
+            this.avgR = avgR;
+            this.avgWin = avgWin;
+            this.avgLoss = avgLoss;
+            this.avgHoldMinutes = avgHoldMinutes;
             this.maxConsecLosses = maxConsecLosses;
         }
     }
-
-    // ── Formatting helpers ────────────────────────────────────────────────────
-
-    private static String pct(double v) { return String.format("%.1f%%", v * 100); }
-    private static String fmt2(double v) { return String.format("%.2f", v); }
 }

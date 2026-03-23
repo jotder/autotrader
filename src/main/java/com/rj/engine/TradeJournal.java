@@ -18,11 +18,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -50,9 +46,9 @@ public class TradeJournal {
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
     private final ExecutionMode mode;
-    private final Path          journalFile;
-    private final ObjectMapper  mapper;
-    private final Object        writeLock = new Object();
+    private final Path journalFile;
+    private final ObjectMapper mapper;
+    private final Object writeLock = new Object();
 
     /** In-memory list of closed trades for real-time analysis queries. */
     private final CopyOnWriteArrayList<TradeRecord> closedTrades = new CopyOnWriteArrayList<>();
@@ -62,7 +58,7 @@ public class TradeJournal {
     }
 
     public TradeJournal(ExecutionMode mode, Path journalDir) {
-        this.mode   = mode;
+        this.mode = mode;
         this.mapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -83,15 +79,15 @@ public class TradeJournal {
     public void logSignalGenerated(TradeSignal signal) {
         Map<String, Object> event = event("SIGNAL_GENERATED");
         event.put("correlationId", signal.getCorrelationId());
-        event.put("symbol",        signal.getSymbol());
-        event.put("direction",     signal.getDirection());
-        event.put("confidence",    signal.getConfidence());
-        event.put("entry",         signal.getSuggestedEntry());
-        event.put("stopLoss",      signal.getSuggestedStopLoss());
-        event.put("target",        signal.getSuggestedTarget());
-        event.put("strategyId",    signal.getStrategyId());
-        event.put("rMultiple",     signal.rMultiple());
-        event.put("votes",         signal.getTimeframeVotes().toString());
+        event.put("symbol", signal.getSymbol());
+        event.put("direction", signal.getDirection());
+        event.put("confidence", signal.getConfidence());
+        event.put("entry", signal.getSuggestedEntry());
+        event.put("stopLoss", signal.getSuggestedStopLoss());
+        event.put("target", signal.getSuggestedTarget());
+        event.put("strategyId", signal.getStrategyId());
+        event.put("rMultiple", signal.rMultiple());
+        event.put("votes", signal.getTimeframeVotes().toString());
         write(event);
     }
 
@@ -99,9 +95,9 @@ public class TradeJournal {
     public void logSignalRejected(TradeSignal signal, String reason) {
         Map<String, Object> event = event("SIGNAL_REJECTED");
         event.put("correlationId", signal.getCorrelationId());
-        event.put("symbol",        signal.getSymbol());
-        event.put("direction",     signal.getDirection());
-        event.put("reason",        reason);
+        event.put("symbol", signal.getSymbol());
+        event.put("direction", signal.getDirection());
+        event.put("reason", reason);
         write(event);
     }
 
@@ -109,13 +105,13 @@ public class TradeJournal {
     public void logOrderEntry(TradeSignal signal, com.rj.model.OrderFill fill) {
         Map<String, Object> event = event("ORDER_ENTRY");
         event.put("correlationId", signal.getCorrelationId());
-        event.put("symbol",        signal.getSymbol());
-        event.put("direction",     signal.getDirection());
-        event.put("mode",          mode);
-        event.put("success",       fill.isSuccess());
-        event.put("fillPrice",     fill.getFillPrice());
-        event.put("fillQty",       fill.getFillQuantity());
-        event.put("orderId",       fill.getOrderId());
+        event.put("symbol", signal.getSymbol());
+        event.put("direction", signal.getDirection());
+        event.put("mode", mode);
+        event.put("success", fill.isSuccess());
+        event.put("fillPrice", fill.getFillPrice());
+        event.put("fillQty", fill.getFillQuantity());
+        event.put("orderId", fill.getOrderId());
         if (!fill.isSuccess()) event.put("rejectReason", fill.getRejectReason());
         write(event);
     }
@@ -125,12 +121,12 @@ public class TradeJournal {
                              PositionMonitor.ExitReason reason) {
         Map<String, Object> event = event("ORDER_EXIT");
         event.put("correlationId", pos.getCorrelationId());
-        event.put("symbol",        pos.getSymbol());
-        event.put("direction",     pos.getDirection());
-        event.put("exitReason",    reason);
-        event.put("success",       fill.isSuccess());
-        event.put("fillPrice",     fill.getFillPrice());
-        event.put("entryPrice",    pos.getEntryPrice());
+        event.put("symbol", pos.getSymbol());
+        event.put("direction", pos.getDirection());
+        event.put("exitReason", reason);
+        event.put("success", fill.isSuccess());
+        event.put("fillPrice", fill.getFillPrice());
+        event.put("entryPrice", pos.getEntryPrice());
         double priceDiff = pos.getDirection().toString().equals("BUY")
                 ? fill.getFillPrice() - pos.getEntryPrice()
                 : pos.getEntryPrice() - fill.getFillPrice();
@@ -143,26 +139,26 @@ public class TradeJournal {
         closedTrades.add(trade);
 
         Map<String, Object> event = event("TRADE_CLOSED");
-        event.put("correlationId",      trade.getCorrelationId());
-        event.put("symbol",             trade.getSymbol());
-        event.put("strategyId",         trade.getStrategyId());
-        event.put("mode",               trade.getMode());
-        event.put("direction",          trade.getDirection());
-        event.put("entryPrice",         trade.getEntryPrice());
-        event.put("exitPrice",          trade.getExitPrice());
-        event.put("quantity",           trade.getQuantity());
-        event.put("pnl",                trade.getPnl());
-        event.put("pnlPct",             trade.getPnlPct());
-        event.put("rMultiple",          trade.getRMultipleAchieved());
-        event.put("exitReason",         trade.getExitReason());
-        event.put("entryTime",          trade.getEntryTime());
-        event.put("exitTime",           trade.getExitTime());
-        event.put("holdSeconds",        trade.getHoldDuration() != null
+        event.put("correlationId", trade.getCorrelationId());
+        event.put("symbol", trade.getSymbol());
+        event.put("strategyId", trade.getStrategyId());
+        event.put("mode", trade.getMode());
+        event.put("direction", trade.getDirection());
+        event.put("entryPrice", trade.getEntryPrice());
+        event.put("exitPrice", trade.getExitPrice());
+        event.put("quantity", trade.getQuantity());
+        event.put("pnl", trade.getPnl());
+        event.put("pnlPct", trade.getPnlPct());
+        event.put("rMultiple", trade.getRMultipleAchieved());
+        event.put("exitReason", trade.getExitReason());
+        event.put("entryTime", trade.getEntryTime());
+        event.put("exitTime", trade.getExitTime());
+        event.put("holdSeconds", trade.getHoldDuration() != null
                 ? trade.getHoldDuration().toSeconds() : null);
         event.put("maxAdverseExcursion", trade.getMaxAdverseExcursion());
         event.put("maxFavorableExcursion", trade.getMaxFavorableExcursion());
-        event.put("confidence",         trade.getEntryConfidence());
-        event.put("winner",             trade.isWinner());
+        event.put("confidence", trade.getEntryConfidence());
+        event.put("winner", trade.isWinner());
         write(event);
     }
 
@@ -180,13 +176,15 @@ public class TradeJournal {
         return Collections.unmodifiableList(new ArrayList<>(closedTrades));
     }
 
-    public int closedTradeCount() { return closedTrades.size(); }
+    public int closedTradeCount() {
+        return closedTrades.size();
+    }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private Map<String, Object> event(String type) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("ts",   Instant.now().toString());
+        m.put("ts", Instant.now().toString());
         m.put("type", type);
         m.put("mode", mode.name());
         return m;

@@ -14,6 +14,39 @@ public class MultiOrderResult {
     public final String message;
     public final List<Item> items;
 
+    private MultiOrderResult(int code, String status, String message, List<Item> items) {
+        this.code = code;
+        this.status = status;
+        this.message = message;
+        this.items = Collections.unmodifiableList(items);
+    }
+
+    public static MultiOrderResult from(JSONObject json) {
+        if (json == null) return null;
+        List<Item> items = new ArrayList<>();
+        JSONArray data = json.optJSONArray("data");
+        if (data != null) {
+            for (int i = 0; i < data.length(); i++) {
+                items.add(Item.from(data.getJSONObject(i)));
+            }
+        }
+        return new MultiOrderResult(
+                json.optInt("code"),
+                json.optString("s"),
+                json.optString("message"),
+                items
+        );
+    }
+
+    public boolean isOk() {
+        return "ok".equals(status);
+    }
+
+    @Override
+    public String toString() {
+        return "MultiOrderResult{code=" + code + ", items=" + items.size() + ", message='" + message + "'}";
+    }
+
     public static class Item {
         public final int statusCode;
         public final String statusDescription;
@@ -27,40 +60,10 @@ public class MultiOrderResult {
 
         static Item from(JSONObject json) {
             return new Item(
-                json.optInt("statusCode"),
-                json.optString("statusDescription"),
-                OrderResult.from(json.optJSONObject("body"))
+                    json.optInt("statusCode"),
+                    json.optString("statusDescription"),
+                    OrderResult.from(json.optJSONObject("body"))
             );
         }
-    }
-
-    private MultiOrderResult(int code, String status, String message, List<Item> items) {
-        this.code = code;
-        this.status = status;
-        this.message = message;
-        this.items = Collections.unmodifiableList(items);
-    }
-
-    public boolean isOk() { return "ok".equals(status); }
-
-    public static MultiOrderResult from(JSONObject json) {
-        if (json == null) return null;
-        List<Item> items = new ArrayList<>();
-        JSONArray data = json.optJSONArray("data");
-        if (data != null) {
-            for (int i = 0; i < data.length(); i++) {
-                items.add(Item.from(data.getJSONObject(i)));
-            }
-        }
-        return new MultiOrderResult(
-            json.optInt("code"),
-            json.optString("s"),
-            json.optString("message"),
-            items
-        );
-    }
-
-    @Override public String toString() {
-        return "MultiOrderResult{code=" + code + ", items=" + items.size() + ", message='" + message + "'}";
     }
 }

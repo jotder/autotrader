@@ -7,4 +7,5 @@ public record RiskResponse(
         double maxDailyLossInr,
         double maxDailyProfitInr,
         double initialCapitalInr
-) {}
+) {
+}

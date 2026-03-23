@@ -21,10 +21,20 @@ public enum ExecutionMode {
     /** Live market data, real orders placed via Fyers API. */
     LIVE;
 
-    public boolean isLive()    { return this == LIVE;     }
-    public boolean isPaper()   { return this == PAPER;    }
-    public boolean isBacktest(){ return this == BACKTEST; }
+    public boolean isLive() {
+        return this == LIVE;
+    }
+
+    public boolean isPaper() {
+        return this == PAPER;
+    }
+
+    public boolean isBacktest() {
+        return this == BACKTEST;
+    }
 
     /** True if capital is not at risk (safe to run freely). */
-    public boolean isSafe()    { return this != LIVE;     }
+    public boolean isSafe() {
+        return this != LIVE;
+    }
 }

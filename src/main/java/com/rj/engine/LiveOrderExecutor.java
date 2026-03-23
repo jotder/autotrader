@@ -1,13 +1,9 @@
 package com.rj.engine;
 
-import fyers.FyersOrderPlacement;
-import com.rj.model.OpenPosition;
-import com.rj.model.OrderFill;
-import com.rj.model.OrderResult;
-import com.rj.model.Signal;
-import com.rj.model.TradeSignal;
+import com.rj.model.*;
 import com.tts.in.model.FyersClass;
 import com.tts.in.model.PlaceOrderModel;
+import fyers.FyersOrderPlacement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,14 +32,14 @@ public class LiveOrderExecutor implements IOrderExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(LiveOrderExecutor.class);
 
-    private static final int  MAX_RETRIES     = 3;
+    private static final int MAX_RETRIES = 3;
     private static final long BASE_BACKOFF_MS = 500L;
 
     /** Fyers product type for intraday trading. */
     private static final String PRODUCT_INTRADAY = "INTRADAY";
 
     private final FyersOrderPlacement fyersOrders;
-    private final AtomicInteger       orderSeq = new AtomicInteger(0);
+    private final AtomicInteger orderSeq = new AtomicInteger(0);
 
     public LiveOrderExecutor() {
         this.fyersOrders = new FyersOrderPlacement();
@@ -59,7 +55,7 @@ public class LiveOrderExecutor implements IOrderExecutor {
 
     @Override
     public OrderFill placeEntry(TradeSignal signal, int quantity) {
-        int  side         = signal.getDirection() == Signal.BUY ? 1 : -1;
+        int side = signal.getDirection() == Signal.BUY ? 1 : -1;
         PlaceOrderModel model = FyersOrderPlacement.marketOrder(
                 signal.getSymbol(), quantity, side, PRODUCT_INTRADAY);
 

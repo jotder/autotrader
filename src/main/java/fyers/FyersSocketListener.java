@@ -20,7 +20,7 @@ public class FyersSocketListener implements FyersSocketDelegate {
     public FyersSocket socket;
     public FyersClass fyersClass = FyersClass.getInstance();
     public int c = 0;
-    
+
     // Track if header is printed
     private boolean isHeaderPrinted = false;
 
@@ -62,11 +62,11 @@ public class FyersSocketListener implements FyersSocketDelegate {
         // Thread 1 → Thread 2 handoff: publish tick to the in-memory store.
         // CandleService workers snapshot this store every candle boundary.
         TickStore.getInstance().append(tick);
-        
+
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
         String feedTimeStr = formatter.format(tick.getFeedTime());
         String lastTradeTimeStr = formatter.format(tick.getLastTradedTime());
-        
+
         if (!isHeaderPrinted) {
             System.out.printf("%-10s | %-10s | %-18s | %-4s | %-8s | %-8s | %-8s | %-8s | %-8s | %-10s | %-16s | %-10s | %-10s | %-10s | %-10s | %-10s | %-12s | %-15s | %-15s | %-12s | %-12s%n",
                     "FeedTime", "LTT", "Symbol", "Type", "LTP", "Open", "High", "Low", "PrevCls", "AvgPrice", "Change", "Volume", "LTP Qty", "TotBuy", "TotSell", "OI", "Turnover", "Bid", "Ask", "Circ(U/L)", "52W(H/L)");

@@ -23,18 +23,20 @@ public class TickStore {
     // ── Singleton ─────────────────────────────────────────────────────────────
 
     private static final TickStore INSTANCE = new TickStore();
-
-    public static TickStore getInstance() { return INSTANCE; }
-
-    private TickStore() {}
-
-    // ── State ─────────────────────────────────────────────────────────────────
-
     /**
      * symbol → its TickBuffer.
      * Buffers are created lazily on first tick for that symbol.
      */
     private final ConcurrentHashMap<String, TickBuffer> buffers = new ConcurrentHashMap<>();
+
+    private TickStore() {
+    }
+
+    // ── State ─────────────────────────────────────────────────────────────────
+
+    public static TickStore getInstance() {
+        return INSTANCE;
+    }
 
     // ── Producer API ──────────────────────────────────────────────────────────
 
@@ -44,7 +46,7 @@ public class TickStore {
      */
     public void append(Tick tick) {
         buffers.computeIfAbsent(tick.getSymbol(), TickBuffer::new)
-               .append(tick);
+                .append(tick);
     }
 
     // ── Consumer API ─────────────────────────────────────────────────────────
@@ -67,10 +69,14 @@ public class TickStore {
     }
 
     /** Total number of symbols currently tracked. */
-    public int symbolCount() { return buffers.size(); }
+    public int symbolCount() {
+        return buffers.size();
+    }
 
     /** Removes all buffers — useful for end-of-day reset or testing. */
-    public void clear() { buffers.clear(); }
+    public void clear() {
+        buffers.clear();
+    }
 
     @Override
     public String toString() {

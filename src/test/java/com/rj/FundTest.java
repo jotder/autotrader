@@ -1,6 +1,5 @@
-
-import fyers.FyersFund;
 import com.rj.model.FundSummary;
+import fyers.FyersFund;
 
 void main() {
     FyersFund fyersFund = new FyersFund();
