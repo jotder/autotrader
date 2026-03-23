@@ -18,3 +18,17 @@ Started: Mon Mar 23 11:33:58 IST 2026
   - The `config/` directory is at project root (not `src/main/resources/`); it's meant to be user-edited at deployment time.
   - Use `org.junit.jupiter.api.Assumptions.assumeTrue(path.toFile().exists(), ...)` for tests that depend on optional files like the production `intraday.yaml`.
 ---
+
+## AT-002 - Per-strategy risk and order config in YAML — 2026-03-23
+- What was implemented: `StrategyRiskConfig` record (8 fields) + `StrategyOrderConfig` record (3 fields) in `com.rj.config`; `YamlStrategyLoader.loadWithDefaults(strategiesPath, defaultsPath)` with deep-merge of defaults.yaml; `RiskManager.applyStrategyRiskOverride()` / `removeStrategyRiskOverride()` with per-strategy gates in `preTradeCheck` (riskBudget, maxExposure, maxQty, maxConsecutiveLosses all strategy-overrideable).
+- Files changed: `src/main/java/com/rj/config/StrategyRiskConfig.java` (new), `src/main/java/com/rj/config/StrategyOrderConfig.java` (new), `src/main/java/com/rj/config/YamlStrategyLoader.java` (added loadWithDefaults, deepMerge, readRawDefaults), `src/main/java/com/rj/engine/RiskManager.java` (strategy override map + usage in preTradeCheck), `src/test/java/com/rj/config/PerStrategyConfigTest.java` (new), `src/test/java/com/rj/engine/RiskManagerStrategyOverrideTest.java` (new), `src/test/resources/test-strategies-no-risk.yaml` (new), `src/test/resources/test-defaults-risk.yaml` (new)
+- Tests added: 18 new test methods (11 in PerStrategyConfigTest + 7 in RiskManagerStrategyOverrideTest)
+- **Codebase Patterns:**
+  - `TradeRecord` constructor requires ALL fields: `(correlationId, symbol, strategyId, ExecutionMode, Signal, entryPrice, qty, initialSL, tp, entryTime, entryAtr, entryConfidence, Map<Timeframe,Signal>)`. The short constructor does not exist.
+  - `TradeRecord.close()` requires `(double exitPx, Instant exitTs, PositionMonitor.ExitReason reason)` — three args, not two. `ExitReason` lives in `PositionMonitor`, not `TradeRecord`.
+  - `RiskConfig.defaults()` uses fractions (e.g. 0.02 = 2%); `StrategyYamlConfig.Risk` stores percentages (e.g. 2.0 = 2%). When using YAML values in RiskManager, divide by 100.
+  - Exposure cap (`exposureCapQty = maxExposure / entry`) can silently cap quantity tests. Use low entry prices (e.g. 100 INR) + large SL distances to keep rawQty away from both the maxQty and exposure caps in unit tests.
+- **Gotchas:**
+  - `mvn test -q` hides test class names. Use `mvn test 2>&1 | grep -E "Tests run|BUILD"` for per-class pass counts.
+  - Deep merge for YAML defaults must be recursive (nested maps like `risk:`, `order:` need field-level merging, not block-level replacement).
+---
