@@ -52,7 +52,7 @@
         "mvn test passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "PRD: CFG-Y09. Depends on AT-001, AT-002."
     },
     {
