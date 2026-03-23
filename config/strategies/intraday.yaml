@@ -1,0 +1,118 @@
+# config/strategies/intraday.yaml
+# Intraday strategy configurations for NSE equities
+# All thresholds configurable; hot-reload supported via ConfigFileWatcher
+
+strategies:
+  trend_following:
+    enabled: true
+    symbols: ["NSE:SBIN-EQ", "NSE:RELIANCE-EQ", "NSE:HDFCBANK-EQ"]
+    timeframe: M5
+    active_hours:
+      start: "09:15"
+      end: "15:00"
+    cooldown_minutes: 25
+    max_trades_per_day: 10
+
+    indicators:
+      ema_fast: 20
+      ema_slow: 50
+      rsi_period: 14
+      atr_period: 14
+      rel_vol_period: 20
+      min_candles: 21
+
+    entry:
+      min_confidence: 0.85
+      rel_vol_threshold: 1.2
+      trend_strength: STRONG_BULLISH
+
+    risk:
+      risk_per_trade_pct: 2.0
+      sl_atr_multiplier: 2.0
+      tp_r_multiple: 2.0
+      trailing_activation_pct: 1.0
+      trailing_step_pct: 1.0
+      max_exposure_pct: 20.0
+      max_qty: 1000
+      max_consecutive_losses: 3
+
+    order:
+      type: MARKET
+      slippage_tolerance: 0.05
+      product_type: INTRADAY
+
+  mean_reversion:
+    enabled: true
+    symbols: ["NSE:NIFTY50-INDEX"]
+    timeframe: M5
+    active_hours:
+      start: "09:30"
+      end: "14:30"
+    cooldown_minutes: 30
+    max_trades_per_day: 6
+
+    indicators:
+      ema_fast: 9
+      ema_slow: 21
+      rsi_period: 14
+      atr_period: 14
+      rel_vol_period: 20
+      min_candles: 21
+
+    entry:
+      min_confidence: 0.70
+      rel_vol_threshold: 1.0
+      trend_strength: NEUTRAL
+
+    risk:
+      risk_per_trade_pct: 1.5
+      sl_atr_multiplier: 1.5
+      tp_r_multiple: 1.5
+      trailing_activation_pct: 0.8
+      trailing_step_pct: 0.5
+      max_exposure_pct: 15.0
+      max_qty: 500
+      max_consecutive_losses: 2
+
+    order:
+      type: LIMIT
+      slippage_tolerance: 0.02
+      product_type: INTRADAY
+
+  volatility_breakout:
+    enabled: false
+    symbols: ["NSE:BANKNIFTY-INDEX"]
+    timeframe: M15
+    active_hours:
+      start: "09:15"
+      end: "11:30"
+    cooldown_minutes: 60
+    max_trades_per_day: 3
+
+    indicators:
+      ema_fast: 20
+      ema_slow: 50
+      rsi_period: 14
+      atr_period: 14
+      rel_vol_period: 20
+      min_candles: 21
+
+    entry:
+      min_confidence: 0.90
+      rel_vol_threshold: 2.0
+      trend_strength: STRONG_BULLISH
+
+    risk:
+      risk_per_trade_pct: 2.0
+      sl_atr_multiplier: 2.5
+      tp_r_multiple: 3.0
+      trailing_activation_pct: 1.5
+      trailing_step_pct: 1.0
+      max_exposure_pct: 20.0
+      max_qty: 25
+      max_consecutive_losses: 2
+
+    order:
+      type: MARKET
+      slippage_tolerance: 0.10
+      product_type: INTRADAY

@@ -1,0 +1,76 @@
+strategies:
+  test_trend:
+    enabled: true
+    symbols: ["NSE:SBIN-EQ", "NSE:TCS-EQ"]
+    timeframe: M5
+    active_hours:
+      start: "09:15"
+      end: "15:00"
+    cooldown_minutes: 20
+    max_trades_per_day: 8
+
+    indicators:
+      ema_fast: 12
+      ema_slow: 26
+      rsi_period: 14
+      atr_period: 14
+      rel_vol_period: 20
+      min_candles: 21
+
+    entry:
+      min_confidence: 0.80
+      rel_vol_threshold: 1.5
+      trend_strength: STRONG_BULLISH
+
+    risk:
+      risk_per_trade_pct: 1.5
+      sl_atr_multiplier: 1.8
+      tp_r_multiple: 2.5
+      trailing_activation_pct: 0.9
+      trailing_step_pct: 0.5
+      max_exposure_pct: 15.0
+      max_qty: 500
+      max_consecutive_losses: 2
+
+    order:
+      type: MARKET
+      slippage_tolerance: 0.03
+      product_type: INTRADAY
+
+  test_disabled:
+    enabled: false
+    symbols: ["NSE:NIFTY50-INDEX"]
+    timeframe: M15
+    active_hours:
+      start: "10:00"
+      end: "14:00"
+    cooldown_minutes: 60
+    max_trades_per_day: 3
+
+    indicators:
+      ema_fast: 20
+      ema_slow: 50
+      rsi_period: 14
+      atr_period: 14
+      rel_vol_period: 20
+      min_candles: 21
+
+    entry:
+      min_confidence: 0.90
+      rel_vol_threshold: 2.0
+      trend_strength: STRONG_BEARISH
+
+    risk:
+      risk_per_trade_pct: 2.0
+      sl_atr_multiplier: 2.0
+      tp_r_multiple: 2.0
+      trailing_activation_pct: 1.0
+      trailing_step_pct: 1.0
+      max_exposure_pct: 20.0
+      max_qty: 25
+      max_consecutive_losses: 2
+
+    order:
+      type: LIMIT
+      slippage_tolerance: 0.02
+      product_type: INTRADAY

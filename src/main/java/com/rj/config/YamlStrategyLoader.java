@@ -1,0 +1,260 @@
+package com.rj.config;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.error.YAMLException;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Loads and parses YAML strategy config files into typed {@link StrategyYamlConfig} objects.
+ * <p>
+ * Usage:
+ * <pre>
+ *   YamlStrategyLoader loader = new YamlStrategyLoader();
+ *   Map&lt;String, StrategyYamlConfig&gt; strategies = loader.load(Path.of("config/strategies/intraday.yaml"));
+ * </pre>
+ * <p>
+ * Contract:
+ * <ul>
+ *   <li>Missing file: logs WARN and returns an empty map (does not throw).</li>
+ *   <li>Malformed YAML: throws {@link IllegalArgumentException}.</li>
+ *   <li>Missing individual fields: silently uses defaults defined in {@link StrategyYamlConfig}.</li>
+ * </ul>
+ */
+public class YamlStrategyLoader {
+
+    private static final Logger log = LoggerFactory.getLogger(YamlStrategyLoader.class);
+
+    /**
+     * Loads all strategy configs from the given YAML file.
+     *
+     * @param filePath path to a YAML file containing a top-level {@code strategies:} map
+     * @return immutable map of strategy name → config; empty if file not found
+     * @throws IllegalArgumentException if the file exists but has invalid YAML structure
+     */
+    public Map<String, StrategyYamlConfig> load(Path filePath) {
+        if (!Files.exists(filePath)) {
+            log.warn("Strategy YAML file not found, skipping: {}", filePath);
+            return Collections.emptyMap();
+        }
+
+        try (InputStream is = Files.newInputStream(filePath)) {
+            Yaml yaml = new Yaml();
+            Object raw = yaml.load(is);
+
+            if (raw == null) {
+                log.warn("Strategy YAML file is empty: {}", filePath);
+                return Collections.emptyMap();
+            }
+
+            if (!(raw instanceof Map)) {
+                throw new IllegalArgumentException("Expected YAML root to be a map in: " + filePath);
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> root = (Map<String, Object>) raw;
+
+            if (!root.containsKey("strategies")) {
+                log.warn("No 'strategies' key found in: {}", filePath);
+                return Collections.emptyMap();
+            }
+
+            Object strategiesRaw = root.get("strategies");
+            if (!(strategiesRaw instanceof Map)) {
+                throw new IllegalArgumentException("'strategies' must be a map in: " + filePath);
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> strategiesMap = (Map<String, Object>) strategiesRaw;
+
+            Map<String, StrategyYamlConfig> result = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> entry : strategiesMap.entrySet()) {
+                String name = entry.getKey();
+                Object value = entry.getValue();
+                if (!(value instanceof Map)) {
+                    log.warn("Strategy '{}' has no body, skipping", name);
+                    continue;
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> stratMap = (Map<String, Object>) value;
+                result.put(name, parseStrategy(name, stratMap));
+                log.debug("Parsed strategy config: {}", name);
+            }
+
+            log.info("Loaded {} strategies from {}", result.size(), filePath.getFileName());
+            return Collections.unmodifiableMap(result);
+
+        } catch (YAMLException e) {
+            throw new IllegalArgumentException("Malformed YAML in: " + filePath + " — " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Cannot read YAML file: " + filePath, e);
+        } catch (ClassCastException e) {
+            throw new IllegalArgumentException("Unexpected YAML structure in: " + filePath, e);
+        }
+    }
+
+    /**
+     * Loads global defaults from a defaults YAML file.
+     * Expected structure: top-level {@code defaults:} key.
+     *
+     * @param filePath path to defaults.yaml
+     * @return a {@link StrategyYamlConfig} populated from the {@code defaults} block,
+     *         or a config with all-default values if the file is missing
+     */
+    public StrategyYamlConfig loadDefaults(Path filePath) {
+        if (!Files.exists(filePath)) {
+            log.warn("Defaults YAML not found, using built-in defaults: {}", filePath);
+            return new StrategyYamlConfig();
+        }
+
+        try (InputStream is = Files.newInputStream(filePath)) {
+            Yaml yaml = new Yaml();
+            Object raw = yaml.load(is);
+
+            if (raw == null || !(raw instanceof Map)) {
+                log.warn("Defaults YAML is empty or not a map: {}", filePath);
+                return new StrategyYamlConfig();
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> root = (Map<String, Object>) raw;
+
+            if (!root.containsKey("defaults") || !(root.get("defaults") instanceof Map)) {
+                log.warn("No 'defaults' map found in: {}", filePath);
+                return new StrategyYamlConfig();
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> defaultsMap = (Map<String, Object>) root.get("defaults");
+            StrategyYamlConfig defaults = parseStrategy("defaults", defaultsMap);
+            log.info("Loaded global defaults from {}", filePath.getFileName());
+            return defaults;
+
+        } catch (YAMLException e) {
+            throw new IllegalArgumentException("Malformed YAML in: " + filePath + " — " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Cannot read defaults file: " + filePath, e);
+        }
+    }
+
+    // ── Private parsing helpers ───────────────────────────────────────────────
+
+    private StrategyYamlConfig parseStrategy(String name, Map<String, Object> map) {
+        StrategyYamlConfig cfg = new StrategyYamlConfig();
+
+        cfg.setEnabled(getBool(map, "enabled", true));
+        cfg.setSymbols(getStringList(map, "symbols"));
+        cfg.setTimeframe(getString(map, "timeframe", "M5"));
+        cfg.setCooldownMinutes(getInt(map, "cooldown_minutes", 25));
+        cfg.setMaxTradesPerDay(getInt(map, "max_trades_per_day", 10));
+
+        Object ahRaw = map.get("active_hours");
+        if (ahRaw instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> ahMap = (Map<String, Object>) ahRaw;
+            StrategyYamlConfig.ActiveHours ah = new StrategyYamlConfig.ActiveHours();
+            ah.setStart(getString(ahMap, "start", "09:15"));
+            ah.setEnd(getString(ahMap, "end", "15:00"));
+            cfg.setActiveHours(ah);
+        }
+
+        Object indRaw = map.get("indicators");
+        if (indRaw instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> indMap = (Map<String, Object>) indRaw;
+            StrategyYamlConfig.Indicators ind = new StrategyYamlConfig.Indicators();
+            ind.setEmaFast(getInt(indMap, "ema_fast", 20));
+            ind.setEmaSlow(getInt(indMap, "ema_slow", 50));
+            ind.setRsiPeriod(getInt(indMap, "rsi_period", 14));
+            ind.setAtrPeriod(getInt(indMap, "atr_period", 14));
+            ind.setRelVolPeriod(getInt(indMap, "rel_vol_period", 20));
+            ind.setMinCandles(getInt(indMap, "min_candles", 21));
+            cfg.setIndicators(ind);
+        }
+
+        Object entryRaw = map.get("entry");
+        if (entryRaw instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> entryMap = (Map<String, Object>) entryRaw;
+            StrategyYamlConfig.Entry entry = new StrategyYamlConfig.Entry();
+            entry.setMinConfidence(getDouble(entryMap, "min_confidence", 0.85));
+            entry.setRelVolThreshold(getDouble(entryMap, "rel_vol_threshold", 1.2));
+            entry.setTrendStrength(getString(entryMap, "trend_strength", "STRONG_BULLISH"));
+            cfg.setEntry(entry);
+        }
+
+        Object riskRaw = map.get("risk");
+        if (riskRaw instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> riskMap = (Map<String, Object>) riskRaw;
+            StrategyYamlConfig.Risk risk = new StrategyYamlConfig.Risk();
+            risk.setRiskPerTradePct(getDouble(riskMap, "risk_per_trade_pct", 2.0));
+            risk.setSlAtrMultiplier(getDouble(riskMap, "sl_atr_multiplier", 2.0));
+            risk.setTpRMultiple(getDouble(riskMap, "tp_r_multiple", 2.0));
+            risk.setTrailingActivationPct(getDouble(riskMap, "trailing_activation_pct", 1.0));
+            risk.setTrailingStepPct(getDouble(riskMap, "trailing_step_pct", 1.0));
+            risk.setMaxExposurePct(getDouble(riskMap, "max_exposure_pct", 20.0));
+            risk.setMaxQty(getInt(riskMap, "max_qty", 1000));
+            risk.setMaxConsecutiveLosses(getInt(riskMap, "max_consecutive_losses", 3));
+            cfg.setRisk(risk);
+        }
+
+        Object orderRaw = map.get("order");
+        if (orderRaw instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> orderMap = (Map<String, Object>) orderRaw;
+            StrategyYamlConfig.Order order = new StrategyYamlConfig.Order();
+            order.setType(getString(orderMap, "type", "MARKET"));
+            order.setSlippageTolerance(getDouble(orderMap, "slippage_tolerance", 0.05));
+            order.setProductType(getString(orderMap, "product_type", "INTRADAY"));
+            cfg.setOrder(order);
+        }
+
+        return cfg;
+    }
+
+    private boolean getBool(Map<String, Object> map, String key, boolean def) {
+        Object val = map.get(key);
+        if (val instanceof Boolean b) return b;
+        return def;
+    }
+
+    private String getString(Map<String, Object> map, String key, String def) {
+        Object val = map.get(key);
+        if (val instanceof String s) return s;
+        return def;
+    }
+
+    private int getInt(Map<String, Object> map, String key, int def) {
+        Object val = map.get(key);
+        if (val instanceof Number n) return n.intValue();
+        return def;
+    }
+
+    private double getDouble(Map<String, Object> map, String key, double def) {
+        Object val = map.get(key);
+        if (val instanceof Number n) return n.doubleValue();
+        return def;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> getStringList(Map<String, Object> map, String key) {
+        Object val = map.get(key);
+        if (val instanceof List<?> list) {
+            return list.stream()
+                    .filter(e -> e instanceof String)
+                    .map(e -> (String) e)
+                    .toList();
+        }
+        return List.of();
+    }
+}
