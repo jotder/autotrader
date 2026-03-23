@@ -1,0 +1,10 @@
+symbols:
+  cm:
+    - NSE:SBIN-EQ
+    - NSE:RELIANCE-EQ
+    - NSE:NIFTY50-INDEX
+  fo:
+    - NSE:NIFTY26MARFUT
+  com:
+    - MCX:CRUDEOIL26MARFUT
+    - MCX:GOLDM26MARFUT

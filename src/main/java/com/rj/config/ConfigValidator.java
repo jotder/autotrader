@@ -38,6 +38,9 @@ public class ConfigValidator {
     private final Set<String> validProductTypes;
     private final Set<String> validTrendStrengths;
 
+    // Optional symbol registry for cross-validation (null = skip symbol validation)
+    private final SymbolRegistry symbolRegistry;
+
     // Numeric range constants
     private static final double RISK_PCT_MIN     = 0.1;
     private static final double RISK_PCT_MAX     = 10.0;
@@ -51,7 +54,18 @@ public class ConfigValidator {
     private static final int    COOLDOWN_MIN     = 0;
     private static final int    MAX_TRADES_MIN   = 1;
 
+    /** Default constructor — no symbol registry validation. */
     public ConfigValidator() {
+        this(null);
+    }
+
+    /**
+     * Constructor with optional symbol registry for cross-validation.
+     *
+     * @param symbolRegistry if non-null, strategy symbols are validated against the global list
+     */
+    public ConfigValidator(SymbolRegistry symbolRegistry) {
+        this.symbolRegistry     = symbolRegistry;
         this.validTimeframes    = Set.of("M1", "M5", "M15", "H1", "D");
         this.validOrderTypes    = Set.of("MARKET", "LIMIT");
         this.validProductTypes  = Set.of("INTRADAY", "CNC");
@@ -88,6 +102,12 @@ public class ConfigValidator {
         // ── Required fields ──────────────────────────────────────────────────
         if (cfg.getSymbols() == null || cfg.getSymbols().isEmpty()) {
             errors.add(prefix + ": 'symbols' is required and must not be empty");
+        } else if (symbolRegistry != null) {
+            // Cross-validate strategy symbols against global registry
+            List<String> invalid = symbolRegistry.validateStrategySymbols(strategyName, cfg.getSymbols());
+            for (String sym : invalid) {
+                errors.add(prefix + ": symbol '" + sym + "' not found in global symbol registry (config/symbols.yaml)");
+            }
         }
 
         // ── Enum: timeframe ──────────────────────────────────────────────────

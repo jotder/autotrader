@@ -34,6 +34,11 @@ public class EngineConfiguration {
     }
 
     @Bean
+    public SymbolRegistry symbolRegistry(ConfigManager configManager) {
+        return configManager.getSymbolRegistry();
+    }
+
+    @Bean
     public TradingEngine tradingEngine() {
         return TradingEngine.create();
     }

@@ -1,6 +1,8 @@
 package com.rj.web;
 
 import com.rj.config.ConfigManager;
+import com.rj.config.MarketCategory;
+import com.rj.config.SymbolRegistry;
 import com.rj.engine.PositionMonitor;
 import com.rj.engine.RiskManager;
 import com.rj.engine.StrategyAnalyzer;
@@ -14,9 +16,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
@@ -42,6 +43,21 @@ public class EngineController {
                 List.of(configManager.getActiveSymbols()),
                 Instant.now()
         );
+    }
+
+    @GetMapping("/symbols")
+    public Map<String, Object> symbols() {
+        SymbolRegistry reg = configManager.getSymbolRegistry();
+        if (reg == null) {
+            return Map.of("error", "Symbol registry not loaded",
+                    "symbols", List.of(configManager.getActiveSymbols()));
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (MarketCategory cat : MarketCategory.values()) {
+            result.put(cat.yamlKey(), reg.symbolsFor(cat));
+        }
+        result.put("total", reg.size());
+        return result;
     }
 
     @GetMapping("/positions")
