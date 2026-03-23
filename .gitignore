@@ -55,3 +55,8 @@ logs/
 
 # Temp Office files
 ~$*
+
+# Ralph agent loop (runtime artifacts)
+scripts/ralph/progress.txt
+scripts/ralph/.last-branch
+scripts/ralph/archive/
