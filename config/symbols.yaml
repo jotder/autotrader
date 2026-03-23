@@ -1,0 +1,20 @@
+# config/symbols.yaml
+# Global symbol catalog — single source of truth for all subscriptions.
+# WebSocket subscribes to ALL symbols. Strategies pick a subset to trade.
+# Grouped by market category. Add/remove symbols here to control the universe.
+
+symbols:
+  cm:    # Capital Market (NSE/BSE equities)
+    - NSE:SBIN-EQ
+    - NSE:RELIANCE-EQ
+    - NSE:HDFCBANK-EQ
+    - NSE:NIFTY50-INDEX
+    - NSE:BANKNIFTY-INDEX
+
+  fo:    # Equity Derivatives (NSE_FO / BSE_FO — index + stock futures & options)
+    - NSE:NIFTY26MARFUT
+    - NSE:BANKNIFTY26MARFUT
+
+  com:   # Commodity Derivatives (MCX_COM + NSE_COM)
+    - MCX:CRUDEOIL26MARFUT
+    - MCX:GOLDM26MARFUT

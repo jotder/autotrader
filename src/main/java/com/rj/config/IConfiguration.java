@@ -16,4 +16,7 @@ public interface IConfiguration {
     RiskConfig getRiskConfig();
 
     StrategyConfig getStrategyConfig();
+
+    /** Global symbol registry loaded from {@code config/symbols.yaml}. May be {@code null} if not yet loaded. */
+    SymbolRegistry getSymbolRegistry();
 }

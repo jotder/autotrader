@@ -15,15 +15,9 @@ import java.util.stream.Collectors;
 
 public class ConfigManager implements IConfiguration {
     private static final Logger log = LoggerFactory.getLogger(ConfigManager.class);
-    private static final String[] REQUIRED_KEYS = new String[]{
-            "FYERS_APP_ID",
-            "FYERS_SECRET_KEY",
-            "FYERS_REDIRECT_URI",
-            "FYERS_AUTH_CODE",
-            "FYERS_SYMBOLS",
-            "APP_ENV",
-            "LOG_LEVEL"
-    };
+    private static final Path SYMBOLS_YAML_PATH = Path.of("config/symbols.yaml");
+    private static final String[] REQUIRED_KEYS = new String[]{"FYERS_APP_ID", "FYERS_SECRET_KEY", "FYERS_REDIRECT_URI",
+            "FYERS_AUTH_CODE", "APP_ENV", "LOG_LEVEL"};
     private static volatile ConfigManager manager;
     private Dotenv dotenv;
     private boolean loaded;
@@ -31,6 +25,7 @@ public class ConfigManager implements IConfiguration {
     private Set<String> activeSymbolSet = new LinkedHashSet<>(Arrays.asList(activeSymbols));
     private RiskConfig riskConfig = RiskConfig.defaults();
     private StrategyConfig strategyConfig = StrategyConfig.defaults();
+    private SymbolRegistry symbolRegistry;
 
     private ConfigManager() {
         ensureLoaded();
@@ -39,9 +34,8 @@ public class ConfigManager implements IConfiguration {
     public static ConfigManager getInstance() {
         if (manager == null) {
             synchronized (ConfigManager.class) {
-                if (manager == null) {
+                if (manager == null)
                     manager = new ConfigManager();
-                }
             }
         }
         return manager;
@@ -54,18 +48,26 @@ public class ConfigManager implements IConfiguration {
             this.dotenv = Dotenv.configure().ignoreIfMissing().load();
             log.info("Configuration loaded. APP_ENV: {}", getProperty("APP_ENV"));
 
-            String symbolsEnv = getProperty("FYERS_SYMBOLS");
-            if (symbolsEnv != null && !symbolsEnv.isBlank()) {
-                String[] parsedSymbols = Arrays.stream(symbolsEnv.split(","))
-                        .map(String::trim)
-                        .filter(symbol -> !symbol.isEmpty())
-                        .toArray(String[]::new);
-                if (parsedSymbols.length > 0) {
-                    activeSymbols = parsedSymbols;
+            // Load global symbol registry from config/symbols.yaml (primary source)
+            if (Files.exists(SYMBOLS_YAML_PATH)) {
+                symbolRegistry = SymbolRegistry.load(SYMBOLS_YAML_PATH);
+                activeSymbols = symbolRegistry.allSymbols();
+                activeSymbolSet = new LinkedHashSet<>(Arrays.asList(activeSymbols));
+                log.info("Symbol registry loaded from {}: {} symbols", SYMBOLS_YAML_PATH, symbolRegistry.size());
+            } else {
+                // Fallback to .env FYERS_SYMBOLS (deprecated)
+                log.warn("config/symbols.yaml not found — falling back to .env FYERS_SYMBOLS (deprecated)");
+                String symbolsEnv = getProperty("FYERS_SYMBOLS");
+                if (symbolsEnv != null && !symbolsEnv.isBlank()) {
+                    String[] parsedSymbols = Arrays.stream(symbolsEnv.split(","))
+                            .map(String::trim)
+                            .filter(symbol -> !symbol.isEmpty())
+                            .toArray(String[]::new);
+                    if (parsedSymbols.length > 0)
+                        activeSymbols = parsedSymbols;
                 }
+                activeSymbolSet = new LinkedHashSet<>(Arrays.asList(activeSymbols));
             }
-
-            activeSymbolSet = new LinkedHashSet<>(Arrays.asList(activeSymbols));
             riskConfig = RiskConfig.fromEnvironment(this::getProperty);
             strategyConfig = StrategyConfig.fromEnvironment(this::getProperty);
             loaded = true;
@@ -108,7 +110,14 @@ public class ConfigManager implements IConfiguration {
     @Override
     public boolean isSymbolActive(String symbol) {
         ensureLoaded();
+        if (symbolRegistry != null) return symbolRegistry.contains(symbol);
         return symbol != null && activeSymbolSet.contains(symbol.trim());
+    }
+
+    @Override
+    public SymbolRegistry getSymbolRegistry() {
+        ensureLoaded();
+        return symbolRegistry;
     }
 
     @Override
