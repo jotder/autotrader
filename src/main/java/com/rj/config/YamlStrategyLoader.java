@@ -28,11 +28,15 @@ import java.util.Map;
  *   <li>Missing file: logs WARN and returns an empty map (does not throw).</li>
  *   <li>Malformed YAML: throws {@link IllegalArgumentException}.</li>
  *   <li>Missing individual fields: silently uses defaults defined in {@link StrategyYamlConfig}.</li>
+ *   <li>Rollback: {@link #reloadWithRollback} keeps the last-valid config when a new load fails.</li>
  * </ul>
  */
 public class YamlStrategyLoader {
 
     private static final Logger log = LoggerFactory.getLogger(YamlStrategyLoader.class);
+
+    /** Last known-good config — retained on validation failure or parse error. */
+    private volatile Map<String, StrategyYamlConfig> lastValidConfig = Collections.emptyMap();
 
     /**
      * Loads all strategy configs from the given YAML file.
@@ -221,6 +225,51 @@ public class YamlStrategyLoader {
         } catch (ClassCastException e) {
             throw new IllegalArgumentException("Unexpected YAML structure in: " + strategiesPath, e);
         }
+    }
+
+    // ── Validated reload with rollback ───────────────────────────────────────
+
+    /**
+     * Attempts to reload strategies from {@code strategiesPath} (merging with defaults).
+     * The loaded config is validated by the supplied {@link ConfigValidator}.
+     * <p>
+     * If validation passes: the new config is stored as the last-valid config and returned.<br>
+     * If validation fails or parsing throws: the previous last-valid config is retained and
+     * returned unchanged, with a WARN log showing the rejection reason.
+     *
+     * @param strategiesPath path to strategies YAML file
+     * @param defaultsPath   path to defaults YAML file
+     * @param validator      validator instance
+     * @return the current valid config (new on success, previous on failure)
+     */
+    public Map<String, StrategyYamlConfig> reloadWithRollback(
+            Path strategiesPath, Path defaultsPath, ConfigValidator validator) {
+
+        try {
+            Map<String, StrategyYamlConfig> loaded = loadWithDefaults(strategiesPath, defaultsPath);
+            ConfigValidator.ValidationResult result = validator.validateAll(loaded);
+            if (result.valid()) {
+                lastValidConfig = loaded;
+                log.info("Config reloaded successfully ({} strategies)", loaded.size());
+                return loaded;
+            } else {
+                log.warn("Config reload rejected — {} validation error(s); retaining previous config",
+                        result.errors().size());
+                return lastValidConfig;
+            }
+        } catch (IllegalArgumentException e) {
+            log.warn("Config reload failed (malformed YAML): {}; retaining previous config",
+                    e.getMessage());
+            return lastValidConfig;
+        }
+    }
+
+    /**
+     * Returns the most recently accepted (valid) config, or an empty map if no valid
+     * config has been loaded yet.
+     */
+    public Map<String, StrategyYamlConfig> getLastValidConfig() {
+        return lastValidConfig;
     }
 
     // ── Private parsing helpers ───────────────────────────────────────────────
