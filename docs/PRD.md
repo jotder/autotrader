@@ -95,12 +95,12 @@ Professional-grade multi-asset algorithmic trading system. Single JVM process ma
 
 | ID | Requirement | Phase | Status |
 |---|---|---|---|
-| CFG-Y01 | YAML config files grouped by type: `config/strategies/intraday.yaml`, `positional.yaml`, `options.yaml` | P1 | 📋 Planned |
-| CFG-Y02 | Each strategy section includes: enabled flag, symbols, timeframe, active hours, cooldown | P1 | 📋 Planned |
-| CFG-Y03 | Per-strategy indicator config: all periods, thresholds, multipliers | P1 | 📋 Planned |
+| CFG-Y01 | YAML config files grouped by type: `config/strategies/intraday.yaml`, `positional.yaml`, `options.yaml` | P1 | ✅ |
+| CFG-Y02 | Each strategy section includes: enabled flag, symbols, timeframe, active hours, cooldown | P1 | ✅ |
+| CFG-Y03 | Per-strategy indicator config: all periods, thresholds, multipliers | P1 | ✅ |
 | CFG-Y04 | Per-strategy risk overrides: stop-loss method, TP method, position size %, max trades/day | P1 | 📋 Planned |
 | CFG-Y05 | Per-strategy order config: order type, slippage tolerance, product type | P1 | 📋 Planned |
-| CFG-Y06 | Global defaults in `config/defaults.yaml`; strategy YAML overrides specific values | P1 | 📋 Planned |
+| CFG-Y06 | Global defaults in `config/defaults.yaml`; strategy YAML overrides specific values | P1 | ✅ |
 | CFG-Y07 | Hot-reload: file watcher detects YAML changes, validates, and applies without restart | P1 | 📋 Planned |
 | CFG-Y08 | UI can read/write strategy YAML; changes saved to file and applied immediately | P2 | 📋 Planned |
 | CFG-Y09 | Validation: reject invalid config with rollback to previous values + WARN log | P1 | 📋 Planned |

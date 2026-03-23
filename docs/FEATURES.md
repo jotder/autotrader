@@ -262,11 +262,11 @@ On shutdown, `TradingEngine.analyzeSession()` generates full report if trades oc
 
 ---
 
-### F-21 · Configuration Management ✅ (.env) | 📋 YAML + Hot-reload
+### F-21 · Configuration Management ✅ (.env) | ✅ YAML loader | 📋 Hot-reload
 
-`.env` for global config. YAML for strategy params (planned). Hot-reload planned.
+`.env` for global config. YAML for strategy params (`YamlStrategyLoader` + `StrategyYamlConfig`). Hot-reload planned.
 
-**PRD refs:** CFG-01–07, CFG-Y01–Y09 · **Classes:** `ConfigManager`, `RiskConfig`, `StrategyConfig`
+**PRD refs:** CFG-01–07, CFG-Y01–Y09 · **Classes:** `ConfigManager`, `RiskConfig`, `StrategyConfig`, `YamlStrategyLoader`, `StrategyYamlConfig`
 
 **UI surfaces:** Settings page (read-only MVP) · Strategy config editor (P2) · Symbol manager
 

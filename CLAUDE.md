@@ -235,7 +235,7 @@ com.rj.config/         YamlStrategyLoader, ConfigFileWatcher, ConfigValidator
 | Persistence (NDJSON) | Done | Atomic writes, 30-day retention |
 | REST API (Spring Boot) | Done | 10 endpoints on port 7777 |
 | Kill Switch HTTP | Done | `POST /api/kill` |
-| **YAML Strategy Config** | **Planned** | P1 — grouped by type, hot-reload |
+| **YAML Strategy Config** | **MVP** | P1 — `YamlStrategyLoader` + `StrategyYamlConfig`; hot-reload planned |
 | **Position Reconciler** | **Planned** | P1 — startup diff |
 | **OMS State Machine** | **Planned** | P1 — idempotent IDs |
 | **Token Auto-Refresh** | **Planned** | P1 — background refresh |
