@@ -4,6 +4,7 @@ import com.rj.config.ConfigManager;
 import com.rj.config.MarketCategory;
 import com.rj.config.SymbolRegistry;
 import com.rj.engine.PositionMonitor;
+import com.rj.engine.PositionReconciler;
 import com.rj.engine.RiskManager;
 import com.rj.engine.StrategyAnalyzer;
 import com.rj.engine.TradingEngine;
@@ -142,5 +143,28 @@ public class EngineController {
         } catch (IllegalArgumentException e) {
             return new ActionResponse(false, e.getMessage());
         }
+    }
+
+    @GetMapping("/reconciliation")
+    public ResponseEntity<?> reconciliation() {
+        PositionReconciler reconciler = engine.getPositionReconciler();
+        if (reconciler == null) {
+            return ResponseEntity.ok(Map.of(
+                    "status", "skipped",
+                    "reason", "Reconciliation only runs in LIVE mode"));
+        }
+        PositionReconciler.ReconciliationResult result = reconciler.getLastResult();
+        if (result == null) {
+            return ResponseEntity.ok(Map.of(
+                    "status", "pending",
+                    "reason", "Reconciliation has not run yet"));
+        }
+        return ResponseEntity.ok(Map.of(
+                "status", "completed",
+                "adopted", result.adopted(),
+                "removed", result.removed(),
+                "matched", result.matched(),
+                "qtyMismatch", result.qtyMismatch(),
+                "details", result.details()));
     }
 }

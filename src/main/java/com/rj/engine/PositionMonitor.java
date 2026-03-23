@@ -90,6 +90,18 @@ public class PositionMonitor {
 
     // ── Position registry ─────────────────────────────────────────────────────
 
+    /**
+     * Removes a position by correlationId (used by reconciliation to clear stale positions).
+     * @return the removed position, or null if not found
+     */
+    public OpenPosition removePosition(String correlationId) {
+        OpenPosition removed = positions.remove(correlationId);
+        if (removed != null) {
+            log.info("[{}] Position removed from monitor: {}", removed.getSymbol(), correlationId);
+        }
+        return removed;
+    }
+
     /** Returns true if there is at least one open position for the given symbol. */
     public boolean hasOpenPosition(String symbol) {
         return positions.values().stream().anyMatch(p -> p.getSymbol().equals(symbol));

@@ -233,10 +233,10 @@ com.rj.config/         YamlStrategyLoader, ConfigFileWatcher, ConfigValidator
 | HealthMonitor | Done | WS staleness, heap, API errors |
 | Notifications | Done | Webhook (Telegram planned P2) |
 | Persistence (NDJSON) | Done | Atomic writes, 30-day retention |
-| REST API (Spring Boot) | Done | 10 endpoints on port 7777 |
+| REST API (Spring Boot) | Done | 11 endpoints on port 7777 |
 | Kill Switch HTTP | Done | `POST /api/kill` |
 | **YAML Strategy Config** | **Done** | P1 — `YamlStrategyLoader` + `StrategyYamlConfig` + `StrategyRiskConfig` + `StrategyOrderConfig`; `loadWithDefaults()` merges `defaults.yaml`; `RiskManager.applyStrategyRiskOverride()` wired; `ConfigValidator` validates ranges/enums/required fields; `reloadWithRollback()` retains last-valid config; hot-reload planned |
-| **Position Reconciler** | **Planned** | P1 — startup diff |
+| **Position Reconciler** | **Done** | P1 — startup diff: broker ↔ engine; adopt orphaned, remove stale, verify qty; LIVE mode only; `GET /api/reconciliation` |
 | **OMS State Machine** | **Planned** | P1 — idempotent IDs |
 | **Token Auto-Refresh** | **Planned** | P1 — background refresh |
 | **Anomaly Protection** | **Planned** | P1 — auto close-all |

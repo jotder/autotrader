@@ -3,6 +3,7 @@ package com.rj.engine;
 import com.rj.config.ConfigManager;
 import com.rj.config.RiskConfig;
 import com.rj.model.*;
+import fyers.FyersPositions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,6 +55,7 @@ public class TradingEngine {
     private StrategyEvaluator strategyEvaluator;
     private PositionMonitor positionMonitor;
     private HealthMonitor healthMonitor;
+    private PositionReconciler positionReconciler;
 
     // ── Factory ───────────────────────────────────────────────────────────────
 
@@ -110,6 +112,12 @@ public class TradingEngine {
                 tickStore, cs, se, pm, config.getActiveSymbols());
         engine.healthMonitor = hm;
 
+        // Position reconciler — only meaningful in LIVE mode
+        if (mode == ExecutionMode.LIVE) {
+            engine.positionReconciler = new PositionReconciler(
+                    new FyersPositions(), pm, engine.openRecords, journal, riskCfg);
+        }
+
         log.info("TradingEngine created — mode={} symbols={}",
                 mode, String.join(",", config.getActiveSymbols()));
         return engine;
@@ -146,6 +154,13 @@ public class TradingEngine {
             return;
         }
         log.info("TradingEngine starting in {} mode...", mode);
+
+        // ── Position reconciliation (LIVE mode only) ────────────────────────────
+        if (positionReconciler != null) {
+            log.info("Running position reconciliation before startup...");
+            PositionReconciler.ReconciliationResult result = positionReconciler.reconcile();
+            log.info("Reconciliation result: {}", result);
+        }
 
         positionMonitor.start();                         // Thread 4 first — must be ready before signals fire
         strategyEvaluator.start();                       // Thread 3
@@ -196,6 +211,10 @@ public class TradingEngine {
 
     public TradeJournal getJournal() {
         return journal;
+    }
+
+    public PositionReconciler getPositionReconciler() {
+        return positionReconciler;
     }
 
     // ── Signal handler (Thread 3 → entry pipeline) ───────────────────────────
