@@ -1,0 +1,20 @@
+# Ralph Progress Log
+Started: Mon Mar 23 11:33:58 IST 2026
+---
+
+## AT-001 - YAML strategy config file structure and loader — 2026-03-23
+- What was implemented: `StrategyYamlConfig` POJO with all nested sections (ActiveHours, Indicators, Entry, Risk, Order); `YamlStrategyLoader` using SnakeYAML Map-based parsing with explicit snake_case key extraction; `config/strategies/intraday.yaml` with trend_following, mean_reversion, volatility_breakout; `config/defaults.yaml` with global defaults.
+- Files changed: `config/defaults.yaml`, `config/strategies/intraday.yaml`, `src/main/java/com/rj/config/StrategyYamlConfig.java`, `src/main/java/com/rj/config/YamlStrategyLoader.java`, `src/test/java/com/rj/config/YamlStrategyLoaderTest.java`, `src/test/resources/test-strategies.yaml`, `src/test/resources/test-defaults.yaml`
+- Tests added: 19 new test methods
+- **Codebase Patterns:**
+  - SnakeYAML is available as a Spring Boot BOM transitive dependency — no explicit pom.xml addition needed.
+  - YAML uses snake_case keys (e.g., `ema_fast`, `active_hours`). SnakeYAML's JavaBean mapper does NOT auto-convert snake_case → camelCase. Use `Map<String, Object>` deserialization and extract keys manually.
+  - Tests go in `src/test/java/com/rj/config/` (mirroring source package). Test YAML resources go in `src/test/resources/` and are loaded via `getClass().getClassLoader().getResource(name)`.
+  - `@TempDir` from JUnit 5 is available for writing temp YAML files in tests — no extra dependency needed.
+  - Production YAML at `config/strategies/intraday.yaml` is loaded via `Path.of("config/strategies/intraday.yaml")` relative to project root (works when running from project root with Maven).
+  - The existing tests in `src/test/java/com/rj/` are NOT JUnit tests — they are Java 21+ "void main()" scripts used for manual API exploration. Do not follow that pattern for new tests.
+- **Gotchas:**
+  - `mvn test -q` suppresses all output including test results. Use `mvn test 2>&1 | grep -E "BUILD|Tests run"` to confirm pass/fail.
+  - The `config/` directory is at project root (not `src/main/resources/`); it's meant to be user-edited at deployment time.
+  - Use `org.junit.jupiter.api.Assumptions.assumeTrue(path.toFile().exists(), ...)` for tests that depend on optional files like the production `intraday.yaml`.
+---
