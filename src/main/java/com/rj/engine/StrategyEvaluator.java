@@ -1,6 +1,7 @@
 package com.rj.engine;
 
 import com.rj.config.RiskConfig;
+import com.rj.config.StrategyYamlConfig;
 import com.rj.model.CandleRecommendation;
 import com.rj.model.Signal;
 import com.rj.model.Timeframe;
@@ -10,6 +11,8 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.EnumMap;
 import java.util.Map;
@@ -44,8 +47,13 @@ public class StrategyEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(StrategyEvaluator.class);
 
-    private static final double MIN_CONFIDENCE = 0.70;
-    private static final Duration COOLDOWN_DURATION = Duration.ofMinutes(25); // 5 candles × 5 min
+    private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
+
+    // Defaults used when no YAML config is loaded
+    private static final double DEFAULT_MIN_CONFIDENCE = 0.70;
+    private static final int DEFAULT_COOLDOWN_MINUTES = 25;
+    private static final double DEFAULT_SL_ATR_MULTIPLIER = 2.0;
+    private static final double DEFAULT_TP_R_MULTIPLE = 2.0;
 
     private final BlockingQueue<CandleRecommendation> inQueue;
     private final Consumer<TradeSignal> signalConsumer;
@@ -59,6 +67,9 @@ public class StrategyEvaluator {
     private final ConcurrentHashMap<String, Instant> lastExitTime = new ConcurrentHashMap<>();
     private volatile Thread thread;
 
+    // Per-strategy YAML config (keyed by strategy name, e.g. "trend_following")
+    private volatile Map<String, StrategyYamlConfig> strategyConfigs = Map.of();
+
     public StrategyEvaluator(BlockingQueue<CandleRecommendation> inQueue,
                              Consumer<TradeSignal> signalConsumer,
                              RiskConfig riskConfig,
@@ -67,6 +78,22 @@ public class StrategyEvaluator {
         this.signalConsumer = signalConsumer;
         this.riskConfig = riskConfig;
         this.positionMonitor = positionMonitor;
+    }
+
+    /**
+     * Updates the per-strategy YAML configs at runtime (called by ConfigFileWatcher on hot-reload).
+     * Thread-safe: volatile reference swap.
+     */
+    public void updateStrategyConfigs(Map<String, StrategyYamlConfig> configs) {
+        this.strategyConfigs = configs != null ? Map.copyOf(configs) : Map.of();
+        log.info("StrategyEvaluator configs updated: {} strategies loaded", this.strategyConfigs.size());
+    }
+
+    /**
+     * Returns the current per-strategy configs (for testing/introspection).
+     */
+    public Map<String, StrategyYamlConfig> getStrategyConfigs() {
+        return strategyConfigs;
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -96,7 +123,7 @@ public class StrategyEvaluator {
 
     public void onPositionClosed(String symbol) {
         lastExitTime.put(symbol, Instant.now());
-        log.info("[{}] Cooldown started — no new entries for {}", symbol, COOLDOWN_DURATION);
+        log.info("[{}] Cooldown started — no new entries for {} min", symbol, DEFAULT_COOLDOWN_MINUTES);
     }
 
     // ── Main evaluation loop ──────────────────────────────────────────────────
@@ -172,24 +199,55 @@ public class StrategyEvaluator {
             return Optional.empty();
         }
 
-        // ── Gate 5: confidence threshold ─────────────────────────────────────
-        double confidence = combineConfidence(m5, m15, h1, m5Signal);
-        if (confidence < MIN_CONFIDENCE) {
-            log.debug("[{}] Combined confidence {:.2f} below threshold {}", symbol, confidence, MIN_CONFIDENCE);
+        // ── Resolve per-strategy config (if available) ──────────────────────
+        String strategyId = m5.getStrategySource();
+        StrategyYamlConfig stratCfg = resolveStrategyConfig(strategyId);
+
+        // ── Gate 5a: strategy enabled check ────────────────────────────────
+        if (stratCfg != null && !stratCfg.isEnabled()) {
+            log.debug("[{}] Strategy '{}' is disabled via YAML config — skipping", symbol, strategyId);
             return Optional.empty();
         }
 
-        // ── Gate 6: time filter ───────────────────────────────────────────────
+        // ── Gate 5b: per-strategy active hours ─────────────────────────────
+        if (stratCfg != null) {
+            StrategyYamlConfig.ActiveHours hours = stratCfg.getActiveHours();
+            LocalTime activeStart = LocalTime.parse(hours.getStart());
+            LocalTime activeEnd = LocalTime.parse(hours.getEnd());
+            LocalTime nowLocal = ZonedDateTime.now(IST).toLocalTime();
+            if (nowLocal.isBefore(activeStart) || nowLocal.isAfter(activeEnd)) {
+                log.debug("[{}] Strategy '{}' outside active hours ({}-{}) — skipping",
+                        symbol, strategyId, hours.getStart(), hours.getEnd());
+                return Optional.empty();
+            }
+        }
+
+        // ── Gate 5c: confidence threshold ──────────────────────────────────
+        double minConfidence = (stratCfg != null)
+                ? stratCfg.getEntry().getMinConfidence()
+                : DEFAULT_MIN_CONFIDENCE;
+        double confidence = combineConfidence(m5, m15, h1, m5Signal);
+        if (confidence < minConfidence) {
+            log.debug("[{}] Combined confidence {} below threshold {}", symbol,
+                    String.format("%.2f", confidence), String.format("%.2f", minConfidence));
+            return Optional.empty();
+        }
+
+        // ── Gate 6: time filter (global cutoff) ───────────────────────────
         ZonedDateTime now = ZonedDateTime.now(riskConfig.getExchangeZone());
         if (now.toLocalTime().isAfter(riskConfig.getNoNewTradesAfter())) {
             log.debug("[{}] Past no-new-trades cutoff {} IST", symbol, riskConfig.getNoNewTradesAfter());
             return Optional.empty();
         }
 
-        // ── Gate 7: cooldown ─────────────────────────────────────────────────
+        // ── Gate 7: cooldown (per-strategy or default) ────────────────────
+        int cooldownMinutes = (stratCfg != null)
+                ? stratCfg.getCooldownMinutes()
+                : DEFAULT_COOLDOWN_MINUTES;
+        Duration cooldownDuration = Duration.ofMinutes(cooldownMinutes);
         Instant lastExit = lastExitTime.get(symbol);
-        if (lastExit != null && Duration.between(lastExit, Instant.now()).compareTo(COOLDOWN_DURATION) < 0) {
-            log.debug("[{}] In cooldown since {}", symbol, lastExit);
+        if (lastExit != null && Duration.between(lastExit, Instant.now()).compareTo(cooldownDuration) < 0) {
+            log.debug("[{}] In cooldown since {} ({}min)", symbol, lastExit, cooldownMinutes);
             return Optional.empty();
         }
 
@@ -201,9 +259,21 @@ public class StrategyEvaluator {
 
         // ── Build trade signal ────────────────────────────────────────────────
         double entry = m5.getCandle().close;
-        double atr = m5.getAtr14() > 0 ? m5.getAtr14() : entry * 0.01; // fallback 1%
-        double sl = m5Signal == Signal.BUY ? entry - (2 * atr) : entry + (2 * atr);
-        double tp = m5Signal == Signal.BUY ? entry + (4 * atr) : entry - (4 * atr); // 2R
+        double atrValue = m5.getAtr14() > 0 ? m5.getAtr14() : entry * 0.01; // fallback 1%
+
+        // SL/TP multipliers from per-strategy YAML config or defaults
+        double slMultiplier = (stratCfg != null)
+                ? stratCfg.getRisk().getSlAtrMultiplier()
+                : DEFAULT_SL_ATR_MULTIPLIER;
+        double tpRMultiple = (stratCfg != null)
+                ? stratCfg.getRisk().getTpRMultiple()
+                : DEFAULT_TP_R_MULTIPLE;
+        double sl = m5Signal == Signal.BUY
+                ? entry - (slMultiplier * atrValue)
+                : entry + (slMultiplier * atrValue);
+        double tp = m5Signal == Signal.BUY
+                ? entry + (slMultiplier * tpRMultiple * atrValue)
+                : entry - (slMultiplier * tpRMultiple * atrValue);
 
         String correlationId = symbol + "_" + m5Signal + "_" + m5.getWindowStart().getEpochSecond();
 
@@ -245,5 +315,38 @@ public class StrategyEvaluator {
 
     public int queueDepth() {
         return inQueue.size();
+    }
+
+    // ── Strategy config resolution ─────────────────────────────────────────────
+
+    /**
+     * Resolves a per-strategy YAML config by matching the CandleAnalyzer strategy source
+     * name (e.g. "MACD_CROSSOVER") against loaded YAML strategy keys (e.g. "trend_following").
+     *
+     * <p>Mapping convention: CandleAnalyzer emits upper-case source names;
+     * YAML uses lower-case keys. The mapping is:</p>
+     * <ul>
+     *   <li>MACD_CROSSOVER, PRICE_ACTION → trend_following</li>
+     *   <li>MEAN_REVERSION → mean_reversion</li>
+     *   <li>VOLATILITY_BREAKOUT → volatility_breakout</li>
+     * </ul>
+     *
+     * @return the matching config, or null if not found
+     */
+    private StrategyYamlConfig resolveStrategyConfig(String strategySource) {
+        if (strategySource == null || strategyConfigs.isEmpty()) return null;
+
+        // Direct match by lower-casing
+        String lower = strategySource.toLowerCase();
+        StrategyYamlConfig cfg = strategyConfigs.get(lower);
+        if (cfg != null) return cfg;
+
+        // Map CandleAnalyzer source names to YAML strategy keys
+        return switch (strategySource) {
+            case "MACD_CROSSOVER", "PRICE_ACTION" -> strategyConfigs.get("trend_following");
+            case "MEAN_REVERSION" -> strategyConfigs.get("mean_reversion");
+            case "VOLATILITY_BREAKOUT" -> strategyConfigs.get("volatility_breakout");
+            default -> null;
+        };
     }
 }

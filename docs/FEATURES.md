@@ -287,9 +287,10 @@ All features keyed by symbol. `FYERS_SYMBOLS` comma-separated. Concurrent across
 | ID | Feature | PRD Refs | Priority |
 |---|---|---|---|
 | F-23 | Position reconciliation on startup | POS-09, NFR-11 | ✅ Done |
+| F-23a | Wire YAML config into CandleAnalyzer & StrategyEvaluator | TA-07, STR-08 | ✅ Done |
 | F-24 | OMS state machine (idempotent client order IDs) | ORD-09 | P1-Critical |
 | F-25 | Token auto-refresh (background, before 8h expiry) | CFG-07 | P1-High |
-| F-26 | YAML strategy configuration system | CFG-Y01–Y09 | P1-High |
+| F-26 | YAML strategy configuration system | CFG-Y01–Y09 | ✅ Done |
 | F-27 | Pluggable strategy interface | STR-10 | P1-High |
 | F-28 | Anomaly auto-protection (close all → cash → manual restart) | RSK-14, RSK-16 | P1-Critical |
 | F-29 | Circuit breaker on API error rate | NFR-12 | P1-Medium |

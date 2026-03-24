@@ -122,25 +122,44 @@ public class TradingEngine {
                     new FyersPositions(), pm, engine.openRecords, journal, riskCfg);
         }
 
-        // Config hot-reload watcher — watches config/strategies/ for YAML changes
+        // Load YAML strategy configs at startup
         Path strategiesDir = Path.of("config/strategies");
         Path strategiesPath = Path.of("config/strategies/intraday.yaml");
         Path defaultsPath = Path.of("config/defaults.yaml");
-        if (Files.isDirectory(strategiesDir)) {
-            YamlStrategyLoader loader = new YamlStrategyLoader();
-            ConfigValidator validator = new ConfigValidator(config.getSymbolRegistry());
-            engine.configFileWatcher = new ConfigFileWatcher(
-                    strategiesDir, strategiesPath, defaultsPath,
-                    loader, validator,
-                    newStrategies -> {
-                        for (Map.Entry<String, StrategyYamlConfig> entry : newStrategies.entrySet()) {
-                            StrategyRiskConfig riskOverride = StrategyRiskConfig.from(entry.getValue().getRisk());
-                            riskMgr.applyStrategyRiskOverride(entry.getKey(), riskOverride);
-                        }
-                        log.info("Hot-reload applied: {} strategy risk overrides updated", newStrategies.size());
-                    });
+        if (Files.isDirectory(strategiesDir) && Files.exists(strategiesPath)) {
+            try {
+                YamlStrategyLoader loader = new YamlStrategyLoader();
+                Map<String, StrategyYamlConfig> initialConfigs = loader.loadWithDefaults(strategiesPath, defaultsPath);
+                cs.setStrategyConfigs(initialConfigs);
+                se.updateStrategyConfigs(initialConfigs);
+
+                // Apply initial risk overrides
+                for (Map.Entry<String, StrategyYamlConfig> entry : initialConfigs.entrySet()) {
+                    StrategyRiskConfig riskOverride = StrategyRiskConfig.from(entry.getValue().getRisk());
+                    riskMgr.applyStrategyRiskOverride(entry.getKey(), riskOverride);
+                }
+                log.info("Loaded {} strategy configs from YAML at startup", initialConfigs.size());
+
+                // Config hot-reload watcher — watches config/strategies/ for YAML changes
+                ConfigValidator validator = new ConfigValidator(config.getSymbolRegistry());
+                engine.configFileWatcher = new ConfigFileWatcher(
+                        strategiesDir, strategiesPath, defaultsPath,
+                        loader, validator,
+                        newStrategies -> {
+                            // Update risk overrides
+                            for (Map.Entry<String, StrategyYamlConfig> entry : newStrategies.entrySet()) {
+                                StrategyRiskConfig riskOverride = StrategyRiskConfig.from(entry.getValue().getRisk());
+                                riskMgr.applyStrategyRiskOverride(entry.getKey(), riskOverride);
+                            }
+                            // Update strategy evaluator configs (confidence, cooldown, active hours, SL/TP)
+                            se.updateStrategyConfigs(newStrategies);
+                            log.info("Hot-reload applied: {} strategy configs updated (risk + evaluator)", newStrategies.size());
+                        });
+            } catch (Exception e) {
+                log.warn("Failed to load strategy YAML configs at startup: {} — using defaults", e.getMessage());
+            }
         } else {
-            log.warn("Strategy config directory not found: {} — hot-reload disabled", strategiesDir);
+            log.warn("Strategy config directory/files not found: {} — using defaults, hot-reload disabled", strategiesDir);
         }
 
         log.info("TradingEngine created — mode={} symbols={}",
