@@ -1,9 +1,13 @@
 package com.rj.config;
 
+import com.rj.engine.CandleDatabase;
+import com.rj.engine.SymbolProfiler;
 import com.rj.engine.TradingEngine;
 import com.rj.model.TickStore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.nio.file.Path;
 
 /**
  * Bridges existing singletons and factory-created objects into the Spring bean context.
@@ -41,5 +45,25 @@ public class EngineConfiguration {
     @Bean
     public TradingEngine tradingEngine() {
         return TradingEngine.create();
+    }
+
+    @Bean
+    public DimensionDataCache dimensionDataCache() {
+        return DimensionDataCache.load(Path.of("data/dim"));
+    }
+
+    @Bean
+    public SymbolMasterCache symbolMasterCache() {
+        return SymbolMasterCache.load(Path.of("data/symbol_master"));
+    }
+
+    @Bean
+    public CandleDatabase candleDatabase() {
+        return new CandleDatabase(Path.of("data/db"));
+    }
+
+    @Bean
+    public SymbolProfiler symbolProfiler(CandleDatabase candleDatabase) {
+        return new SymbolProfiler(candleDatabase);
     }
 }

@@ -67,6 +67,15 @@ public class BacktestEngine {
                 new TradeJournal(ExecutionMode.BACKTEST));
     }
 
+    /**
+     * Create a BacktestEngine from M1 candles — aggregates to M5 first.
+     */
+    public static BacktestEngine fromM1(List<Candle> m1Candles, String symbol, RiskConfig riskConfig) {
+        List<Candle> m5 = aggregateToHigherTimeframe(m1Candles, 5);
+        log.info("[BT][{}] Aggregated {} M1 candles → {} M5 candles", symbol, m1Candles.size(), m5.size());
+        return new BacktestEngine(m5, symbol, riskConfig);
+    }
+
     BacktestEngine(List<Candle> m5Candles, String symbol, RiskConfig riskConfig,
                    BacktestOrderExecutor executor, TradeJournal journal) {
         this.m5Candles = new ArrayList<>(m5Candles);
@@ -83,6 +92,49 @@ public class BacktestEngine {
 
     /** Aggregates a list of lower-timeframe candles into one higher-TF candle. */
     private static Candle aggregate(List<Candle> bars, Timeframe tf) {
+        long ts = bars.get(0).timestamp;
+        double open = bars.get(0).open;
+        double close = bars.get(bars.size() - 1).close;
+        double high = bars.stream().mapToDouble(c -> c.high).max().orElse(open);
+        double low = bars.stream().mapToDouble(c -> c.low).min().orElse(open);
+        long volume = bars.stream().mapToLong(c -> c.volume).sum();
+        return Candle.of(ts, open, high, low, close, volume);
+    }
+
+    /**
+     * Aggregate M1 (or any lower-TF) candles into higher-timeframe candles.
+     * Groups by {@code periodMinutes}-minute boundaries based on timestamps.
+     *
+     * @param candles         input candles sorted by timestamp
+     * @param periodMinutes   target period (e.g. 5 for M5)
+     * @return aggregated candles
+     */
+    public static List<Candle> aggregateToHigherTimeframe(List<Candle> candles, int periodMinutes) {
+        if (candles == null || candles.isEmpty()) return List.of();
+        long periodSeconds = periodMinutes * 60L;
+        var result = new ArrayList<Candle>();
+        var buffer = new ArrayList<Candle>();
+        long currentBoundary = -1;
+
+        for (Candle c : candles) {
+            long boundary = (c.timestamp / periodSeconds) * periodSeconds;
+            if (currentBoundary == -1) {
+                currentBoundary = boundary;
+            }
+            if (boundary != currentBoundary && !buffer.isEmpty()) {
+                result.add(aggregateBuffer(buffer));
+                buffer.clear();
+                currentBoundary = boundary;
+            }
+            buffer.add(c);
+        }
+        if (!buffer.isEmpty()) {
+            result.add(aggregateBuffer(buffer));
+        }
+        return result;
+    }
+
+    private static Candle aggregateBuffer(List<Candle> bars) {
         long ts = bars.get(0).timestamp;
         double open = bars.get(0).open;
         double close = bars.get(bars.size() - 1).close;

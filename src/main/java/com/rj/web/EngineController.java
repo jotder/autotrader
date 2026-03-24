@@ -1,14 +1,14 @@
 package com.rj.web;
 
 import com.rj.config.ConfigManager;
+import com.rj.config.DimensionDataCache;
 import com.rj.config.MarketCategory;
+import com.rj.config.SymbolFormatParser;
+import com.rj.config.SymbolMasterCache;
 import com.rj.config.SymbolRegistry;
-import com.rj.engine.PositionMonitor;
-import com.rj.engine.PositionReconciler;
-import com.rj.engine.RiskManager;
-import com.rj.engine.StrategyAnalyzer;
-import com.rj.engine.TradingEngine;
+import com.rj.engine.*;
 import com.rj.model.*;
+import com.rj.model.dim.SymbolMasterEntry;
 import com.rj.web.dto.ActionResponse;
 import com.rj.web.dto.RiskResponse;
 import com.rj.web.dto.StatusResponse;
@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -27,11 +28,21 @@ public class EngineController {
     private final TradingEngine engine;
     private final TickStore tickStore;
     private final ConfigManager configManager;
+    private final DimensionDataCache dimensionCache;
+    private final SymbolMasterCache symbolMasterCache;
+    private final CandleDatabase candleDatabase;
+    private final SymbolProfiler symbolProfiler;
 
-    public EngineController(TradingEngine engine, TickStore tickStore, ConfigManager configManager) {
+    public EngineController(TradingEngine engine, TickStore tickStore, ConfigManager configManager,
+                            DimensionDataCache dimensionCache, SymbolMasterCache symbolMasterCache,
+                            CandleDatabase candleDatabase, SymbolProfiler symbolProfiler) {
         this.engine = engine;
         this.tickStore = tickStore;
         this.configManager = configManager;
+        this.dimensionCache = dimensionCache;
+        this.symbolMasterCache = symbolMasterCache;
+        this.candleDatabase = candleDatabase;
+        this.symbolProfiler = symbolProfiler;
     }
 
     // ── Read endpoints ──────────────────────────────────────────────────────
@@ -166,5 +177,140 @@ public class EngineController {
                 "matched", result.matched(),
                 "qtyMismatch", result.qtyMismatch(),
                 "details", result.details()));
+    }
+
+    // ── Dimension & Symbol Master endpoints ───────────────────────────────
+
+    @GetMapping("/dimensions")
+    public Map<String, Object> dimensions() {
+        return dimensionCache.allTables();
+    }
+
+    @GetMapping("/dimensions/{table}")
+    public ResponseEntity<?> dimensionTable(@PathVariable String table) {
+        return dimensionCache.tableByName(table)
+                .map(list -> ResponseEntity.ok((Object) list))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/symbol-master")
+    public ResponseEntity<?> symbolMaster(
+            @RequestParam(required = false) Integer exchange,
+            @RequestParam(required = false) Integer segment,
+            @RequestParam(required = false) String underlying,
+            @RequestParam(required = false) String ticker,
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "50") int limit) {
+
+        // Exact ticker lookup
+        if (ticker != null && !ticker.isBlank()) {
+            return symbolMasterCache.byTicker(ticker)
+                    .map(e -> ResponseEntity.ok((Object) e))
+                    .orElse(ResponseEntity.notFound().build());
+        }
+
+        // Search by query
+        if (q != null && !q.isBlank()) {
+            return ResponseEntity.ok(symbolMasterCache.search(q, limit));
+        }
+
+        // Filter by underlying
+        if (underlying != null && !underlying.isBlank()) {
+            List<SymbolMasterEntry> results = symbolMasterCache.byUnderlying(underlying);
+            return ResponseEntity.ok(results.isEmpty() ? List.of() : results);
+        }
+
+        // Filter by exchange + segment
+        if (exchange != null && segment != null) {
+            return ResponseEntity.ok(symbolMasterCache.byExchangeSegment(exchange, segment));
+        }
+
+        // Default: return summary
+        return ResponseEntity.ok(Map.of(
+                "totalSymbols", symbolMasterCache.size(),
+                "underlyings", symbolMasterCache.allUnderlyings().size(),
+                "hint", "Use ?ticker=NSE:SBIN-EQ, ?underlying=NIFTY, ?exchange=10&segment=11, or ?q=SBIN"));
+    }
+
+    // ── Symbol parsing endpoint ───────────────────────────────────────────
+
+    @GetMapping("/symbol/parse")
+    public ResponseEntity<?> parseSymbol(@RequestParam("s") String symbol) {
+        ParsedSymbol parsed = SymbolFormatParser.parse(symbol);
+        if (parsed == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Unrecognized symbol format",
+                    "symbol", symbol));
+        }
+        return ResponseEntity.ok(parsed);
+    }
+
+    // ── Candle Database endpoints ─────────────────────────────────────────
+
+    @GetMapping("/candle-db/symbols")
+    public Set<String> candleDbSymbols() {
+        return candleDatabase.availableSymbols();
+    }
+
+    @GetMapping("/candle-db/{symbol}/dates")
+    public List<LocalDate> candleDbDates(@PathVariable String symbol) {
+        return candleDatabase.availableDates(symbol);
+    }
+
+    @GetMapping("/candle-db/{symbol}")
+    public ResponseEntity<?> candleDbLoad(@PathVariable String symbol,
+                                          @RequestParam String date) {
+        LocalDate d = LocalDate.parse(date);
+        List<Candle> candles = candleDatabase.load(symbol, d);
+        if (candles.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(Map.of(
+                "symbol", symbol,
+                "date", date,
+                "count", candles.size(),
+                "candles", candles));
+    }
+
+    // ── Backtest endpoint ─────────────────────────────────────────────────
+
+    @PostMapping("/backtest")
+    public ResponseEntity<?> backtest(@RequestBody Map<String, String> request) {
+        String symbol = request.get("symbol");
+        String fromStr = request.get("from");
+        String toStr = request.get("to");
+
+        if (symbol == null || fromStr == null || toStr == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Required fields: symbol, from, to"));
+        }
+
+        LocalDate from = LocalDate.parse(fromStr);
+        LocalDate to = LocalDate.parse(toStr);
+
+        List<Candle> m1Candles = candleDatabase.loadRange(symbol, from, to);
+        if (m1Candles.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "No M1 data found for " + symbol + " in range " + from + " to " + to,
+                    "hint", "Download data first via POST /api/candle-db/download"));
+        }
+
+        BacktestEngine bt = BacktestEngine.fromM1(m1Candles, symbol, configManager.getRiskConfig());
+        StrategyAnalyzer.Report report = bt.run();
+        return ResponseEntity.ok(report);
+    }
+
+    // ── Symbol Profile endpoint ───────────────────────────────────────────
+
+    @GetMapping("/profile/{symbol}")
+    public ResponseEntity<?> profile(@PathVariable String symbol,
+                                     @RequestParam String from,
+                                     @RequestParam String to) {
+        SymbolProfile profile = symbolProfiler.profile(symbol, LocalDate.parse(from), LocalDate.parse(to));
+        if (profile == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Insufficient data for profiling " + symbol));
+        }
+        return ResponseEntity.ok(profile);
     }
 }

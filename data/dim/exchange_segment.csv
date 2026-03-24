@@ -1,0 +1,9 @@
+Exchange,Segment,Exchange Code,Segment Code
+NSE,Capital Market,10,10
+NSE,Equity Derivatives,10,11
+NSE,Currency Derivatives,10,12
+NSE,Commodity Derivatives,10,20
+BSE,Capital Market,12,10
+BSE,Equity Derivatives,12,11
+BSE,Currency Derivatives,12,12
+MCX,Commodity Derivatives,11,20
