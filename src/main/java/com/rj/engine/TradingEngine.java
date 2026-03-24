@@ -1,13 +1,16 @@
 package com.rj.engine;
 
-import com.rj.config.ConfigManager;
-import com.rj.config.RiskConfig;
+import com.rj.config.*;
 import com.rj.model.*;
 import fyers.FyersPositions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -56,6 +59,7 @@ public class TradingEngine {
     private PositionMonitor positionMonitor;
     private HealthMonitor healthMonitor;
     private PositionReconciler positionReconciler;
+    private ConfigFileWatcher configFileWatcher;
 
     // ── Factory ───────────────────────────────────────────────────────────────
 
@@ -118,6 +122,27 @@ public class TradingEngine {
                     new FyersPositions(), pm, engine.openRecords, journal, riskCfg);
         }
 
+        // Config hot-reload watcher — watches config/strategies/ for YAML changes
+        Path strategiesDir = Path.of("config/strategies");
+        Path strategiesPath = Path.of("config/strategies/intraday.yaml");
+        Path defaultsPath = Path.of("config/defaults.yaml");
+        if (Files.isDirectory(strategiesDir)) {
+            YamlStrategyLoader loader = new YamlStrategyLoader();
+            ConfigValidator validator = new ConfigValidator(config.getSymbolRegistry());
+            engine.configFileWatcher = new ConfigFileWatcher(
+                    strategiesDir, strategiesPath, defaultsPath,
+                    loader, validator,
+                    newStrategies -> {
+                        for (Map.Entry<String, StrategyYamlConfig> entry : newStrategies.entrySet()) {
+                            StrategyRiskConfig riskOverride = StrategyRiskConfig.from(entry.getValue().getRisk());
+                            riskMgr.applyStrategyRiskOverride(entry.getKey(), riskOverride);
+                        }
+                        log.info("Hot-reload applied: {} strategy risk overrides updated", newStrategies.size());
+                    });
+        } else {
+            log.warn("Strategy config directory not found: {} — hot-reload disabled", strategiesDir);
+        }
+
         log.info("TradingEngine created — mode={} symbols={}",
                 mode, String.join(",", config.getActiveSymbols()));
         return engine;
@@ -167,6 +192,15 @@ public class TradingEngine {
         candleService.start(config.getActiveSymbols());  // Thread 2
         healthMonitor.start();                           // Thread 5
 
+        // Config hot-reload watcher (non-critical — engine runs without it)
+        if (configFileWatcher != null) {
+            try {
+                configFileWatcher.start();
+            } catch (IOException e) {
+                log.warn("Failed to start config file watcher — hot-reload disabled: {}", e.getMessage());
+            }
+        }
+
         registerShutdownHook();
         log.info("TradingEngine started. Active symbols: {}",
                 String.join(", ", config.getActiveSymbols()));
@@ -177,6 +211,7 @@ public class TradingEngine {
     public void stop() {
         if (!running.compareAndSet(true, false)) return;
         log.info("TradingEngine stopping...");
+        if (configFileWatcher != null) configFileWatcher.stop();
         healthMonitor.stop();
         candleService.stop();
         strategyEvaluator.stop();
@@ -215,6 +250,10 @@ public class TradingEngine {
 
     public PositionReconciler getPositionReconciler() {
         return positionReconciler;
+    }
+
+    public ConfigFileWatcher getConfigFileWatcher() {
+        return configFileWatcher;
     }
 
     // ── Signal handler (Thread 3 → entry pipeline) ───────────────────────────

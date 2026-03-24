@@ -262,11 +262,11 @@ On shutdown, `TradingEngine.analyzeSession()` generates full report if trades oc
 
 ---
 
-### F-21 · Configuration Management ✅ (.env) | ✅ YAML loader | ✅ Per-strategy risk/order | ✅ Validation + rollback | 📋 Hot-reload
+### F-21 · Configuration Management ✅ (.env) | ✅ YAML loader | ✅ Per-strategy risk/order | ✅ Validation + rollback | ✅ Hot-reload
 
-`.env` for global config. YAML for strategy params (`YamlStrategyLoader` + `StrategyYamlConfig`). Per-strategy risk overrides via `StrategyRiskConfig` record; order config via `StrategyOrderConfig` record. `loadWithDefaults()` merges `defaults.yaml` as fallback. `RiskManager.applyStrategyRiskOverride()` applies YAML values at runtime. `ConfigValidator` validates all required fields, numeric ranges, and enum values; `YamlStrategyLoader.reloadWithRollback()` retains last-valid config on failure. Hot-reload planned.
+`.env` for global config. YAML for strategy params (`YamlStrategyLoader` + `StrategyYamlConfig`). Per-strategy risk overrides via `StrategyRiskConfig` record; order config via `StrategyOrderConfig` record. `loadWithDefaults()` merges `defaults.yaml` as fallback. `RiskManager.applyStrategyRiskOverride()` applies YAML values at runtime. `ConfigValidator` validates all required fields, numeric ranges, and enum values; `YamlStrategyLoader.reloadWithRollback()` retains last-valid config on failure. `ConfigFileWatcher` monitors `config/strategies/` via WatchService on a virtual thread; debounce 500ms; on valid change applies `StrategyRiskConfig` overrides to RiskManager; wired into TradingEngine start/stop lifecycle.
 
-**PRD refs:** CFG-01–07, CFG-Y01–Y09 · **Classes:** `ConfigManager`, `RiskConfig`, `StrategyConfig`, `YamlStrategyLoader`, `StrategyYamlConfig`, `StrategyRiskConfig`, `StrategyOrderConfig`, `ConfigValidator`
+**PRD refs:** CFG-01–07, CFG-Y01–Y09 · **Classes:** `ConfigManager`, `RiskConfig`, `StrategyConfig`, `YamlStrategyLoader`, `StrategyYamlConfig`, `StrategyRiskConfig`, `StrategyOrderConfig`, `ConfigValidator`, `ConfigFileWatcher`
 
 **UI surfaces:** Settings page (read-only MVP) · Strategy config editor (P2) · Symbol manager
 
