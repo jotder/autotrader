@@ -1,5 +1,6 @@
 package com.rj.engine;
 
+import com.rj.config.StrategyYamlConfig;
 import com.rj.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,6 +10,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -43,6 +45,9 @@ public class CandleService {
     private final ConcurrentHashMap<String, Thread> workers = new ConcurrentHashMap<>();
     private final AtomicInteger workerCount = new AtomicInteger(0);
 
+    // YAML strategy configs — used to resolve indicator periods per symbol
+    private volatile Map<String, StrategyYamlConfig> strategyConfigs = Map.of();
+
     public CandleService(TickStore tickStore,
                          BlockingQueue<CandleRecommendation> outQueue) {
         this(tickStore, outQueue, DEFAULT_TIMEFRAMES);
@@ -54,6 +59,15 @@ public class CandleService {
         this.tickStore = tickStore;
         this.outQueue = outQueue;
         this.timeframes = Arrays.copyOf(timeframes, timeframes.length);
+    }
+
+    /**
+     * Sets the per-strategy YAML configs so CandleAnalyzer instances can
+     * read indicator periods from config. Call before {@link #start}.
+     */
+    public void setStrategyConfigs(Map<String, StrategyYamlConfig> configs) {
+        this.strategyConfigs = configs != null ? Map.copyOf(configs) : Map.of();
+        log.info("CandleService strategy configs updated: {} strategies", this.strategyConfigs.size());
     }
 
     /**
@@ -129,7 +143,11 @@ public class CandleService {
 
     private void runCandleLoop(String symbol, Timeframe tf) {
         log.info("[{}][{}] Candle worker started", symbol, tf);
-        CandleAnalyzer analyzer = new CandleAnalyzer(symbol, tf);
+
+        // Resolve indicator config: find any strategy that has this symbol in its symbols list
+        StrategyYamlConfig.Indicators indicators = resolveIndicatorsForSymbol(symbol);
+        StrategyYamlConfig.Entry entryConfig = resolveEntryForSymbol(symbol);
+        CandleAnalyzer analyzer = new CandleAnalyzer(symbol, tf, indicators, entryConfig);
         Instant lastEmittedWin = Instant.EPOCH;
 
         while (!Thread.currentThread().isInterrupted() && running.get()) {
@@ -196,5 +214,33 @@ public class CandleService {
         }
         workerCount.decrementAndGet();
         log.info("[{}][{}] Candle worker stopped", symbol, tf);
+    }
+
+    // ── YAML config resolution helpers ─────────────────────────────────────────
+
+    /**
+     * Finds the first strategy config whose symbols list contains the given symbol.
+     * Returns default Indicators if no match found.
+     */
+    private StrategyYamlConfig.Indicators resolveIndicatorsForSymbol(String symbol) {
+        for (StrategyYamlConfig cfg : strategyConfigs.values()) {
+            if (cfg.getSymbols().contains(symbol)) {
+                return cfg.getIndicators();
+            }
+        }
+        return new StrategyYamlConfig.Indicators(); // defaults
+    }
+
+    /**
+     * Finds the first strategy config whose symbols list contains the given symbol.
+     * Returns default Entry if no match found.
+     */
+    private StrategyYamlConfig.Entry resolveEntryForSymbol(String symbol) {
+        for (StrategyYamlConfig cfg : strategyConfigs.values()) {
+            if (cfg.getSymbols().contains(symbol)) {
+                return cfg.getEntry();
+            }
+        }
+        return new StrategyYamlConfig.Entry(); // defaults
     }
 }

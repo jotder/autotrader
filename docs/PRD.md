@@ -67,7 +67,7 @@ Professional-grade multi-asset algorithmic trading system. Single JVM process ma
 | TA-04 | Compute relative volume (current bar / N-period average) | P1 | ✅ (20-bar) |
 | TA-05 | Require minimum N closed candles (configurable) before emitting signals | P1 | ✅ (21) |
 | TA-06 | Classify market trend: STRONG_BULLISH, BULLISH, SIDEWAYS, BEARISH, STRONG_BEARISH | P1 | ✅ |
-| TA-07 | All indicator periods and thresholds configurable via strategy YAML | P1 | 📋 Planned |
+| TA-07 | All indicator periods and thresholds configurable via strategy YAML | P1 | ✅ |
 | TA-08 | Support Bollinger Bands, MACD, VWAP, SuperTrend as pluggable indicators | P2 | 📋 Planned |
 | TA-09 | Options Greeks computation: delta, gamma, theta, vega (Black-Scholes or equivalent) | P2 | 📋 Planned |
 | TA-10 | IV surface and IV percentile tracking for options strategies | P2 | 📋 Planned |
@@ -83,7 +83,7 @@ Professional-grade multi-asset algorithmic trading system. Single JVM process ma
 | STR-05 | No new entry if open position exists for that symbol | P1 | ✅ |
 | STR-06 | Configurable cooldown after position close (default: 25min / 5 × M5) | P1 | ✅ |
 | STR-07 | No new entries after configurable cutoff time (default: 15:00 IST) | P1 | ✅ |
-| STR-08 | Each strategy has its own YAML config section with all tunables | P1 | 📋 Planned |
+| STR-08 | Each strategy has its own YAML config section with all tunables | P1 | ✅ |
 | STR-09 | Strategy enable/disable at runtime (via UI or YAML hot-reload) | P1 | ✅ (YAML) |
 | STR-10 | Pluggable strategy interface: add new strategies without modifying engine core | P1 | 📋 Planned |
 | STR-11 | Produce stable correlation ID per signal (symbol + direction + epoch) for idempotency | P1 | ✅ |

@@ -221,8 +221,8 @@ config/strategies/     positional.yaml, options.yaml
 | CandleService | Done | 1 vthread per symbol × timeframe |
 | Live Price Cache | Done | Singleton LTP per symbol |
 | Tick Pipeline (Disruptor) | Done | < 1 ms tick-to-action |
-| CandleAnalyzer (TA) | MVP | EMA/RSI/ATR/MACD/RelVol |
-| StrategyEvaluator | MVP | 3 strategies, compound filter |
+| CandleAnalyzer (TA) | Done | EMA/RSI/ATR/MACD/RelVol; all periods from YAML config |
+| StrategyEvaluator | Done | 3 strategies, compound filter; per-strategy YAML config (confidence, cooldown, active hours, SL/TP) |
 | RiskManager | Done | Kill switch, sizing, Disruptor consumer |
 | OMS (Paper + Backtest) | MVP | Retry/backoff, dedup guard |
 | LiveOrderExecutor | Stub | Wire FyersOrderPlacement |
