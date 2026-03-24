@@ -1,0 +1,107 @@
+formats:
+  "Equity":
+    format: "{Ex}:{Ex_Symbol}-{Series}"
+    examples: 
+      - "NSE:SBIN-EQ"
+      - "NSE:ACC-EQ"
+      - "NSE:MODIRUBBER-BE"
+      - "BSE:SBIN-A"
+      - "BSE:ACC-A"
+      - "BSE:MODIRUBBER-T"
+  "Equity Futures":
+    format: "{Ex}:{Ex_UnderlyingSymbol}{YY}{MMM}FUT"
+    examples:
+      - "NSE:NIFTY20OCTFUT"
+      - "NSE:BANKNIFTY20NOVFUT"
+      - "BSE:SENSEX23AUGFUT"
+  "Equity Options (Monthly Expiry)":
+    format: "{Ex}:{Ex_UnderlyingSymbol}{YY}{MMM}{Strike}{Opt_Type}"
+    examples:
+      - "NSE:NIFTY20OCT11000CE"
+      - "NSE:BANKNIFTY20NOV25000PE"
+      - "BSE:SENSEX23AUG60400CE"
+  "Equity Options (Weekly Expiry)":
+    format: "{Ex}:{Ex_UnderlyingSymbol}{YY}{M}{dd}{Strike}{Opt_Type}"
+    examples:
+      - "NSE:NIFTY2010811000CE"
+      - "NSE:NIFTY20O0811000CE"
+      - "BSE:SENSEX2381161000CE"
+      - "NSE:NIFTY20D1025000CE"
+  "Currency Futures":
+    format: "{Ex}:{Ex_CurrencyPair}{YY}{MMM}FUT"
+    examples:
+      - "NSE:USDINR20OCTFUT"
+      - "NSE:GBPINR20NOVFUT"
+  "Currency Options (Monthly Expiry)":
+    format: "{Ex}:{Ex_CurrencyPair}{YY}{MMM}{Strike}{Opt_Type}"
+    examples:
+      - "NSE:USDINR20OCT75CE"
+      - "NSE:GBPINR20NOV80.5PE"
+  "Currency Options (Weekly Expiry)":
+    format: "{Ex}:{Ex_CurrencyPair}{YY}{M}{dd}{Strike}{Opt_Type}"
+    examples:
+      - "NSE:USDINR20O0875CE"
+      - "NSE:GBPINR20N0580.5PE"
+      - "NSE:USDINR20D1075CE"
+  "Commodity Futures":
+    format: "{Ex}:{Ex_Commodity}{YY}{MMM}FUT"
+    examples:
+      - "MCX:CRUDEOIL20OCTFUT"
+      - "MCX:GOLD20DECFUT"
+  "Commodity Options (Monthly Expiry)":
+    format: "{Ex}:{Ex_Commodity}{YY}{MMM}{Strike}{Opt_Type}"
+    examples:
+      - "MCX:CRUDEOIL20OCT4000CE"
+      - "MCX:GOLD20DEC40000PE"
+
+variables:
+  "{Ex}":
+    explanation: "This is the exchange on which the symbol is trading"
+    possible_values: 
+      - "NSE"
+      - "BSE"
+      - "MCX"
+  "{YY}":
+    explanation: "This is the last 2 digits of the year"
+    possible_values: "2019 will be 19; 2020 will be 20; 2021 will be 21; 2022 will be 22"
+  "{MMM}":
+    explanation: "For monthly expiries such as futures and options, this value is the 3 characters of the month. The month will always be denoted in uppercase."
+    possible_values: 
+      - "JAN"
+      - "FEB"
+      - "MAR"
+      - "APR"
+      - "MAY"
+      - "JUN"
+      - "JUL"
+      - "AUG"
+      - "SEP"
+      - "OCT"
+      - "NOV"
+      - "DEC"
+  "{M}":
+    explanation: "For weekly expiries, this value represents the month of expiry but with only 1 character. This is a mix of numbers as well as characters."
+    possible_values:
+      - "Jan -> 1"
+      - "Feb -> 2"
+      - "Mar -> 3"
+      - "Apr -> 4"
+      - "May -> 5"
+      - "Jun -> 6"
+      - "Jul -> 7"
+      - "Aug -> 8"
+      - "Sep -> 9"
+      - "Oct -> O"
+      - "Nov -> N"
+      - "Dec -> D"
+  "{dd}":
+    explanation: "This is used in weekly expiries. This represents the date of the month on which the contract is going to expire. This value will always be 2 characters."
+    possible_values: "either of 01, 06, 10, 25, 30"
+  "{Opt_Type}":
+    explanation: "This represents whether the contract is call or put"
+    possible_values:
+      -"Call Option": "CE"
+      "Put Option": "PE"
+  "{Strike}":
+    explanation: "This is the strike price of the option contract"
+    possible_values: "11000 75.5"

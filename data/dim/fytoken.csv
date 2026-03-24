@@ -1,0 +1,5 @@
+Indicator,Format,Description
+Exchange,2 Digits,Exchange of the symbol
+Segment,2 Digits,Segment of the symbol
+Expiry,6 Digits,Format: YYMMDD. Eg: 200827
+Exchange Token,From 2 upto 6 Digits, The token assigned for the symbol by the exchange. Eg:22

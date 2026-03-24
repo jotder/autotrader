@@ -90,6 +90,12 @@
             <version>3.4.4</version>
         </dependency>
 
+        <!-- Jackson CSV — for loading dimension/reference CSV files -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-csv</artifactId>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
