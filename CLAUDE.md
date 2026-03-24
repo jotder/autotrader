@@ -96,7 +96,9 @@ Personal multi-asset algo trading system. Java · Fyers API v3 · NSE/BSE/MCX/CD
 
 ```
 com.rj
-├── config/    ConfigManager, RiskConfig, StrategyConfig, IConfiguration
+├── config/    ConfigManager, RiskConfig, StrategyConfig, IConfiguration,
+│              YamlStrategyLoader, ConfigFileWatcher, ConfigValidator,
+│              StrategyYamlConfig, StrategyRiskConfig, SymbolRegistry
 ├── engine/    TradingEngine, CandleService, CandleAnalyzer, StrategyEvaluator,
 │              RiskManager, PositionMonitor, BacktestEngine, *OrderExecutor,
 │              TradeJournal, StrategyAnalyzer, HealthMonitor
@@ -112,8 +114,7 @@ com.rj.web.dto/       StatusResponse, RiskResponse, TickResponse, ActionResponse
 
 **Planned additions:**
 ```
-config/strategies/     intraday.yaml, positional.yaml, options.yaml
-com.rj.config/         YamlStrategyLoader, ConfigFileWatcher, ConfigValidator
+config/strategies/     positional.yaml, options.yaml
 ```
 
 ---
@@ -128,7 +129,7 @@ com.rj.config/         YamlStrategyLoader, ConfigFileWatcher, ConfigValidator
 | `risk-scheduler` | ScheduledExecutor | 10s | Safety-net, square-off |
 | `data-scheduler` | ScheduledExecutor | 5 min | Historical candle refresh |
 | `monitor` | ScheduledExecutor | 60s | Health checks |
-| `config-watcher` | Virtual (planned) | — | YAML file change detection |
+| `config-file-watcher` | Virtual | — | YAML hot-reload via WatchService + debounce |
 | `shutdown-hook` | JVM hook | — | Drain Disruptor ring buffer |
 
 **Rules:** Virtual threads for I/O. ScheduledExecutor for periodic. **Never block `risk-tick-processor`.**
@@ -220,7 +221,7 @@ com.rj.config/         YamlStrategyLoader, ConfigFileWatcher, ConfigValidator
 | CandleService | Done | 1 vthread per symbol × timeframe |
 | Live Price Cache | Done | Singleton LTP per symbol |
 | Tick Pipeline (Disruptor) | Done | < 1 ms tick-to-action |
-| CandleAnalyzer (TA) | MVP | EMA/RSI/ATR/RelVol |
+| CandleAnalyzer (TA) | MVP | EMA/RSI/ATR/MACD/RelVol |
 | StrategyEvaluator | MVP | 3 strategies, compound filter |
 | RiskManager | Done | Kill switch, sizing, Disruptor consumer |
 | OMS (Paper + Backtest) | MVP | Retry/backoff, dedup guard |
@@ -235,7 +236,8 @@ com.rj.config/         YamlStrategyLoader, ConfigFileWatcher, ConfigValidator
 | Persistence (NDJSON) | Done | Atomic writes, 30-day retention |
 | REST API (Spring Boot) | Done | 11 endpoints on port 7777 |
 | Kill Switch HTTP | Done | `POST /api/kill` |
-| **YAML Strategy Config** | **Done** | P1 — `YamlStrategyLoader` + `StrategyYamlConfig` + `StrategyRiskConfig` + `StrategyOrderConfig`; `loadWithDefaults()` merges `defaults.yaml`; `RiskManager.applyStrategyRiskOverride()` wired; `ConfigValidator` validates ranges/enums/required fields; `reloadWithRollback()` retains last-valid config; hot-reload planned |
+| **YAML Strategy Config** | **Done** | P1 — `YamlStrategyLoader` + `StrategyYamlConfig` + `StrategyRiskConfig` + `StrategyOrderConfig`; `loadWithDefaults()` merges `defaults.yaml`; `RiskManager.applyStrategyRiskOverride()` wired; `ConfigValidator` validates ranges/enums/required fields; `reloadWithRollback()` retains last-valid config |
+| **YAML Hot-Reload** | **Done** | P1 — `ConfigFileWatcher` (virtual thread + WatchService); debounce 500ms; validates + rollback on invalid; wired into TradingEngine lifecycle; callback applies `StrategyRiskConfig` overrides to RiskManager |
 | **Position Reconciler** | **Done** | P1 — startup diff: broker ↔ engine; adopt orphaned, remove stale, verify qty; LIVE mode only; `GET /api/reconciliation` |
 | **OMS State Machine** | **Planned** | P1 — idempotent IDs |
 | **Token Auto-Refresh** | **Planned** | P1 — background refresh |
@@ -290,4 +292,4 @@ Square-off 15:15 → verify no open positions → daily summary → archive logs
 
 ---
 
-*Last updated: 2026-03-23*
+*Last updated: 2026-03-24*

@@ -84,7 +84,7 @@ Professional-grade multi-asset algorithmic trading system. Single JVM process ma
 | STR-06 | Configurable cooldown after position close (default: 25min / 5 × M5) | P1 | ✅ |
 | STR-07 | No new entries after configurable cutoff time (default: 15:00 IST) | P1 | ✅ |
 | STR-08 | Each strategy has its own YAML config section with all tunables | P1 | 📋 Planned |
-| STR-09 | Strategy enable/disable at runtime (via UI or YAML hot-reload) | P1 | 📋 Planned |
+| STR-09 | Strategy enable/disable at runtime (via UI or YAML hot-reload) | P1 | ✅ (YAML) |
 | STR-10 | Pluggable strategy interface: add new strategies without modifying engine core | P1 | 📋 Planned |
 | STR-11 | Produce stable correlation ID per signal (symbol + direction + epoch) for idempotency | P1 | ✅ |
 | STR-12 | Support multi-leg F&O strategies (spreads, straddles, strangles) | P2 | 📋 Planned |
@@ -101,7 +101,7 @@ Professional-grade multi-asset algorithmic trading system. Single JVM process ma
 | CFG-Y04 | Per-strategy risk overrides: stop-loss method, TP method, position size %, max trades/day | P1 | ✅ |
 | CFG-Y05 | Per-strategy order config: order type, slippage tolerance, product type | P1 | ✅ |
 | CFG-Y06 | Global defaults in `config/defaults.yaml`; strategy YAML overrides specific values | P1 | ✅ |
-| CFG-Y07 | Hot-reload: file watcher detects YAML changes, validates, and applies without restart | P1 | 📋 Planned |
+| CFG-Y07 | Hot-reload: file watcher detects YAML changes, validates, and applies without restart | P1 | ✅ |
 | CFG-Y08 | UI can read/write strategy YAML; changes saved to file and applied immediately | P2 | 📋 Planned |
 | CFG-Y09 | Validation: reject invalid config with rollback to previous values + WARN log | P1 | ✅ |
 | CFG-Y10 | Version history: keep last 5 config snapshots for rollback | P2 | 📋 Planned |
@@ -222,7 +222,7 @@ Professional-grade multi-asset algorithmic trading system. Single JVM process ma
 | CFG-03 | Fail fast on missing required keys | P1 | ✅ |
 | CFG-04 | All risk/strategy params overridable via `.env` or YAML | P1 | ✅ (.env) |
 | CFG-05 | Secrets never logged or committed | P1 | ✅ |
-| CFG-06 | Hot-reload: `.env` for global params, YAML for strategy params, with validation + rollback | P1 | 📋 Planned |
+| CFG-06 | Hot-reload: `.env` for global params, YAML for strategy params, with validation + rollback | P1 | ✅ (YAML) |
 | CFG-07 | Token auto-refresh (background refresh before 8-hour expiry) | P1 | 📋 Planned |
 
 ### 2.14 Backtest Engine (BKT)
