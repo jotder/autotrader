@@ -313,4 +313,15 @@ public class EngineController {
         }
         return ResponseEntity.ok(profile);
     }
+
+    // ── OMS Orders endpoint ───────────────────────────────────────────────
+
+    @GetMapping("/orders")
+    public Map<String, Object> orders() {
+        var tracker = engine.getOrderTracker();
+        return Map.of(
+                "activeCount", tracker.activeCount(),
+                "active", tracker.activeOrders(),
+                "recentCompleted", tracker.completedOrders());
+    }
 }
