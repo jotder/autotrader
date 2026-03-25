@@ -1,0 +1,100 @@
+// AutoTrader Control Center — Dark Theme
+@use '@angular/material' as mat;
+
+// Dark trading theme
+html {
+  @include mat.theme((
+    color: (
+      theme-type: dark,
+      primary: mat.$cyan-palette,
+      tertiary: mat.$orange-palette,
+    ),
+    typography: Roboto,
+    density: -1,
+  ));
+}
+
+// ── CSS Custom Properties ──────────────────────────────────────
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-card: #1c2128;
+  --bg-hover: #252c35;
+  --border: #30363d;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --profit: #3fb950;
+  --loss: #f85149;
+  --warning: #d29922;
+  --info: #58a6ff;
+  --accent: #00bcd4;
+  --font-mono: 'Roboto Mono', 'Consolas', monospace;
+}
+
+// ── Global ──────────────────────────────────────────────────────
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+}
+
+// ── Utility classes ─────────────────────────────────────────────
+.mono { font-family: var(--font-mono); }
+.profit { color: var(--profit) !important; }
+.loss { color: var(--loss) !important; }
+.warning { color: var(--warning) !important; }
+.text-secondary { color: var(--text-secondary); }
+.text-muted { color: var(--text-muted); }
+
+// ── Card styling ────────────────────────────────────────────────
+.at-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+// ── Status dots ─────────────────────────────────────────────────
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  &.green { background: var(--profit); }
+  &.red { background: var(--loss); }
+  &.amber { background: var(--warning); }
+  &.blue { background: var(--info); }
+}
+
+// ── Material overrides for dark density ─────────────────────────
+.mat-mdc-table {
+  background: var(--bg-card) !important;
+}
+
+.mat-mdc-row:hover {
+  background: var(--bg-hover) !important;
+}
+
+.mat-mdc-header-cell {
+  color: var(--text-secondary) !important;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+// ── Scrollbar styling ───────────────────────────────────────────
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
