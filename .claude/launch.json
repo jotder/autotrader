@@ -6,6 +6,12 @@
       "runtimeExecutable": "mvn",
       "runtimeArgs": ["spring-boot:run"],
       "port": 7777
+    },
+    {
+      "name": "web-ui",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "web-ui", "start"],
+      "port": 4200
     }
   ]
 }
