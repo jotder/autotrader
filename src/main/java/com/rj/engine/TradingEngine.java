@@ -63,6 +63,7 @@ public class TradingEngine {
     private ConfigFileWatcher configFileWatcher;
     private fyers.TokenRefreshScheduler tokenRefreshScheduler;
     private AnomalyDetector anomalyDetector;
+    private BrokerCircuitBreaker circuitBreaker;
 
     // ── Factory ───────────────────────────────────────────────────────────────
 
@@ -121,6 +122,16 @@ public class TradingEngine {
         // Anomaly detector — monitors for emergency conditions
         AnomalyDetector ad = new AnomalyDetector(riskMgr, pm, tickStore, journal, riskCfg);
         engine.anomalyDetector = ad;
+
+        // Circuit breaker — wraps all broker API calls with retry + state machine
+        var cbConfig = com.rj.config.CircuitBreakerConfig.fromEnvironment(config::getProperty);
+        BrokerCircuitBreaker cb = new BrokerCircuitBreaker(cbConfig, ad);
+        engine.circuitBreaker = cb;
+
+        // Attach circuit breaker to LiveOrderExecutor if in LIVE mode
+        if (executor instanceof LiveOrderExecutor loe) {
+            loe.setCircuitBreaker(cb);
+        }
 
         // Thread 5: health monitor
         HealthMonitor hm = new HealthMonitor(
@@ -302,6 +313,10 @@ public class TradingEngine {
 
     public AnomalyDetector getAnomalyDetector() {
         return anomalyDetector;
+    }
+
+    public BrokerCircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
     }
 
     /**

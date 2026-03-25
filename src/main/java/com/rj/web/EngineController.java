@@ -384,4 +384,33 @@ public class EngineController {
         }
         return new ActionResponse(false, "No active anomaly to acknowledge");
     }
+
+    // ── Circuit breaker endpoint ──────────────────────────────────────────
+
+    @GetMapping("/circuit-breaker/status")
+    public Map<String, Object> circuitBreakerStatus() {
+        var cb = engine.getCircuitBreaker();
+        var result = new LinkedHashMap<String, Object>();
+        if (cb == null) {
+            result.put("available", false);
+            return result;
+        }
+        result.put("available", true);
+        result.put("state", cb.getState().name());
+        result.put("consecutiveFailures", cb.getConsecutiveFailures());
+        result.put("daily429Count", cb.getDaily429Count());
+        result.put("lastFailureTime", cb.getLastFailureTime());
+        result.put("openedAt", cb.getOpenedAt());
+        return result;
+    }
+
+    @PostMapping("/circuit-breaker/reset")
+    public ActionResponse circuitBreakerReset() {
+        var cb = engine.getCircuitBreaker();
+        if (cb == null) {
+            return new ActionResponse(false, "Circuit breaker not available");
+        }
+        cb.forceClose();
+        return new ActionResponse(true, "Circuit breaker force-closed");
+    }
 }

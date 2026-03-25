@@ -21,9 +21,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * </ol>
  *
  * <h3>Retry policy</h3>
- * Up to 3 attempts with exponential backoff on null/error responses.
- * The same {@code clientOrderId} is carried on retries — the broker
- * deduplicates them, preventing double fills.
+ * Delegated to {@link BrokerCircuitBreaker}: up to 3 attempts with exponential
+ * backoff + jitter. Never retry 4xx except 429. Circuit breaker fast-fails
+ * when broker is unavailable.
  *
  * <h3>Side convention (Fyers)</h3>
  * {@code 1} = BUY, {@code -1} = SELL.
@@ -32,17 +32,25 @@ public class LiveOrderExecutor implements IOrderExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(LiveOrderExecutor.class);
 
-    private static final int MAX_RETRIES = 3;
-    private static final long BASE_BACKOFF_MS = 500L;
-
     /** Fyers product type for intraday trading. */
     private static final String PRODUCT_INTRADAY = "INTRADAY";
 
     private final FyersOrderPlacement fyersOrders;
+    private volatile BrokerCircuitBreaker circuitBreaker;
     private final AtomicInteger orderSeq = new AtomicInteger(0);
 
     public LiveOrderExecutor() {
+        this(null);
+    }
+
+    public LiveOrderExecutor(BrokerCircuitBreaker circuitBreaker) {
         this.fyersOrders = new FyersOrderPlacement();
+        this.circuitBreaker = circuitBreaker;
+    }
+
+    /** Attach circuit breaker after construction (used when wiring at engine startup). */
+    public void setCircuitBreaker(BrokerCircuitBreaker circuitBreaker) {
+        this.circuitBreaker = circuitBreaker;
     }
 
     /** Updates the access token on FyersClass so all subsequent API calls use it. */
@@ -63,7 +71,7 @@ public class LiveOrderExecutor implements IOrderExecutor {
                 signal.getSymbol(), signal.getDirection(), quantity,
                 signal.getCorrelationId());
 
-        return executeWithRetry(model, "ENTRY:" + signal.getCorrelationId());
+        return executeViaCircuitBreaker(model, "ENTRY:" + signal.getCorrelationId(), true);
     }
 
     @Override
@@ -81,25 +89,24 @@ public class LiveOrderExecutor implements IOrderExecutor {
                 position.getQuantity(), reason,
                 String.format("%.2f", exitPrice));
 
-        return executeWithRetry(model, "EXIT:" + position.getCorrelationId());
+        // Exits are always critical — capital protection
+        return executeViaCircuitBreaker(model, "EXIT:" + position.getCorrelationId(), true);
     }
 
-    // ── Retry loop ────────────────────────────────────────────────────────────
+    // ── Circuit-breaker-wrapped execution ────────────────────────────────────
 
-    /**
-     * Attempts to place an order up to {@link #MAX_RETRIES} times.
-     * Returns on first success. Returns a rejected fill if all attempts fail.
-     */
-    private OrderFill executeWithRetry(PlaceOrderModel model, String tag) {
-        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-            try {
+    private OrderFill executeViaCircuitBreaker(PlaceOrderModel model, String tag, boolean isCritical) {
+        if (circuitBreaker == null) {
+            // Fallback: direct call without circuit breaker (e.g., before wiring)
+            return directCall(model, tag);
+        }
+        try {
+            return circuitBreaker.execute(() -> {
                 OrderResult result = fyersOrders.placeOrder(model);
 
                 if (result == null) {
-                    log.warn("[LIVE][{}] Attempt {}/{}: null response from Fyers API",
-                            tag, attempt, MAX_RETRIES);
-                    backoff(attempt);
-                    continue;
+                    throw new BrokerCircuitBreaker.BrokerApiException(
+                            "Null response from Fyers API for " + tag);
                 }
 
                 if (result.isOk()) {
@@ -108,39 +115,47 @@ public class LiveOrderExecutor implements IOrderExecutor {
                             model.Qty, Instant.now());
                 }
 
-                // Non-OK response: log and decide whether to retry
-                log.warn("[LIVE][{}] Attempt {}/{}: broker rejected — code={} message={}",
-                        tag, attempt, MAX_RETRIES, result.code, result.message);
-
-                // HTTP 4xx codes (except 429): do not retry
-                if (result.code >= 400 && result.code < 500 && result.code != 429) {
-                    return OrderFill.rejected("Broker rejected order: " + result.message
-                            + " (code=" + result.code + ")");
+                // Non-OK: throw typed exception so circuit breaker can classify
+                if (result.code >= 400 && result.code < 500) {
+                    throw new BrokerCircuitBreaker.BrokerHttpException(result.code,
+                            "Broker rejected: " + result.message + " (code=" + result.code + ")");
                 }
 
-                backoff(attempt);
+                // Server error → generic exception → retryable
+                throw new BrokerCircuitBreaker.BrokerApiException(
+                        "Broker error: " + result.message + " (code=" + result.code + ")");
 
-            } catch (Exception e) {
-                log.error("[LIVE][{}] Attempt {}/{}: exception — {}",
-                        tag, attempt, MAX_RETRIES, e.getMessage(), e);
-                backoff(attempt);
-            }
+            }, isCritical);
+
+        } catch (BrokerCircuitBreaker.CircuitBreakerOpenException e) {
+            log.error("[LIVE][{}] Circuit breaker OPEN — order rejected", tag);
+            return OrderFill.rejected("Circuit breaker OPEN — broker unavailable");
+
+        } catch (BrokerCircuitBreaker.BrokerHttpException e) {
+            log.warn("[LIVE][{}] Broker HTTP error: {}", tag, e.getMessage());
+            return OrderFill.rejected(e.getMessage());
+
+        } catch (BrokerCircuitBreaker.BrokerApiException e) {
+            log.error("[LIVE][{}] All retries failed: {}", tag, e.getMessage());
+            return OrderFill.rejected(e.getMessage());
         }
-
-        String msg = "All " + MAX_RETRIES + " attempts failed for order " + tag;
-        log.error("[LIVE] {}", msg);
-        return OrderFill.rejected(msg);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private void backoff(int attempt) {
-        long delayMs = BASE_BACKOFF_MS * (1L << (attempt - 1)); // 500, 1000, 2000 ms
-        log.warn("[LIVE] Backing off {}ms before retry", delayMs);
+    /** Direct broker call without circuit breaker (fallback). */
+    private OrderFill directCall(PlaceOrderModel model, String tag) {
         try {
-            Thread.sleep(delayMs);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            OrderResult result = fyersOrders.placeOrder(model);
+            if (result == null) {
+                return OrderFill.rejected("Null response from Fyers API");
+            }
+            if (result.isOk()) {
+                return OrderFill.success(result.id, model.LimitPrice > 0 ? model.LimitPrice : 0,
+                        model.Qty, Instant.now());
+            }
+            return OrderFill.rejected("Broker rejected: " + result.message);
+        } catch (Exception e) {
+            log.error("[LIVE][{}] Direct call failed: {}", tag, e.getMessage(), e);
+            return OrderFill.rejected("Direct call failed: " + e.getMessage());
         }
     }
 }
