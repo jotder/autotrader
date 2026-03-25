@@ -32,6 +32,7 @@ public class EngineController {
     private final SymbolMasterCache symbolMasterCache;
     private final CandleDatabase candleDatabase;
     private final SymbolProfiler symbolProfiler;
+    private volatile DownloadTracker downloadTracker;
 
     public EngineController(TradingEngine engine, TickStore tickStore, ConfigManager configManager,
                             DimensionDataCache dimensionCache, SymbolMasterCache symbolMasterCache,
@@ -43,6 +44,20 @@ public class EngineController {
         this.symbolMasterCache = symbolMasterCache;
         this.candleDatabase = candleDatabase;
         this.symbolProfiler = symbolProfiler;
+    }
+
+    private DownloadTracker getDownloadTracker() {
+        if (downloadTracker == null) {
+            synchronized (this) {
+                if (downloadTracker == null) {
+                    var downloader = new CandleDownloader(
+                            new fyers.FyersDataApi(), candleDatabase, 500,
+                            engine.getCircuitBreaker());
+                    downloadTracker = new DownloadTracker(downloader);
+                }
+            }
+        }
+        return downloadTracker;
     }
 
     // ── Read endpoints ──────────────────────────────────────────────────────
@@ -270,6 +285,47 @@ public class EngineController {
                 "date", date,
                 "count", candles.size(),
                 "candles", candles));
+    }
+
+    // ── Candle download endpoints ────────────────────────────────────────
+
+    @PostMapping("/candle-db/download")
+    public ResponseEntity<?> candleDbDownload(@RequestBody Map<String, Object> request) {
+        @SuppressWarnings("unchecked")
+        List<String> symbols = (List<String>) request.get("symbols");
+        String fromStr = (String) request.get("from");
+        String toStr = (String) request.get("to");
+
+        if (symbols == null || symbols.isEmpty() || fromStr == null || toStr == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Required: symbols (list), from (date), to (date)"));
+        }
+
+        LocalDate from = LocalDate.parse(fromStr);
+        LocalDate to = LocalDate.parse(toStr);
+
+        String jobId = getDownloadTracker().startJob(symbols, from, to);
+        return ResponseEntity.accepted().body(Map.of(
+                "jobId", jobId,
+                "status", "RUNNING",
+                "message", "Download started for " + symbols.size() + " symbols",
+                "checkUrl", "/api/candle-db/download/" + jobId));
+    }
+
+    @GetMapping("/candle-db/download/{jobId}")
+    public ResponseEntity<?> candleDbDownloadStatus(@PathVariable String jobId) {
+        var job = getDownloadTracker().getJob(jobId);
+        if (job == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(job.toMap());
+    }
+
+    @GetMapping("/candle-db/downloads")
+    public List<Map<String, Object>> candleDbDownloads() {
+        return getDownloadTracker().allJobs().stream()
+                .map(DownloadTracker.DownloadJob::toMap)
+                .toList();
     }
 
     // ── Backtest endpoint ─────────────────────────────────────────────────

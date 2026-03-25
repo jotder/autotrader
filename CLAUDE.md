@@ -234,7 +234,8 @@ config/strategies/     positional.yaml, options.yaml
 | HealthMonitor | Done | WS staleness, heap, API errors |
 | Notifications | Done | Webhook (Telegram planned P2) |
 | Persistence (NDJSON) | Done | Atomic writes, 30-day retention |
-| REST API (Spring Boot) | Done | 16 endpoints on port 7777 |
+| REST API (Spring Boot) | Done | 19 endpoints on port 7777 |
+| **Candle Download API** | **Done** | P2 — `DownloadTracker` async job management; `POST /api/candle-db/download` + `GET /api/candle-db/download/{jobId}` + `GET /api/candle-db/downloads`; virtual thread execution |
 | Kill Switch HTTP | Done | `POST /api/kill` |
 | **YAML Strategy Config** | **Done** | P1 — `YamlStrategyLoader` + `StrategyYamlConfig` + `StrategyRiskConfig` + `StrategyOrderConfig`; `loadWithDefaults()` merges `defaults.yaml`; `RiskManager.applyStrategyRiskOverride()` wired; `ConfigValidator` validates ranges/enums/required fields; `reloadWithRollback()` retains last-valid config |
 | **YAML Hot-Reload** | **Done** | P1 — `ConfigFileWatcher` (virtual thread + WatchService); debounce 500ms; validates + rollback on invalid; wired into TradingEngine lifecycle; callback applies `StrategyRiskConfig` overrides to RiskManager |
@@ -243,7 +244,7 @@ config/strategies/     positional.yaml, options.yaml
 | **Token Auto-Refresh** | **Done** | P1 — `TokenRefreshScheduler` background refresh; proactive renewal 30min before expiry; retry 3×; `GET /api/token/status` + `POST /api/token/refresh` |
 | **Anomaly Protection** | **Done** | P1 — `AnomalyDetector` monitors drawdown, broker errors, feed staleness, heap; auto close-all via `PositionMonitor.closeAllPositions(ANOMALY_FLATTEN)`; anomaly mode requires manual acknowledge; `GET /api/anomaly/status` + `POST /api/emergency-flatten` + `POST /api/anomaly/acknowledge` |
 | **Circuit Breaker** | **Done** | P1 — `BrokerCircuitBreaker` (3-state: CLOSED/OPEN/HALF_OPEN); `CircuitBreakerConfig` from `.env`; retry 3× exponential backoff + jitter; 429 daily tracking; wired into LiveOrderExecutor, CandleDownloader, PositionReconciler; reports to AnomalyDetector; `GET /api/circuit-breaker/status` + `POST /api/circuit-breaker/reset` |
-| **F&O Support** | **Planned** | P2 — multi-asset orders |
+| **F&O Support** | **Done** | P2 — `InstrumentInfo` model (symbol type, product type, lot size, segment); wired into `TradeSignal`, `OpenPosition`, `LiveOrderExecutor`; dynamic product type (INTRADAY/MARGIN); per-instrument lot-size rounding in `RiskManager`; minimum 1-lot enforcement for derivatives |
 | **Telegram Alerts** | **Planned** | P2 — bot integration |
 | **Web UI** | **Planned** | P2 — control center |
 | **Data Lake** | **Planned** | P3 — hybrid tick storage |

@@ -32,8 +32,8 @@ public class LiveOrderExecutor implements IOrderExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(LiveOrderExecutor.class);
 
-    /** Fyers product type for intraday trading. */
-    private static final String PRODUCT_INTRADAY = "INTRADAY";
+    /** Default product type when instrument info is not available. */
+    private static final String DEFAULT_PRODUCT_TYPE = "INTRADAY";
 
     private final FyersOrderPlacement fyersOrders;
     private volatile BrokerCircuitBreaker circuitBreaker;
@@ -64,8 +64,9 @@ public class LiveOrderExecutor implements IOrderExecutor {
     @Override
     public OrderFill placeEntry(TradeSignal signal, int quantity) {
         int side = signal.getDirection() == Signal.BUY ? 1 : -1;
+        String productType = signal.getProductType();
         PlaceOrderModel model = FyersOrderPlacement.marketOrder(
-                signal.getSymbol(), quantity, side, PRODUCT_INTRADAY);
+                signal.getSymbol(), quantity, side, productType);
 
         log.info("[LIVE] Placing entry: {} {} qty={} correlationId={}",
                 signal.getSymbol(), signal.getDirection(), quantity,
@@ -80,9 +81,10 @@ public class LiveOrderExecutor implements IOrderExecutor {
                                double exitPrice) {
         // Exit direction is opposite to entry direction
         int side = position.getDirection() == Signal.BUY ? -1 : 1;
+        String productType = position.getProductType();
 
         PlaceOrderModel model = FyersOrderPlacement.marketOrder(
-                position.getSymbol(), position.getQuantity(), side, PRODUCT_INTRADAY);
+                position.getSymbol(), position.getQuantity(), side, productType);
 
         log.info("[LIVE] Placing exit: {} {} qty={} reason={} triggerPrice={}",
                 position.getSymbol(), position.getDirection(),

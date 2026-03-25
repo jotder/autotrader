@@ -22,6 +22,7 @@ public final class TradeSignal {
     private final String strategyId;
     private final Map<Timeframe, Signal> timeframeVotes;  // M5→BUY, M15→BUY, H1→BUY etc.
     private final Instant generatedAt;
+    private final InstrumentInfo instrumentInfo;          // nullable for backward compat
 
     private TradeSignal(Builder b) {
         this.symbol = b.symbol;
@@ -34,6 +35,7 @@ public final class TradeSignal {
         this.strategyId = b.strategyId;
         this.timeframeVotes = Collections.unmodifiableMap(new EnumMap<>(b.timeframeVotes));
         this.generatedAt = b.generatedAt;
+        this.instrumentInfo = b.instrumentInfo;
     }
 
     public static Builder builder() {
@@ -80,6 +82,20 @@ public final class TradeSignal {
         return generatedAt;
     }
 
+    public InstrumentInfo getInstrumentInfo() {
+        return instrumentInfo;
+    }
+
+    /** Product type for order placement (INTRADAY, MARGIN, CNC). Defaults to INTRADAY if no instrument info. */
+    public String getProductType() {
+        return instrumentInfo != null ? instrumentInfo.productType() : "INTRADAY";
+    }
+
+    /** Lot size for position sizing. Defaults to 1 if no instrument info. */
+    public int getLotSize() {
+        return instrumentInfo != null ? instrumentInfo.lotSize() : 1;
+    }
+
     /** Estimated R-multiple: (target - entry) / (entry - stopLoss), direction-adjusted. */
     public double rMultiple() {
         double risk = Math.abs(suggestedEntry - suggestedStopLoss);
@@ -105,6 +121,7 @@ public final class TradeSignal {
         private String strategyId;
         private Map<Timeframe, Signal> timeframeVotes = new EnumMap<>(Timeframe.class);
         private Instant generatedAt = Instant.now();
+        private InstrumentInfo instrumentInfo;
 
         public Builder symbol(String v) {
             symbol = v;
@@ -153,6 +170,11 @@ public final class TradeSignal {
 
         public Builder generatedAt(Instant v) {
             generatedAt = v;
+            return this;
+        }
+
+        public Builder instrumentInfo(InstrumentInfo v) {
+            instrumentInfo = v;
             return this;
         }
 
