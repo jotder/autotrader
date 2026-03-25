@@ -42,6 +42,7 @@ public class TradingEngine {
 
     private final ExecutionMode mode;
     private final IOrderExecutor executor;
+    private final OrderManager orderManager;
     private final RiskManager riskManager;
     private final TradeJournal journal;
     private final ConfigManager config;
@@ -71,6 +72,10 @@ public class TradingEngine {
         this.riskManager = riskManager;
         this.journal = journal;
         this.config = config;
+
+        // OMS state machine wraps the raw executor
+        var orderTracker = new OrderTracker(java.time.Duration.ofSeconds(30));
+        this.orderManager = new OrderManager(executor, orderTracker, journal);
     }
 
     /**
@@ -231,6 +236,7 @@ public class TradingEngine {
         if (!running.compareAndSet(true, false)) return;
         log.info("TradingEngine stopping...");
         if (configFileWatcher != null) configFileWatcher.stop();
+        orderManager.shutdown();
         healthMonitor.stop();
         candleService.stop();
         strategyEvaluator.stop();
@@ -275,6 +281,10 @@ public class TradingEngine {
         return configFileWatcher;
     }
 
+    public OrderTracker getOrderTracker() {
+        return orderManager.getTracker();
+    }
+
     // ── Signal handler (Thread 3 → entry pipeline) ───────────────────────────
 
     public ExecutionMode getMode() {
@@ -310,8 +320,8 @@ public class TradingEngine {
             return;
         }
 
-        // ── 2. Place entry order ──────────────────────────────────────────────
-        OrderFill fill = executor.placeEntry(signal, check.quantity());
+        // ── 2. Place entry order (via OMS state machine) ─────────────────────
+        OrderFill fill = orderManager.submitEntry(signal, check.quantity());
         journal.logOrderEntry(signal, fill);
 
         if (!fill.isSuccess()) {
@@ -370,8 +380,8 @@ public class TradingEngine {
         log.info("[{}] Exit triggered: reason={} triggerPrice={}",
                 position.getSymbol(), reason, String.format("%.2f", triggerPrice));
 
-        // ── 1. Place exit order ───────────────────────────────────────────────
-        OrderFill fill = executor.placeExit(position, reason, triggerPrice);
+        // ── 1. Place exit order (via OMS state machine) ──────────────────────
+        OrderFill fill = orderManager.submitExit(position, reason, triggerPrice);
         journal.logOrderExit(position, fill, reason);
 
         double actualExit = fill.isSuccess() ? fill.getFillPrice() : triggerPrice;
