@@ -234,15 +234,15 @@ config/strategies/     positional.yaml, options.yaml
 | HealthMonitor | Done | WS staleness, heap, API errors |
 | Notifications | Done | Webhook (Telegram planned P2) |
 | Persistence (NDJSON) | Done | Atomic writes, 30-day retention |
-| REST API (Spring Boot) | Done | 11 endpoints on port 7777 |
+| REST API (Spring Boot) | Done | 16 endpoints on port 7777 |
 | Kill Switch HTTP | Done | `POST /api/kill` |
 | **YAML Strategy Config** | **Done** | P1 — `YamlStrategyLoader` + `StrategyYamlConfig` + `StrategyRiskConfig` + `StrategyOrderConfig`; `loadWithDefaults()` merges `defaults.yaml`; `RiskManager.applyStrategyRiskOverride()` wired; `ConfigValidator` validates ranges/enums/required fields; `reloadWithRollback()` retains last-valid config |
 | **YAML Hot-Reload** | **Done** | P1 — `ConfigFileWatcher` (virtual thread + WatchService); debounce 500ms; validates + rollback on invalid; wired into TradingEngine lifecycle; callback applies `StrategyRiskConfig` overrides to RiskManager |
 | **Position Reconciler** | **Done** | P1 — startup diff: broker ↔ engine; adopt orphaned, remove stale, verify qty; LIVE mode only; `GET /api/reconciliation` |
-| **OMS State Machine** | **Planned** | P1 — idempotent IDs |
-| **Token Auto-Refresh** | **Planned** | P1 — background refresh |
-| **Anomaly Protection** | **Planned** | P1 — auto close-all |
-| **Circuit Breaker** | **Planned** | P1 — API error gating |
+| **OMS State Machine** | **Done** | P1 — `OrderManager` wraps `IOrderExecutor`; `ManagedOrder` lifecycle (CREATED→SUBMITTED→FILLED/REJECTED); `OrderTracker` with symbol locks + dedup; idempotent `clientOrderId`; timeout sweep; `GET /api/orders` |
+| **Token Auto-Refresh** | **Done** | P1 — `TokenRefreshScheduler` background refresh; proactive renewal 30min before expiry; retry 3×; `GET /api/token/status` + `POST /api/token/refresh` |
+| **Anomaly Protection** | **Done** | P1 — `AnomalyDetector` monitors drawdown, broker errors, feed staleness, heap; auto close-all via `PositionMonitor.closeAllPositions(ANOMALY_FLATTEN)`; anomaly mode requires manual acknowledge; `GET /api/anomaly/status` + `POST /api/emergency-flatten` + `POST /api/anomaly/acknowledge` |
+| **Circuit Breaker** | **Done** | P1 — `BrokerCircuitBreaker` (3-state: CLOSED/OPEN/HALF_OPEN); `CircuitBreakerConfig` from `.env`; retry 3× exponential backoff + jitter; 429 daily tracking; wired into LiveOrderExecutor, CandleDownloader, PositionReconciler; reports to AnomalyDetector; `GET /api/circuit-breaker/status` + `POST /api/circuit-breaker/reset` |
 | **F&O Support** | **Planned** | P2 — multi-asset orders |
 | **Telegram Alerts** | **Planned** | P2 — bot integration |
 | **Web UI** | **Planned** | P2 — control center |

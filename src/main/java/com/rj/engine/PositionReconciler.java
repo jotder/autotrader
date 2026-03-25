@@ -40,6 +40,7 @@ public class PositionReconciler {
     private final ConcurrentHashMap<String, TradeRecord> openRecords;
     private final TradeJournal journal;
     private final RiskConfig riskConfig;
+    private final BrokerCircuitBreaker circuitBreaker; // nullable
 
     private volatile ReconciliationResult lastResult;
 
@@ -48,11 +49,21 @@ public class PositionReconciler {
                               ConcurrentHashMap<String, TradeRecord> openRecords,
                               TradeJournal journal,
                               RiskConfig riskConfig) {
+        this(fyersPositions, positionMonitor, openRecords, journal, riskConfig, null);
+    }
+
+    public PositionReconciler(FyersPositions fyersPositions,
+                              PositionMonitor positionMonitor,
+                              ConcurrentHashMap<String, TradeRecord> openRecords,
+                              TradeJournal journal,
+                              RiskConfig riskConfig,
+                              BrokerCircuitBreaker circuitBreaker) {
         this.fyersPositions = fyersPositions;
         this.positionMonitor = positionMonitor;
         this.openRecords = openRecords;
         this.journal = journal;
         this.riskConfig = riskConfig;
+        this.circuitBreaker = circuitBreaker;
     }
 
     /**
@@ -64,8 +75,10 @@ public class PositionReconciler {
     public ReconciliationResult reconcile() {
         log.info("Position reconciliation starting...");
 
-        // ── 1. Fetch broker positions ───────────────────────────────────────────
-        PositionsSummary brokerState = fyersPositions.getPositions();
+        // ── 1. Fetch broker positions (via circuit breaker if available) ─────────
+        PositionsSummary brokerState = circuitBreaker != null
+                ? circuitBreaker.execute(() -> fyersPositions.getPositions(), true)
+                : fyersPositions.getPositions();
         if (brokerState == null) {
             throw new ReconciliationException(
                     "Broker API returned null — cannot reconcile positions. Aborting startup.");

@@ -26,15 +26,18 @@ public class CandleDownloader {
     private final FyersDataApi dataApi;
     private final CandleDatabase db;
     private final long delayBetweenCallsMs;
+    private final BrokerCircuitBreaker circuitBreaker; // nullable
 
     public CandleDownloader(FyersDataApi dataApi, CandleDatabase db) {
-        this(dataApi, db, 500); // 500ms default delay between API calls
+        this(dataApi, db, 500, null);
     }
 
-    public CandleDownloader(FyersDataApi dataApi, CandleDatabase db, long delayBetweenCallsMs) {
+    public CandleDownloader(FyersDataApi dataApi, CandleDatabase db, long delayBetweenCallsMs,
+                            BrokerCircuitBreaker circuitBreaker) {
         this.dataApi = dataApi;
         this.db = db;
         this.delayBetweenCallsMs = delayBetweenCallsMs;
+        this.circuitBreaker = circuitBreaker;
     }
 
     /**
@@ -105,6 +108,9 @@ public class CandleDownloader {
         model.RangeTo = String.valueOf(endOfDay.toEpochSecond());
         model.ContFlag = 0;
 
+        if (circuitBreaker != null) {
+            return circuitBreaker.execute(() -> dataApi.getStockHistory(model), false);
+        }
         return dataApi.getStockHistory(model);
     }
 }
