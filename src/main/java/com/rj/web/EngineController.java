@@ -347,4 +347,41 @@ public class EngineController {
         return new ActionResponse(success,
                 success ? "Token refreshed successfully" : "Token refresh failed — check logs");
     }
+
+    // ── Anomaly protection endpoints ──────────────────────────────────────
+
+    @GetMapping("/anomaly/status")
+    public Map<String, Object> anomalyStatus() {
+        RiskManager rm = engine.getRiskManager();
+        var result = new LinkedHashMap<String, Object>();
+        result.put("anomalyMode", rm.isAnomalyMode());
+        result.put("reason", rm.getAnomalyReason());
+        result.put("triggeredAt", rm.getAnomalyTriggeredAt());
+        result.put("killSwitchActive", rm.isKillSwitchActive());
+        var detector = engine.getAnomalyDetector();
+        if (detector != null) {
+            result.put("detectorTriggered", detector.isTriggered());
+            result.put("consecutiveBrokerErrors", detector.getConsecutiveBrokerErrors());
+        }
+        return result;
+    }
+
+    @PostMapping("/emergency-flatten")
+    public ActionResponse emergencyFlatten(@RequestParam(defaultValue = "Manual emergency flatten via REST") String reason) {
+        int closed = engine.flattenAll(reason);
+        return new ActionResponse(true,
+                "Emergency flatten complete: " + closed + " positions closed. Anomaly mode active.");
+    }
+
+    @PostMapping("/anomaly/acknowledge")
+    public ActionResponse acknowledgeAnomaly() {
+        RiskManager rm = engine.getRiskManager();
+        boolean cleared = rm.acknowledgeAnomaly();
+        if (cleared) {
+            var detector = engine.getAnomalyDetector();
+            if (detector != null) detector.reset();
+            return new ActionResponse(true, "Anomaly acknowledged and cleared. Use POST /api/reset to resume trading.");
+        }
+        return new ActionResponse(false, "No active anomaly to acknowledge");
+    }
 }

@@ -38,6 +38,10 @@ public class RiskManager {
     // Kill switches
     private final AtomicBoolean killSwitchActive = new AtomicBoolean(false);
     private final AtomicBoolean dailyProfitLocked = new AtomicBoolean(false);
+    // Anomaly mode — requires manual acknowledgement to resume
+    private final AtomicBoolean anomalyMode = new AtomicBoolean(false);
+    private volatile String anomalyReason;
+    private volatile java.time.Instant anomalyTriggeredAt;
     // Per-strategy consecutive loss counters (keyed by strategyId)
     private final java.util.concurrent.ConcurrentHashMap<String, AtomicInteger> consecutiveLosses
             = new java.util.concurrent.ConcurrentHashMap<>();
@@ -222,9 +226,51 @@ public class RiskManager {
         log.error("KILL SWITCH ACTIVATED: {}", reason);
     }
 
+    // ── Anomaly mode ────────────────────────────────────────────────────────
+
+    /**
+     * Trigger anomaly mode: activates kill switch AND requires manual
+     * acknowledgement before trading can resume.
+     * <p>
+     * Unlike a regular kill switch, anomaly mode cannot be cleared by
+     * {@link #resetDay()} — it requires {@link #acknowledgeAnomaly()}.
+     */
+    public void triggerAnomaly(String reason) {
+        if (anomalyMode.compareAndSet(false, true)) {
+            anomalyReason = reason;
+            anomalyTriggeredAt = java.time.Instant.now();
+            killSwitchActive.set(true);
+            log.error("ANOMALY TRIGGERED: {} — all entries blocked, manual restart required", reason);
+        }
+    }
+
+    /**
+     * Acknowledge and clear anomaly mode. Only after this call will
+     * {@link #resetDay()} be effective.
+     *
+     * @return true if anomaly was active and has been cleared
+     */
+    public boolean acknowledgeAnomaly() {
+        if (anomalyMode.compareAndSet(true, false)) {
+            log.warn("ANOMALY ACKNOWLEDGED — anomaly mode cleared. Reason was: {}", anomalyReason);
+            anomalyReason = null;
+            anomalyTriggeredAt = null;
+            return true;
+        }
+        return false;
+    }
+
+    public boolean isAnomalyMode() { return anomalyMode.get(); }
+    public String getAnomalyReason() { return anomalyReason; }
+    public java.time.Instant getAnomalyTriggeredAt() { return anomalyTriggeredAt; }
+
     // ── Accessors ─────────────────────────────────────────────────────────────
 
     public void resetDay() {
+        if (anomalyMode.get()) {
+            log.warn("Cannot reset day while in anomaly mode — acknowledge anomaly first");
+            return;
+        }
         dailyRealizedPnl = 0;
         killSwitchActive.set(false);
         dailyProfitLocked.set(false);
