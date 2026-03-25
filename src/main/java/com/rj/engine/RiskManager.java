@@ -140,8 +140,13 @@ public class RiskManager {
                 : riskConfig.getMaxRiskPerTradePercent();
         double riskBudget = totalCapital * riskFraction;
         int rawQty = (int) Math.floor(riskBudget / riskPerUnit);
-        int lotSize = riskConfig.getInstrumentLotSize();
+        // Use per-instrument lot size from signal, fall back to global config
+        int lotSize = signal.getLotSize() > 1 ? signal.getLotSize() : riskConfig.getInstrumentLotSize();
         int lotAlignedQty = lotSize > 1 ? (rawQty / lotSize) * lotSize : rawQty;
+        // Ensure at least 1 lot for derivatives
+        if (lotAlignedQty == 0 && lotSize > 1 && rawQty > 0) {
+            lotAlignedQty = lotSize; // minimum 1 lot
+        }
 
         int maxQtyPerOrder = stratOverride != null
                 ? stratOverride.maxQty()
@@ -149,6 +154,10 @@ public class RiskManager {
         int exposureCapQty = (int) Math.floor((maxExposure - currentExposure) / entry);
         int finalQty = Math.min(lotAlignedQty,
                 Math.min(maxQtyPerOrder, exposureCapQty));
+        // Re-align to lot size after applying all caps
+        if (lotSize > 1) {
+            finalQty = (finalQty / lotSize) * lotSize;
+        }
 
         if (finalQty <= 0) {
             return reject("Position sizing yields quantity 0 (risk budget too small for this SL distance)");

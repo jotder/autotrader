@@ -21,6 +21,7 @@ public class OpenPosition {
     private final double initialStopLoss;
     private final double takeProfit;
     private final Instant entryTime;
+    private final InstrumentInfo instrumentInfo;  // nullable for backward compat
 
     // ── Mutable — written by position-monitor thread only ────────────────────
     private volatile double currentStopLoss;
@@ -30,6 +31,14 @@ public class OpenPosition {
     public OpenPosition(String symbol, String correlationId, String strategyId,
                         Signal direction, double entryPrice, int quantity,
                         double stopLoss, double takeProfit, Instant entryTime) {
+        this(symbol, correlationId, strategyId, direction, entryPrice, quantity,
+                stopLoss, takeProfit, entryTime, null);
+    }
+
+    public OpenPosition(String symbol, String correlationId, String strategyId,
+                        Signal direction, double entryPrice, int quantity,
+                        double stopLoss, double takeProfit, Instant entryTime,
+                        InstrumentInfo instrumentInfo) {
         this.symbol = symbol;
         this.correlationId = correlationId;
         this.strategyId = strategyId;
@@ -40,6 +49,7 @@ public class OpenPosition {
         this.currentStopLoss = stopLoss;
         this.takeProfit = takeProfit;
         this.entryTime = entryTime;
+        this.instrumentInfo = instrumentInfo;
         this.trailingActivated = false;
         this.highWaterMark = entryPrice;
     }
@@ -156,6 +166,15 @@ public class OpenPosition {
 
     public double getHighWaterMark() {
         return highWaterMark;
+    }
+
+    public InstrumentInfo getInstrumentInfo() {
+        return instrumentInfo;
+    }
+
+    /** Product type for exit orders. Defaults to INTRADAY if no instrument info. */
+    public String getProductType() {
+        return instrumentInfo != null ? instrumentInfo.productType() : "INTRADAY";
     }
 
     @Override
