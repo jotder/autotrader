@@ -261,6 +261,24 @@ public class PositionMonitor {
 
     // ── Tick data ─────────────────────────────────────────────────────────────
 
+    /**
+     * Close all open positions immediately (anomaly flatten / emergency).
+     *
+     * @param reason the exit reason to record (typically {@link ExitReason#ANOMALY_FLATTEN})
+     * @return number of positions closed
+     */
+    public int closeAllPositions(ExitReason reason) {
+        int count = 0;
+        for (OpenPosition pos : positions.values()) {
+            log.warn("[{}] Emergency close: reason={}", pos.getSymbol(), reason);
+            closePosition(pos, reason);
+            count++;
+        }
+        return count;
+    }
+
     /** Reasons an exit can be triggered. */
-    public enum ExitReason {STOP_LOSS, TAKE_PROFIT, TRAILING_STOP, FORCE_SQUAREOFF, MANUAL}
+    public enum ExitReason {
+        STOP_LOSS, TAKE_PROFIT, TRAILING_STOP, FORCE_SQUAREOFF, MANUAL, ANOMALY_FLATTEN
+    }
 }

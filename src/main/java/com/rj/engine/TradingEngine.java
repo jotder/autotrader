@@ -62,6 +62,7 @@ public class TradingEngine {
     private PositionReconciler positionReconciler;
     private ConfigFileWatcher configFileWatcher;
     private fyers.TokenRefreshScheduler tokenRefreshScheduler;
+    private AnomalyDetector anomalyDetector;
 
     // ── Factory ───────────────────────────────────────────────────────────────
 
@@ -116,6 +117,10 @@ public class TradingEngine {
         // Thread 2: candle workers
         CandleService cs = new CandleService(tickStore, recQueue);
         engine.candleService = cs;
+
+        // Anomaly detector — monitors for emergency conditions
+        AnomalyDetector ad = new AnomalyDetector(riskMgr, pm, tickStore, journal, riskCfg);
+        engine.anomalyDetector = ad;
 
         // Thread 5: health monitor
         HealthMonitor hm = new HealthMonitor(
@@ -293,6 +298,24 @@ public class TradingEngine {
 
     public fyers.TokenRefreshScheduler getTokenRefreshScheduler() {
         return tokenRefreshScheduler;
+    }
+
+    public AnomalyDetector getAnomalyDetector() {
+        return anomalyDetector;
+    }
+
+    /**
+     * Emergency flatten: close all positions and trigger anomaly mode.
+     * Called from REST endpoint or by AnomalyDetector.
+     *
+     * @param reason human-readable reason
+     * @return number of positions closed
+     */
+    public int flattenAll(String reason) {
+        riskManager.triggerAnomaly(reason);
+        int closed = positionMonitor.closeAllPositions(PositionMonitor.ExitReason.ANOMALY_FLATTEN);
+        log.error("FLATTEN ALL: {} positions closed. Reason: {}", closed, reason);
+        return closed;
     }
 
     // ── Signal handler (Thread 3 → entry pipeline) ───────────────────────────
