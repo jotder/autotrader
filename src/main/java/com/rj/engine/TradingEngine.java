@@ -61,6 +61,7 @@ public class TradingEngine {
     private HealthMonitor healthMonitor;
     private PositionReconciler positionReconciler;
     private ConfigFileWatcher configFileWatcher;
+    private fyers.TokenRefreshScheduler tokenRefreshScheduler;
 
     // ── Factory ───────────────────────────────────────────────────────────────
 
@@ -225,6 +226,10 @@ public class TradingEngine {
             }
         }
 
+        // Token auto-refresh (non-critical — engine runs without it)
+        tokenRefreshScheduler = new fyers.TokenRefreshScheduler(config);
+        tokenRefreshScheduler.start();
+
         registerShutdownHook();
         log.info("TradingEngine started. Active symbols: {}",
                 String.join(", ", config.getActiveSymbols()));
@@ -236,6 +241,7 @@ public class TradingEngine {
         if (!running.compareAndSet(true, false)) return;
         log.info("TradingEngine stopping...");
         if (configFileWatcher != null) configFileWatcher.stop();
+        if (tokenRefreshScheduler != null) tokenRefreshScheduler.stop();
         orderManager.shutdown();
         healthMonitor.stop();
         candleService.stop();
@@ -283,6 +289,10 @@ public class TradingEngine {
 
     public OrderTracker getOrderTracker() {
         return orderManager.getTracker();
+    }
+
+    public fyers.TokenRefreshScheduler getTokenRefreshScheduler() {
+        return tokenRefreshScheduler;
     }
 
     // ── Signal handler (Thread 3 → entry pipeline) ───────────────────────────

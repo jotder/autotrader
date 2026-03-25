@@ -324,4 +324,27 @@ public class EngineController {
                 "active", tracker.activeOrders(),
                 "recentCompleted", tracker.completedOrders());
     }
+
+    // ── Token refresh endpoints ───────────────────────────────────────────
+
+    @GetMapping("/token/status")
+    public Map<String, Object> tokenStatus() {
+        var scheduler = engine.getTokenRefreshScheduler();
+        var result = new LinkedHashMap<String, Object>();
+        result.put("autoRefreshRunning", scheduler != null && scheduler.isRunning());
+        result.put("lastRefreshStatus", scheduler != null ? scheduler.getLastRefreshStatus() : "n/a");
+        result.put("lastRefreshTime", scheduler != null ? scheduler.getLastRefreshTime() : null);
+        return result;
+    }
+
+    @PostMapping("/token/refresh")
+    public ActionResponse tokenRefresh() {
+        var scheduler = engine.getTokenRefreshScheduler();
+        if (scheduler == null) {
+            return new ActionResponse(false, "Token refresh scheduler not available");
+        }
+        boolean success = scheduler.refreshNow();
+        return new ActionResponse(success,
+                success ? "Token refreshed successfully" : "Token refresh failed — check logs");
+    }
 }
