@@ -659,15 +659,84 @@ Exchange (NSE/BSE/MCX)
 | `/api/symbols/{symbol}/360` | GET | M5 | Composite: instrument info + trade stats + active strategies + mode |
 | `/api/market/overview` | GET | M5 | Exchange → segment → instrument type tree with trade counts + PnL |
 
-## 11. Configuration (environment.ts)
+## 11. Mock Data Layer
+
+The UI includes a `MockApiService` that returns realistic dummy data when `environment.useMocks = true`. This allows UI development and demo without a running backend.
+
+| Feature | Implementation |
+|---------|---------------|
+| Toggle | `environment.useMocks: true/false` in `environment.ts` |
+| Provider swap | `app.config.ts` conditionally provides `MockApiService` for `ApiService` |
+| Data generator | `mock-data.generator.ts` — randomized but realistic NSE market data |
+| Delay simulation | 200–800ms random delay per call |
+| Failure simulation | Configurable success rates per endpoint (75–90%) |
+
+### Randomized Scenarios
+- **Dashboard**: 60% normal, 10% kill switch, 5% anomaly, 8% CB open, 5% token expired
+- **Risk**: 40% profit, 30% mild loss, 15% caution, 10% danger, 5% profit locked
+- **Positions**: 20% empty, 40% 1-2 positions, 30% 3-5 positions
+- **Trades**: 30-80 trades, ~48% win rate, 5-8 symbols, 3 strategies, mixed modes
+- **Controls**: Each action has 75-90% success rate with realistic failure messages
+
+## 12. Backend Change Requests
+
+These backend changes are required to fully support the UI. Priority ordered.
+
+### B1: Enhanced Trade Query API (HIGH)
+**Current:** `GET /api/trades` returns all trades (no filtering)
+**Required:** `GET /api/trades?from=&to=&symbol=&strategy=&mode=&direction=&exitReason=&limit=&offset=`
+- Server-side filtering for large trade histories
+- Pagination: `{ trades: TradeRecord[], total: number, offset: number }`
+
+### B2: Trade Summary Endpoint (HIGH)
+**New:** `GET /api/trades/summary?from=&to=&symbol=&strategy=&mode=`
+- Returns: `{ total, wins, losses, winRate, totalPnl, avgPnl, avgR, profitFactor, maxDrawdown }`
+- Server-side computation avoids shipping all trades to client
+
+### B3: Strategy CRUD API (HIGH)
+- `GET /api/strategies` → list all strategies with summary metrics
+- `GET /api/strategies/{id}` → full strategy YAML config + performance
+- `PUT /api/strategies/{id}` → update strategy (validates before save)
+- `POST /api/strategies/{id}/duplicate` → clone strategy
+- `PUT /api/strategies/{id}/toggle` → enable/disable
+
+### B4: Signal History Buffer (MEDIUM)
+**New:** `GET /api/signals/recent?limit=50`
+- Ring buffer in `SignalStore`: last 100 signals (approved + rejected with reasons)
+- Response: `{ signals: [{ timestamp, symbol, direction, confidence, strategy, approved, rejectReason? }] }`
+
+### B5: Symbol 360 Composite (MEDIUM)
+**New:** `GET /api/symbols/{symbol}/360`
+- Composite: `{ instrumentInfo, tradeStats, activeStrategies, currentMode, profile? }`
+- Reduces N+1 calls from the UI
+
+### B6: Market Overview (MEDIUM)
+**New:** `GET /api/market/overview`
+- Pre-built tree: `{ exchanges: [{ name, segments: [{ name, types: [{ name, symbols, tradeCount, pnl }] }] }] }`
+
+### B7: Go-Live Validation Gate (MEDIUM)
+**New:** `GET /api/go-live-check/{symbol}`
+- Checklist: `{ checks: [{ name, passed, message }], allPassed: boolean }`
+- Checks: token valid, WS connected, reconciliation clean, strategy metrics thresholds
+
+### B8: Per-Symbol Execution Mode (MEDIUM)
+- `GET /api/symbols/{symbol}/mode` → current mode
+- `PUT /api/symbols/{symbol}/mode` → switch PAPER/LIVE (requires go-live gate)
+
+### B9: Cross-Mode Comparison (LOW)
+**New:** `GET /api/analysis/compare?strategy={id}&modes=BT,PT,LIVE`
+- Side-by-side metrics, drift detection > 20% from backtest baseline
+
+## 13. Configuration (environment.ts)
 
 ```typescript
 export const environment = {
-  apiBaseUrl: '/api',          // proxied in dev, same-origin in prod
-  pollingIntervalMs: 5000,     // 5 second refresh
-  staleThresholdMs: 15000,     // 15 seconds = stale warning
-  backtestHistorySize: 5,      // keep last 5 backtest runs
-  confirmFlattenWord: 'FLATTEN' // typed confirmation for emergency flatten
+  apiBaseUrl: '/api',
+  pollingIntervalMs: 5000,
+  staleThresholdMs: 15000,
+  backtestHistorySize: 5,
+  confirmFlattenWord: 'FLATTEN',
+  useMocks: true,  // Set to false when backend is running
 };
 ```
 
