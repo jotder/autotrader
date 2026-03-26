@@ -2,11 +2,12 @@ import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { SidebarComponent } from './layout/sidebar.component';
 import { StatusBarComponent } from './layout/status-bar.component';
+import { ToastContainerComponent } from './shared/components/toast.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, SidebarComponent, StatusBarComponent],
+  imports: [RouterOutlet, SidebarComponent, StatusBarComponent, ToastContainerComponent],
   template: `
     <div class="app-shell">
       <at-status-bar />
@@ -17,6 +18,7 @@ import { StatusBarComponent } from './layout/status-bar.component';
         </main>
       </div>
     </div>
+    <at-toast-container />
   `,
   styles: [`
     .app-shell {
