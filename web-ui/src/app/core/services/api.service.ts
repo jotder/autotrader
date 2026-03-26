@@ -11,6 +11,8 @@ import {
   TokenStatus,
   ActionResponse,
   Position,
+  TradeRecord,
+  OrdersResponse,
 } from '../models/api.models';
 
 /**
@@ -49,6 +51,14 @@ export class ApiService {
 
   getPositions(): Observable<Position[]> {
     return this.http.get<Position[]>(`${this.base}/positions`);
+  }
+
+  getTrades(): Observable<TradeRecord[]> {
+    return this.http.get<TradeRecord[]>(`${this.base}/trades`);
+  }
+
+  getOrders(): Observable<OrdersResponse> {
+    return this.http.get<OrdersResponse>(`${this.base}/orders`);
   }
 
   // ── Action endpoints ──────────────────────────────────────────
