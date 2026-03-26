@@ -75,3 +75,46 @@ export interface Position {
   highWaterMark: number;
   unrealizedPnl?: number;
 }
+
+/** Closed trade from GET /api/trades */
+export interface TradeRecord {
+  correlationId: string;
+  symbol: string;
+  strategyId: string;
+  mode: 'BACKTEST' | 'PAPER' | 'LIVE';
+  direction: 'BUY' | 'SELL';
+  entryPrice: number;
+  exitPrice: number | null;
+  quantity: number;
+  pnl: number | null;
+  pnlPct: number | null;
+  rMultipleAchieved: number | null;
+  holdDuration: string | null;
+  entryTime: string;
+  exitTime: string | null;
+  exitReason: string | null;
+  status: 'OPEN' | 'CLOSED' | 'CANCELLED';
+  entryConfidence: number;
+  maxAdverseExcursion: number;
+  maxFavorableExcursion: number;
+}
+
+/** Order from GET /api/orders */
+export interface ManagedOrder {
+  clientOrderId: string;
+  correlationId: string;
+  symbol: string;
+  side: string;
+  state: string;
+  submittedAt: string;
+  filledAt: string | null;
+  fillPrice: number | null;
+  quantity: number;
+}
+
+/** Orders response from GET /api/orders */
+export interface OrdersResponse {
+  activeCount: number;
+  active: ManagedOrder[];
+  completed: ManagedOrder[];
+}

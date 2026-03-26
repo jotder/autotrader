@@ -63,10 +63,12 @@ import { MatIconModule } from '@angular/material/icon';
 export class SidebarComponent {
   navItems = [
     { path: '/', icon: 'dashboard', label: 'Dashboard' },
+    { path: '/transactions', icon: 'receipt_long', label: 'Transactions' },
     { path: '/paper-trade', icon: 'show_chart', label: 'Paper Trade' },
     { path: '/positions', icon: 'account_balance_wallet', label: 'Positions' },
-    { path: '/journal', icon: 'receipt_long', label: 'Journal' },
     { path: '/strategies', icon: 'tune', label: 'Strategies' },
+    { path: '/symbols', icon: 'token', label: 'Symbols' },
+    { path: '/market', icon: 'public', label: 'Market' },
     { path: '/backtest', icon: 'science', label: 'Backtest' },
     { path: '/config', icon: 'settings', label: 'Config' },
     { path: '/knowledge', icon: 'menu_book', label: 'Knowledge' },

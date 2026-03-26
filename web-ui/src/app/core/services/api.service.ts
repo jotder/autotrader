@@ -11,6 +11,8 @@ import {
   TokenStatus,
   ActionResponse,
   Position,
+  TradeRecord,
+  OrdersResponse,
 } from '../models/api.models';
 
 /**
@@ -51,6 +53,14 @@ export class ApiService {
     return this.http.get<Position[]>(`${this.base}/positions`);
   }
 
+  getTrades(): Observable<TradeRecord[]> {
+    return this.http.get<TradeRecord[]>(`${this.base}/trades`);
+  }
+
+  getOrders(): Observable<OrdersResponse> {
+    return this.http.get<OrdersResponse>(`${this.base}/orders`);
+  }
+
   // ── Action endpoints ──────────────────────────────────────────
   activateKillSwitch(reason: string = 'Manual via UI'): Observable<ActionResponse> {
     return this.http.post<ActionResponse>(`${this.base}/kill`, null, {
@@ -82,5 +92,34 @@ export class ApiService {
 
   exitPosition(correlationId: string): Observable<ActionResponse> {
     return this.http.post<ActionResponse>(`${this.base}/exit/${correlationId}`, null);
+  }
+
+  // ── Data endpoints ──────────────────────────────────────────
+  getMetrics(): Observable<any> {
+    return this.http.get<any>(`${this.base}/metrics`);
+  }
+
+  getDimensions(): Observable<any> {
+    return this.http.get<any>(`${this.base}/dimensions`);
+  }
+
+  getDimensionTable(table: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/dimensions/${table}`);
+  }
+
+  searchSymbolMaster(params: Record<string, string>): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/symbol-master`, { params });
+  }
+
+  parseSymbol(symbol: string): Observable<any> {
+    return this.http.get<any>(`${this.base}/symbol/parse`, { params: { s: symbol } });
+  }
+
+  getSymbolProfile(symbol: string): Observable<any> {
+    return this.http.get<any>(`${this.base}/profile/${symbol}`);
+  }
+
+  getCandleDbSymbols(): Observable<string[]> {
+    return this.http.get<string[]>(`${this.base}/candle-db/symbols`);
   }
 }
