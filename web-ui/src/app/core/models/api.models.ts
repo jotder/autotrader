@@ -118,3 +118,65 @@ export interface OrdersResponse {
   active: ManagedOrder[];
   completed: ManagedOrder[];
 }
+
+// ── Strategy Configuration & Versioning ───────────────────
+
+export interface StrategyConfig {
+  enabled: boolean;
+  symbols: string[];
+  timeframe: string;
+  cooldownMinutes: number;
+  maxTradesPerDay: number;
+  activeHours: { start: string; end: string };
+  indicators: {
+    emaFast: number;
+    emaSlow: number;
+    rsiPeriod: number;
+    atrPeriod: number;
+    relVolPeriod: number;
+    minCandles: number;
+  };
+  entry: {
+    minConfidence: number;
+    relVolThreshold: number;
+    trendStrength: string;
+  };
+  risk: {
+    riskPerTradePct: number;
+    slAtrMultiplier: number;
+    tpRMultiple: number;
+    trailingActivationPct: number;
+    trailingStepPct: number;
+    maxExposurePct: number;
+    maxQty: number;
+    maxConsecutiveLosses: number;
+  };
+  order: {
+    type: string;
+    slippageTolerance: number;
+    productType: string;
+  };
+}
+
+export interface VersionEntry {
+  version: number;
+  state: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+  createdAt: string;
+  note: string;
+}
+
+export interface StrategyVersionInfo {
+  strategyId: string;
+  activeVersion: number;
+  latestVersion: number;
+  enabled: boolean;
+  status: 'ACTIVE' | 'HAS_DRAFT' | 'DISABLED';
+  history: VersionEntry[];
+  config: StrategyConfig;        // active version config
+  draftConfig?: StrategyConfig;  // draft config if exists
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+}
