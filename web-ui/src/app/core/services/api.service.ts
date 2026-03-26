@@ -122,4 +122,24 @@ export class ApiService {
   getCandleDbSymbols(): Observable<string[]> {
     return this.http.get<string[]>(`${this.base}/candle-db/symbols`);
   }
+
+  getCandleDbDates(symbol: string): Observable<string[]> {
+    return this.http.get<string[]>(`${this.base}/candle-db/${symbol}/dates`);
+  }
+
+  getDownloads(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/candle-db/downloads`);
+  }
+
+  startDownload(symbols: string[], from: string, to: string): Observable<any> {
+    return this.http.post<any>(`${this.base}/candle-db/download`, { symbols, from, to });
+  }
+
+  getDownloadStatus(jobId: string): Observable<any> {
+    return this.http.get<any>(`${this.base}/candle-db/download/${jobId}`);
+  }
+
+  runBacktest(symbol: string, from: string, to: string): Observable<any> {
+    return this.http.get<any>(`${this.base}/backtest`, { params: { symbol, from, to } });
+  }
 }

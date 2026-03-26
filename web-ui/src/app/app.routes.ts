@@ -7,6 +7,7 @@ import { ControlsComponent } from './pages/controls/controls.component';
 import { StrategiesComponent } from './pages/strategies/strategies.component';
 import { SymbolsComponent } from './pages/symbols/symbols.component';
 import { MarketComponent } from './pages/market/market.component';
+import { BacktestComponent } from './pages/backtest/backtest.component';
 
 export const routes: Routes = [
   { path: '', component: DashboardComponent },
@@ -17,6 +18,7 @@ export const routes: Routes = [
   { path: 'symbols', component: SymbolsComponent },
   { path: 'symbols/:symbol', component: SymbolsComponent },
   { path: 'market', component: MarketComponent },
+  { path: 'backtest', component: BacktestComponent },
   { path: 'controls', component: ControlsComponent },
   { path: '**', redirectTo: '' },
 ];
