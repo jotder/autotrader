@@ -100,14 +100,17 @@ These are built incrementally as each UI milestone needs them (UI shell first, b
 ├──────────┬──────────────────────────────────────────────────┤
 │ SIDEBAR  │  CONTENT AREA                                    │
 │          │                                                  │
-│ Dashboard │  (varies by route)                              │
+│ Dashboard│  (varies by route)                               │
+│ Trans-   │                                                  │
+│  actions │                                                  │
 │ Paper    │                                                  │
 │  Trade   │                                                  │
 │ Positions│                                                  │
-│ Journal  │                                                  │
-│ Backtest │                                                  │
 │ Strateg- │                                                  │
 │  ies     │                                                  │
+│ Symbols  │  (Symbol 360 list/search)                        │
+│ Market   │  (Market Explorer drill-down)                    │
+│ Backtest │                                                  │
 │ Config   │                                                  │
 │ Knowledge│                                                  │
 │ Controls │                                                  │
@@ -155,21 +158,71 @@ These are built incrementally as each UI milestone needs them (UI shell first, b
 - **Emergency Flatten** button (red) → `POST /api/emergency-flatten`
 - Confirmation: "Close ALL positions? This cannot be undone."
 
-### 7.3 Trade Journal (`/journal`)
+### 7.3 Transaction Center (`/transactions`)
 
-**Purpose:** Review today's trades, search historical trades.
+**Purpose:** Central analytical hub — every trade across all modes, grouped and navigable. The primary surface for understanding strategy outcomes from every angle.
 
-| Section | Content | Data Source |
-|---------|---------|-------------|
-| **Today's Trades** | Table: time, symbol, direction, entry, exit, qty, PnL, R-multiple, strategy, exit reason | `/api/trades` |
-| **Filters** | Date picker, symbol dropdown, strategy dropdown, win/loss toggle | Client-side filter on loaded data |
-| **Summary Row** | Total trades, win rate, total PnL, avg R-multiple | Computed client-side |
+**Core Table Columns:**
 
-**Behavior:**
-- Default view: today's trades
-- Date picker loads historical journal data
-- Sortable columns (PnL, time, symbol)
-- Export to CSV button
+| Column | Type | Source Field |
+|--------|------|-------------|
+| Time | Timestamp (IST) | `entryTime` |
+| Symbol | Link → Symbol 360 | `symbol` |
+| Strategy | Link → Strategy Detail | `strategyId` |
+| Mode | Badge (BT/PT/LIVE) | `mode` |
+| Direction | BUY/SELL badge | `direction` |
+| Entry | Price (₹) | `entryPrice` |
+| Exit | Price (₹) | `exitPrice` |
+| Qty | Integer | `quantity` |
+| PnL (₹) | Green/red | `pnl` |
+| PnL (%) | Green/red | `pnlPct` |
+| R-Multiple | Numeric | `rMultipleAchieved` |
+| Hold Time | Duration | `holdDuration` |
+| Exit Reason | Badge | `exitReason` |
+| Confidence | 0–1 | `entryConfidence` |
+| MAE/MFE | ₹ values | `maxAdverseExcursion` / `maxFavorableExcursion` |
+
+**Grouping (dropdown — "Group by"):**
+- None (flat list — default)
+- Symbol → grouped sections with per-symbol summary row
+- Strategy → grouped sections with per-strategy metrics
+- Mode (BT/PT/LIVE) → see how same strategy performs across modes
+- Exit Reason → understand why trades close
+- Instrument Type → equity vs derivative performance
+- Direction → BUY vs SELL performance
+
+**Filtering (sticky filter bar):**
+- Date range picker (default: today)
+- Symbol (multi-select dropdown from dimension data)
+- Strategy (multi-select dropdown)
+- Mode: BT / PT / LIVE (toggle chips)
+- Direction: BUY / SELL / ALL
+- Result: Winners / Losers / ALL
+- Exchange / Segment / Instrument Type (from dimension data)
+
+**Sorting:**
+- Click any column header to sort asc/desc
+- Default: newest first (`entryTime` desc)
+- Secondary sort: PnL, R-multiple, hold time
+
+**Summary Bar (always visible above table):**
+- Total trades, Win rate, Total PnL (₹), Avg PnL, Avg R, Profit Factor
+- Updates reactively based on current filter/group selection
+
+**Row Click → Transaction Detail (expandable or side panel):**
+- Full trade lifecycle: entry → peak → trough → exit
+- MAE/MFE visualization (bar showing how far trade went for/against)
+- Timeframe votes at entry (M5, M15, H1 alignment)
+- Link to Strategy → opens Strategy Detail
+- Link to Symbol → opens Symbol 360
+- Link to "Run Backtest" for this symbol + strategy combination
+
+**Navigation from table cells:**
+- Click symbol → navigates to **Symbol 360** (`/symbols/{symbol}`)
+- Click strategy → navigates to **Strategy Detail** (`/strategies/{id}`)
+- Click mode badge → filters table to that mode
+
+**Export:** CSV export button respects current filters/grouping
 
 ### 7.4 Backtest (`/backtest`)
 
@@ -273,6 +326,8 @@ These are built incrementally as each UI milestone needs them (UI shell first, b
 |-----|---------|
 | **Parameters** | Form-based editor for strategy-specific params: indicator periods (EMA fast/slow, RSI, ATR), entry thresholds (confidence, trend strength), active hours, cooldown, timeframes |
 | **Risk Overrides** | Per-strategy risk config: risk per trade %, max qty, max exposure, SL/TP ATR multipliers, trailing activation/step, max consecutive losses |
+| **Transactions** | Embedded Transaction Center pre-filtered to this strategy. Group by symbol to see per-symbol performance, or group by mode to compare BT/PT/LIVE outcomes for the same strategy |
+| **Symbols** | Which symbols this strategy trades, per-symbol metrics (win rate, PnL, trade count). Click symbol → Symbol 360. Per-symbol mode toggle (PAPER/LIVE) with go-live gate validation |
 | **Performance** | If backtest data available: win rate, profit factor, Sharpe, max drawdown, total trades, avg R-multiple. Link to "Run Backtest" for this strategy |
 | **Comparison** | Side-by-side param comparison between 2 strategies (select from dropdown). Highlights differences |
 
@@ -321,6 +376,54 @@ These are built incrementally as each UI milestone needs them (UI shell first, b
 - "Trend Following" → EMA crossover logic, RSI thresholds used in the system, ATR-based stops
 - "Risk Per Trade" → 2% rule explanation, how `RiskManager.preTradeCheck()` sizes positions, lot-size rounding for F&O
 - "Performance Metrics" → How to interpret win rate, Sharpe, drawdown, profit factor, R-multiple from backtest reports
+
+### 7.10 Symbol 360 View (`/symbols/{symbol}`)
+
+**Purpose:** Everything about a symbol in one place — market info, trade history, strategy performance, instrument details. The go-to view when you want to understand how a specific instrument is performing across all strategies and modes.
+
+**Layout:** Header (symbol identity + key stats) + Tab panels.
+
+**Header:** Symbol name, exchange badge, segment badge, instrument type badge, current LTP (from `/api/ticks`), today's PnL for this symbol.
+
+| Tab | Content | Data Source |
+|-----|---------|-------------|
+| **Overview** | Exchange, segment, instrument type, lot size, tick size, ISIN, underlying (for derivatives), expiry, strike price (options), option type (CE/PE), trading session | `/api/symbol-master`, `/api/symbol/parse`, `/api/dimensions` |
+| **Trades** | Embedded Transaction Center pre-filtered to this symbol. Same grouping/sorting/summary. Group by strategy to see which strategy works best on this symbol | `/api/trades?symbol=X` |
+| **Strategies** | Which strategies trade this symbol, their per-symbol metrics (win rate, PnL, Sharpe, trade count). Click strategy → navigate to Strategy Detail | `/api/metrics` (per-symbol breakdown) |
+| **Profile** | If candle DB has data: volatility stats, session patterns, behavioral profile. Statistical behavior useful for strategy tuning | `/api/profile/{symbol}` |
+| **Mode** | Current execution mode for this symbol (PAPER/LIVE). Mode switch button with go-live gate validation dialog | `/api/symbols/{symbol}/mode` |
+
+**Navigation entry points:**
+- Click any symbol in the Transaction Center table
+- Click any symbol in the Strategy Detail → Symbols tab
+- Click any symbol in the Market Explorer → Symbol list
+- Direct URL: `/symbols/NSE:SBIN-EQ`
+
+### 7.11 Market Explorer (`/market`)
+
+**Purpose:** Browse the instrument universe — exchanges, segments, instrument types. Understand what's available and how strategies perform across market segments.
+
+**Layout:** Hierarchical drill-down (breadcrumb navigation).
+
+```
+Exchange (NSE/BSE/MCX)
+  → Segment (CM/FO/CD/COM)
+    → Instrument Type (EQUITY/EQUITY_FUTURE/EQUITY_OPTION_*/...)
+      → Symbols list (from symbol master)
+```
+
+| View | Content | Data Source |
+|------|---------|-------------|
+| **Exchange list** | Exchange name, count of traded symbols, total PnL across exchange, trade count | `/api/dimensions/exchanges`, `/api/trades` (aggregated) |
+| **Segment view** | Within exchange: segment name, symbol count, trade count, total PnL | `/api/dimensions/segments`, `/api/trades` |
+| **Instrument Type** | Within segment: type name, typical lot size, symbol count, performance summary | `/api/dimensions/instrument_types`, `/api/trades` |
+| **Symbol list** | All symbols of that type with key metrics (trade count, PnL). Click → Symbol 360 | `/api/symbol-master`, `/api/trades` |
+
+**Behavior:**
+- Breadcrumb trail: Market → NSE → FO → EQUITY_FUTURE → symbols
+- Each level shows aggregate metrics from trades in that segment
+- Click a symbol row → navigates to Symbol 360
+- Search bar at top filters symbols by name across all levels
 
 ## 8. Global UX Patterns
 
@@ -412,18 +515,26 @@ These are built incrementally as each UI milestone needs them (UI shell first, b
 
 **Exit criteria:** Can monitor live paper trading (signals, positions, risk); per-symbol mode displayed; exit individual positions; flatten all; toggle kill switch — all from UI.
 
-### Milestone 4: Trade Journal (Sprint 4)
-**Goal:** Trade history with filtering and export.
+### Milestone 4: Transaction Center (Sprint 4)
+**Goal:** Central analytical hub — every trade, grouped and navigable with 360° drill-down.
+
+**Backend work (built in this sprint):**
+- Enhanced `/api/trades` with query params: `from`, `to`, `symbol`, `strategy`, `mode`, `direction`, `exitReason`
+- New `/api/trades/summary` — aggregated metrics for current filter (server-side for large datasets)
 
 | Task | Deliverable |
 |------|-------------|
-| 4.1 | Journal table (today's trades) |
-| 4.2 | Date picker + symbol/strategy filters |
-| 4.3 | Summary row (computed metrics) |
-| 4.4 | CSV export |
-| 4.5 | New backend endpoint: `GET /api/trades?from=&to=&symbol=&strategy=` |
+| 4.1 | **Backend:** Enhanced `/api/trades` with full query params (mode, direction, exitReason, instrumentType) |
+| 4.2 | **Backend:** `/api/trades/summary` — aggregated metrics for current filter |
+| 4.3 | Transaction table with all 15 columns (Material data table, sortable) |
+| 4.4 | Group-by dropdown (symbol, strategy, mode, exit reason, instrument type, direction) with per-group summary rows |
+| 4.5 | Sticky filter bar (date range, symbol multi-select, strategy, mode chips, direction, result, exchange/segment/instrument type) |
+| 4.6 | Summary bar (reactive metrics: total trades, win rate, total PnL, avg PnL, avg R, profit factor) |
+| 4.7 | Row expand / side panel for transaction detail (MAE/MFE bars, timeframe votes, trade lifecycle) |
+| 4.8 | Navigation: clickable symbol → `/symbols/{symbol}`, clickable strategy → `/strategies/{id}` |
+| 4.9 | CSV export respecting current filters/grouping |
 
-**Exit criteria:** Can view today's trades, filter by date/symbol, export to CSV.
+**Exit criteria:** Can view trades grouped by any dimension; filter by date/symbol/strategy/mode; click through to Symbol 360 and Strategy Detail; export filtered results to CSV.
 
 ### Milestone 5: Strategy Configuration (Sprint 5)
 **Goal:** Visual strategy management with lifecycle — design, promote, retire.
@@ -446,8 +557,17 @@ These are built incrementally as each UI milestone needs them (UI shell first, b
 | 5.9 | Mode switch UI: PAPER → LIVE button per symbol with go-live gate dialog |
 | 5.10 | Duplicate, enable/disable, reset-to-defaults actions |
 | 5.11 | Real-time validation with `ConfigValidator` rules |
+| 5.12 | **Backend:** `/api/symbols/{symbol}/360` — composite endpoint (instrument info + trade stats + active strategies + mode) |
+| 5.13 | **Backend:** `/api/market/overview` — exchange → segment → instrument type tree with trade counts + PnL |
+| 5.14 | Symbol 360 page: Overview tab (instrument info from dimension data + symbol master) |
+| 5.15 | Symbol 360 page: Trades tab (embedded Transaction Center pre-filtered to symbol) |
+| 5.16 | Symbol 360 page: Strategies tab (per-strategy metrics for this symbol) |
+| 5.17 | Symbol 360 page: Profile tab (volatility stats from `/api/profile`) |
+| 5.18 | Symbol 360 page: Mode tab (current mode, switch with go-live gate) |
+| 5.19 | Market Explorer page: exchange → segment → instrument type → symbols drill-down |
+| 5.20 | Strategy Detail: add Transactions tab (embedded Transaction Center) and Symbols tab (per-symbol metrics + mode toggle) |
 
-**Exit criteria:** Can view strategies, edit params, promote symbols PAPER→LIVE (with validation gate), compare strategies, duplicate for A/B testing.
+**Exit criteria:** Can view strategies, edit params, promote symbols PAPER→LIVE (with validation gate), compare strategies, duplicate for A/B testing. Can view 360° symbol detail (instrument info, trades, strategies, profile, mode). Can explore market hierarchy and drill into any symbol.
 
 ### Milestone 6: Backtest & Cross-Mode Analysis (Sprint 6)
 **Goal:** Full backtest workflow + cross-mode performance comparison.
@@ -517,7 +637,8 @@ These are built incrementally as each UI milestone needs them (UI shell first, b
 
 | Endpoint | Method | Milestone | Purpose |
 |----------|--------|-----------|---------|
-| `/api/trades` | GET | M4 | Trade journal with date/symbol/strategy query params |
+| `/api/trades` (enhanced) | GET | M4 | Transaction center with `from`, `to`, `symbol`, `strategy`, `mode`, `direction`, `exitReason`, `instrumentType` query params |
+| `/api/trades/summary` | GET | M4 | Aggregated metrics for current filter (total, win rate, PnL, avg R, profit factor) |
 | `/api/config/strategies` | GET | M6 | List all strategy configs |
 | `/api/config/strategies/{id}` | PUT | M6 | Update strategy YAML |
 | `/api/config/risk` | GET | M6 | Current risk parameters |
@@ -535,6 +656,8 @@ These are built incrementally as each UI milestone needs them (UI shell first, b
 | `/api/go-live-check/{symbol}` | GET | M5 | Go-live validation checklist (tech + strategy) |
 | `/api/symbols/{symbol}/mode` | PUT | M5 | Switch symbol execution mode (PAPER/LIVE) |
 | `/api/analysis/compare` | GET | M6 | Cross-mode metrics comparison (BT vs PT vs LIVE) |
+| `/api/symbols/{symbol}/360` | GET | M5 | Composite: instrument info + trade stats + active strategies + mode |
+| `/api/market/overview` | GET | M5 | Exchange → segment → instrument type tree with trade counts + PnL |
 
 ## 11. Configuration (environment.ts)
 
@@ -578,4 +701,4 @@ export const environment = {
 
 ---
 
-*Last updated: 2026-03-25*
+*Last updated: 2026-03-26*
