@@ -93,4 +93,33 @@ export class ApiService {
   exitPosition(correlationId: string): Observable<ActionResponse> {
     return this.http.post<ActionResponse>(`${this.base}/exit/${correlationId}`, null);
   }
+
+  // ── Data endpoints ──────────────────────────────────────────
+  getMetrics(): Observable<any> {
+    return this.http.get<any>(`${this.base}/metrics`);
+  }
+
+  getDimensions(): Observable<any> {
+    return this.http.get<any>(`${this.base}/dimensions`);
+  }
+
+  getDimensionTable(table: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/dimensions/${table}`);
+  }
+
+  searchSymbolMaster(params: Record<string, string>): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/symbol-master`, { params });
+  }
+
+  parseSymbol(symbol: string): Observable<any> {
+    return this.http.get<any>(`${this.base}/symbol/parse`, { params: { s: symbol } });
+  }
+
+  getSymbolProfile(symbol: string): Observable<any> {
+    return this.http.get<any>(`${this.base}/profile/${symbol}`);
+  }
+
+  getCandleDbSymbols(): Observable<string[]> {
+    return this.http.get<string[]>(`${this.base}/candle-db/symbols`);
+  }
 }
