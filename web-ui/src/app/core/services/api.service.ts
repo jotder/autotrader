@@ -3,16 +3,10 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
-  StatusResponse,
-  RiskResponse,
-  HealthResponse,
-  AnomalyStatus,
-  CircuitBreakerStatus,
-  TokenStatus,
-  ActionResponse,
-  Position,
-  TradeRecord,
-  OrdersResponse,
+  StatusResponse, RiskResponse, HealthResponse, AnomalyStatus,
+  CircuitBreakerStatus, TokenStatus, ActionResponse, Position,
+  TradeRecord, OrdersResponse,
+  StrategyVersionInfo, StrategyConfig, ValidationResult,
 } from '../models/api.models';
 
 /**
@@ -121,6 +115,43 @@ export class ApiService {
 
   getCandleDbSymbols(): Observable<string[]> {
     return this.http.get<string[]>(`${this.base}/candle-db/symbols`);
+  }
+
+  // ── Strategy version endpoints ──────────────────────────────
+  getStrategies(): Observable<StrategyVersionInfo[]> {
+    return this.http.get<StrategyVersionInfo[]>(`${this.base}/strategies`);
+  }
+
+  getStrategy(id: string): Observable<StrategyVersionInfo> {
+    return this.http.get<StrategyVersionInfo>(`${this.base}/strategies/${id}`);
+  }
+
+  createDraft(id: string): Observable<ActionResponse> {
+    return this.http.post<ActionResponse>(`${this.base}/strategies/${id}/draft`, null);
+  }
+
+  updateDraft(id: string, config: StrategyConfig): Observable<ActionResponse> {
+    return this.http.put<ActionResponse>(`${this.base}/strategies/${id}/draft`, config);
+  }
+
+  promoteDraft(id: string): Observable<ActionResponse> {
+    return this.http.post<ActionResponse>(`${this.base}/strategies/${id}/promote`, null);
+  }
+
+  validateStrategy(config: StrategyConfig): Observable<ValidationResult> {
+    return this.http.post<ValidationResult>(`${this.base}/strategies/validate`, config);
+  }
+
+  toggleStrategy(id: string): Observable<ActionResponse> {
+    return this.http.put<ActionResponse>(`${this.base}/strategies/${id}/toggle`, null);
+  }
+
+  getStrategyDefaults(): Observable<StrategyConfig> {
+    return this.http.get<StrategyConfig>(`${this.base}/strategies/defaults`);
+  }
+
+  getAvailableSymbols(): Observable<string[]> {
+    return this.http.get<string[]>(`${this.base}/config/symbols`);
   }
 
   getCandleDbDates(symbol: string): Observable<string[]> {

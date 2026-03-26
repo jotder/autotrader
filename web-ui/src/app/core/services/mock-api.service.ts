@@ -4,6 +4,7 @@ import {
   StatusResponse, RiskResponse, HealthResponse, AnomalyStatus,
   CircuitBreakerStatus, TokenStatus, ActionResponse, Position,
   TradeRecord, OrdersResponse,
+  StrategyVersionInfo, StrategyConfig, ValidationResult,
 } from '../models/api.models';
 import {
   mockStatus, mockRisk, mockHealth, mockAnomaly, mockCircuitBreaker,
@@ -11,6 +12,7 @@ import {
   mockCandleDbSymbols, mockCandleDbDates, mockBacktestResult,
   mockDimensionTable, mockSymbolMasterSearch, mockSymbolParse,
   mockSymbolProfile, mockDownloads,
+  mockStrategyList, mockStrategyDefaults, mockValidateStrategy, mockAvailableSymbols,
 } from './mock-data.generator';
 
 function mockDelay(): number { return 200 + Math.random() * 600; }
@@ -144,6 +146,49 @@ export class MockApiService {
     if (Math.random() < 0.20) {
       return throwError(() => ({ error: { message: 'No M1 data found for the selected date range' } })).pipe(delay(800));
     }
-    return of(mockBacktestResult()).pipe(delay(1500 + Math.random() * 1500)); // simulate longer compute
+    return of(mockBacktestResult()).pipe(delay(1500 + Math.random() * 1500));
+  }
+
+  // ── Strategy version endpoints ────────────────────────────
+  getStrategies(): Observable<StrategyVersionInfo[]> {
+    return of(mockStrategyList()).pipe(delay(mockDelay()));
+  }
+
+  getStrategy(id: string): Observable<StrategyVersionInfo> {
+    const all = mockStrategyList();
+    const found = all.find(s => s.strategyId === id) || all[0];
+    return of(found).pipe(delay(mockDelay()));
+  }
+
+  createDraft(_id: string): Observable<ActionResponse> {
+    return of(mockAction(90, 'Draft v2 created from active v1', 'Draft already exists')).pipe(delay(mockDelay()));
+  }
+
+  updateDraft(_id: string, config: StrategyConfig): Observable<ActionResponse> {
+    const validation = mockValidateStrategy(config);
+    if (!validation.valid) {
+      return of({ success: false, message: `Validation failed: ${validation.errors.join('; ')}` }).pipe(delay(mockDelay()));
+    }
+    return of(mockAction(90, 'Draft updated successfully', 'Failed to write YAML')).pipe(delay(mockDelay()));
+  }
+
+  promoteDraft(_id: string): Observable<ActionResponse> {
+    return of(mockAction(85, 'Draft v2 promoted to active. Previous v1 archived.', 'No draft to promote')).pipe(delay(mockDelay()));
+  }
+
+  validateStrategy(config: StrategyConfig): Observable<ValidationResult> {
+    return of(mockValidateStrategy(config)).pipe(delay(300));
+  }
+
+  toggleStrategy(_id: string): Observable<ActionResponse> {
+    return of(mockAction(90, 'Strategy toggled', 'Strategy not found')).pipe(delay(mockDelay()));
+  }
+
+  getStrategyDefaults(): Observable<StrategyConfig> {
+    return of(mockStrategyDefaults()).pipe(delay(mockDelay()));
+  }
+
+  getAvailableSymbols(): Observable<string[]> {
+    return of(mockAvailableSymbols()).pipe(delay(mockDelay()));
   }
 }

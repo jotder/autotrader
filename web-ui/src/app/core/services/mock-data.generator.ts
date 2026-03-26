@@ -2,6 +2,7 @@ import {
   StatusResponse, RiskResponse, HealthResponse, AnomalyStatus,
   CircuitBreakerStatus, TokenStatus, ActionResponse, Position,
   TradeRecord, ManagedOrder, OrdersResponse,
+  StrategyConfig, StrategyVersionInfo, VersionEntry, ValidationResult,
 } from '../models/api.models';
 
 // ── Helpers ─────────────────────────────────────────────────
@@ -394,4 +395,91 @@ export function mockDownloads(): any[] {
     { jobId: 'dl-001', status: pick(['RUNNING', 'COMPLETED', 'COMPLETED']), symbols: ['NSE:SBIN-EQ'], progress: '100%', startTime: isoMinutesAgo(30) },
     { jobId: 'dl-002', status: pick(['RUNNING', 'COMPLETED', 'FAILED']), symbols: ['NSE:RELIANCE-EQ', 'NSE:INFY-EQ'], progress: coinFlip(50) ? '67%' : '100%', startTime: isoMinutesAgo(15) },
   ];
+}
+
+// ── Strategy Configuration & Versioning ─────────────────────
+
+function makeConfig(overrides: Partial<StrategyConfig> = {}): StrategyConfig {
+  return {
+    enabled: true,
+    symbols: ['NSE:SBIN-EQ', 'NSE:RELIANCE-EQ', 'NSE:HDFCBANK-EQ'],
+    timeframe: 'M5',
+    cooldownMinutes: 25,
+    maxTradesPerDay: 10,
+    activeHours: { start: '09:15', end: '15:00' },
+    indicators: { emaFast: 20, emaSlow: 50, rsiPeriod: 14, atrPeriod: 14, relVolPeriod: 20, minCandles: 21 },
+    entry: { minConfidence: 0.85, relVolThreshold: 1.2, trendStrength: 'STRONG_BULLISH' },
+    risk: { riskPerTradePct: 2.0, slAtrMultiplier: 2.0, tpRMultiple: 2.0, trailingActivationPct: 1.5, trailingStepPct: 0.5, maxExposurePct: 20, maxQty: 500, maxConsecutiveLosses: 3 },
+    order: { type: 'MARKET', slippageTolerance: 0.05, productType: 'INTRADAY' },
+    ...overrides,
+  };
+}
+
+const STRATEGY_DEFS: { id: string; configs: [StrategyConfig, StrategyConfig?]; enabled: boolean }[] = [
+  {
+    id: 'trend-follow-v2',
+    enabled: true,
+    configs: [
+      makeConfig({ symbols: ['NSE:SBIN-EQ', 'NSE:RELIANCE-EQ', 'NSE:HDFCBANK-EQ'], entry: { minConfidence: 0.85, relVolThreshold: 1.2, trendStrength: 'STRONG_BULLISH' } }),
+      makeConfig({ symbols: ['NSE:SBIN-EQ', 'NSE:RELIANCE-EQ', 'NSE:HDFCBANK-EQ', 'NSE:INFY-EQ'], entry: { minConfidence: 0.80, relVolThreshold: 1.1, trendStrength: 'BULLISH' }, risk: { riskPerTradePct: 2.5, slAtrMultiplier: 1.8, tpRMultiple: 2.5, trailingActivationPct: 1.2, trailingStepPct: 0.4, maxExposurePct: 25, maxQty: 600, maxConsecutiveLosses: 4 } }),
+    ],
+  },
+  {
+    id: 'mean-revert-v1',
+    enabled: true,
+    configs: [
+      makeConfig({ symbols: ['NSE:NIFTY25MARFUT', 'NSE:BANKNIFTY25MARFUT'], timeframe: 'M15', indicators: { emaFast: 9, emaSlow: 21, rsiPeriod: 7, atrPeriod: 14, relVolPeriod: 15, minCandles: 15 }, entry: { minConfidence: 0.78, relVolThreshold: 1.5, trendStrength: 'NEUTRAL' }, risk: { riskPerTradePct: 1.5, slAtrMultiplier: 1.5, tpRMultiple: 1.5, trailingActivationPct: 1.0, trailingStepPct: 0.3, maxExposurePct: 15, maxQty: 150, maxConsecutiveLosses: 4 } }),
+    ],
+  },
+  {
+    id: 'momentum-v1',
+    enabled: false,
+    configs: [
+      makeConfig({ enabled: false, symbols: ['NSE:TCS-EQ', 'NSE:INFY-EQ', 'NSE:ICICIBANK-EQ'], timeframe: 'M5', indicators: { emaFast: 12, emaSlow: 26, rsiPeriod: 14, atrPeriod: 10, relVolPeriod: 20, minCandles: 30 }, entry: { minConfidence: 0.90, relVolThreshold: 1.8, trendStrength: 'STRONG_BULLISH' }, risk: { riskPerTradePct: 1.0, slAtrMultiplier: 2.5, tpRMultiple: 3.0, trailingActivationPct: 2.0, trailingStepPct: 0.8, maxExposurePct: 10, maxQty: 200, maxConsecutiveLosses: 2 } }),
+    ],
+  },
+];
+
+export function mockStrategyList(): StrategyVersionInfo[] {
+  return STRATEGY_DEFS.map(def => {
+    const hasDraft = def.configs.length > 1;
+    const activeVer = 1;
+    const latestVer = hasDraft ? 2 : 1;
+    const history: VersionEntry[] = [
+      { version: 1, state: 'ACTIVE', createdAt: '2026-03-20T09:00:00Z', note: 'Initial version' },
+    ];
+    if (hasDraft) {
+      history.push({ version: 2, state: 'DRAFT', createdAt: '2026-03-25T14:30:00Z', note: 'Tuning confidence + adding INFY' });
+    }
+    return {
+      strategyId: def.id,
+      activeVersion: activeVer,
+      latestVersion: latestVer,
+      enabled: def.enabled,
+      status: !def.enabled ? 'DISABLED' as const : hasDraft ? 'HAS_DRAFT' as const : 'ACTIVE' as const,
+      history,
+      config: def.configs[0],
+      draftConfig: hasDraft ? def.configs[1] : undefined,
+    };
+  });
+}
+
+export function mockStrategyDefaults(): StrategyConfig {
+  return makeConfig();
+}
+
+export function mockValidateStrategy(config: StrategyConfig): ValidationResult {
+  const errors: string[] = [];
+  if (config.indicators.emaFast >= config.indicators.emaSlow) errors.push('ema_fast must be less than ema_slow');
+  if (config.symbols.length === 0) errors.push('At least one symbol is required');
+  if (config.entry.minConfidence < 0 || config.entry.minConfidence > 1) errors.push('min_confidence must be between 0.0 and 1.0');
+  if (config.risk.riskPerTradePct < 0.1 || config.risk.riskPerTradePct > 10) errors.push('risk_per_trade_pct must be between 0.1 and 10.0');
+  if (config.risk.maxQty < 1) errors.push('max_qty must be at least 1');
+  // Random 10% chance of extra error for realism
+  if (errors.length === 0 && coinFlip(10)) errors.push('Symbol NSE:TEST-EQ not found in symbol registry');
+  return { valid: errors.length === 0, errors };
+}
+
+export function mockAvailableSymbols(): string[] {
+  return [...SYMBOLS];
 }
