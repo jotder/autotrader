@@ -1,6 +1,6 @@
 import com.rj.model.PriceAlertBook;
 import com.tts.in.model.PriceAlertModel;
-import fyers.FyersPriceAlerts;
+import com.rj.fyers.FyersPriceAlerts;
 
 void main() {
     FyersPriceAlerts app = new FyersPriceAlerts();

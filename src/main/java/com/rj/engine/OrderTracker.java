@@ -23,14 +23,30 @@ public final class OrderTracker {
     private static final int MAX_COMPLETED_HISTORY = 500;
 
     private final ConcurrentHashMap<String, ManagedOrder> activeOrders = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ManagedOrder> brokerIdMap = new ConcurrentHashMap<>();
     private final ConcurrentLinkedDeque<ManagedOrder> completedOrders = new ConcurrentLinkedDeque<>();
     private final ConcurrentHashMap<String, ReentrantLock> symbolLocks = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Boolean> submittedIds = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Integer> attemptCount = new ConcurrentHashMap<>();
 
     private final Duration orderTimeout;
+    private final List<OrderStateListener> listeners = new CopyOnWriteArrayList<>();
 
     public OrderTracker(Duration orderTimeout) {
         this.orderTimeout = orderTimeout;
+    }
+
+    public void addListener(OrderStateListener listener) {
+        listeners.add(listener);
+    }
+
+    void notifyListeners(ManagedOrder order, ManagedOrder.StateTransition transition) {
+        for (OrderStateListener listener : listeners) {
+            try {
+                listener.onStateChange(order, transition);
+            } catch (Exception e) {
+                log.error("[OMS] Listener failed for {}: {}", order.getClientOrderId(), e.getMessage());
+            }
+        }
     }
 
     // ── Symbol lock ─────────────────────────────────────────────────────────
@@ -47,17 +63,46 @@ public final class OrderTracker {
                                     Signal direction, int quantity,
                                     String strategyId) {
         var order = new ManagedOrder(clientOrderId, correlationId, symbol,
-                side, direction, quantity, strategyId);
+                side, direction, quantity, strategyId, this);
         activeOrders.put(clientOrderId, order);
         return order;
     }
 
-    public boolean isDuplicate(String clientOrderId) {
-        return submittedIds.containsKey(clientOrderId);
+    public void linkBrokerId(String clientOrderId, String brokerOrderId) {
+        ManagedOrder order = activeOrders.get(clientOrderId);
+        if (order != null && brokerOrderId != null) {
+            brokerIdMap.put(brokerOrderId, order);
+        }
     }
 
-    public void markSubmitted(String clientOrderId) {
-        submittedIds.put(clientOrderId, Boolean.TRUE);
+    public int getNextAttempt(String correlationId, OrderSideType side) {
+        String key = correlationId + ":" + side.name();
+        return attemptCount.compute(key, (k, v) -> (v == null) ? 1 : v + 1);
+    }
+
+    public Optional<ManagedOrder> getByClientOrderId(String id) {
+        return Optional.ofNullable(activeOrders.get(id));
+    }
+
+    public Optional<ManagedOrder> getByBrokerOrderId(String id) {
+        return Optional.ofNullable(brokerIdMap.get(id));
+    }
+
+    public boolean isDuplicate(String clientOrderId) {
+        return activeOrders.containsKey(clientOrderId) || completedOrders.stream().anyMatch(o -> o.getClientOrderId().equals(clientOrderId));
+    }
+
+    public boolean hasOrderForCorrelationId(String correlationId, OrderSideType side) {
+        // Check active orders
+        boolean active = activeOrders.values().stream()
+                .anyMatch(o -> o.getCorrelationId().equals(correlationId) && o.getSide() == side);
+        if (active) return true;
+
+        // Check completed successful orders (ignore rejections for retryability)
+        return completedOrders.stream()
+                .anyMatch(o -> o.getCorrelationId().equals(correlationId) 
+                        && o.getSide() == side 
+                        && (o.getState() == OrderState.FILLED || o.getState() == OrderState.PARTIALLY_FILLED));
     }
 
     public Optional<ManagedOrder> getOrder(String clientOrderId) {

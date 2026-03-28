@@ -1,126 +1,115 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Subject, takeUntil, interval, switchMap, startWith, catchError, of, forkJoin } from 'rxjs';
-import { ApiService } from '../../core/services/api.service';
-import { Position, RiskResponse, TradeRecord } from '../../core/models/api.models';
+import { MatTableModule } from '@angular/material/table';
+import { GlobalStateService } from '../../core/services/global-state.service';
 import { StatusCardComponent } from '../../shared/components/status-card.component';
 import { MetricRowComponent } from '../../shared/components/metric-row.component';
-import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'at-paper-trade',
   standalone: true,
-  imports: [CommonModule, StatusCardComponent, MetricRowComponent],
+  imports: [CommonModule, MatTableModule, StatusCardComponent, MetricRowComponent],
   template: `
     <div class="page-header">
-      <h1>Paper Trade</h1>
-      <span class="live-dot"></span>
+      <h1>Paper Trade Center</h1>
+      <span class="live-dot" [class.stopped]="!state.isRunning()"></span>
     </div>
 
     <div class="paper-grid">
-      <!-- Active Positions (compact) -->
+      <!-- Active Positions -->
       <at-status-card title="Active Positions" icon="show_chart"
-                      [iconColor]="positions.length > 0 ? 'var(--accent)' : 'var(--text-secondary)'">
-        @if (positions.length === 0) {
-          <div class="empty">No open positions</div>
-        } @else {
-          <div class="table-wrap">
-            <table class="at-table compact">
-              <thead>
-                <tr>
-                  <th>Symbol</th>
-                  <th>Dir</th>
-                  <th class="r">Entry</th>
-                  <th class="r">SL</th>
-                  <th class="r">PnL</th>
-                  <th>Trail</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (p of positions; track p.correlationId) {
-                  <tr>
-                    <td class="mono">{{ shortSymbol(p.symbol) }}</td>
-                    <td><span class="badge" [class]="p.direction === 'BUY' ? 'buy' : 'sell'">{{ p.direction }}</span></td>
-                    <td class="r mono">{{ p.entryPrice | number:'1.2-2' }}</td>
-                    <td class="r mono">{{ p.currentStopLoss | number:'1.2-2' }}</td>
-                    <td class="r mono" [class]="pnlClass(p.unrealizedPnl)">{{ formatPnl(p.unrealizedPnl) }}</td>
-                    <td>{{ p.trailingActivated ? '✓' : '—' }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
+                      [iconColor]="state.positions().length > 0 ? 'var(--accent)' : 'var(--text-secondary)'">
+        <table mat-table [dataSource]="state.positions()" class="mat-elevation-z0 compact-table">
+          <ng-container matColumnDef="symbol">
+            <th mat-header-cell *matHeaderCellDef> Symbol </th>
+            <td mat-cell *matCellDef="let p" class="mono"> {{ shortSymbol(p.symbol) }} </td>
+          </ng-container>
+
+          <ng-container matColumnDef="direction">
+            <th mat-header-cell *matHeaderCellDef> Dir </th>
+            <td mat-cell *matCellDef="let p">
+              <span class="badge" [class]="p.direction === 'BUY' ? 'buy' : 'sell'">{{ p.direction }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="pnl">
+            <th mat-header-cell *matHeaderCellDef class="r"> PnL </th>
+            <td mat-cell *matCellDef="let p" class="r mono" [class]="pnlClass(p.unrealizedPnl)">
+              {{ formatPnl(p.unrealizedPnl) }}
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="positionColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: positionColumns;"></tr>
+        </table>
+        @if (state.positions().length === 0) {
+          <div class="empty-row">No open positions</div>
         }
       </at-status-card>
 
       <!-- Session Stats -->
       <at-status-card title="Session Stats" icon="bar_chart" iconColor="var(--info)">
-        <at-metric label="Trades Today" [value]="todayTrades.length" />
-        <at-metric label="Winners" [value]="winners" [valueClass]="'profit'" />
-        <at-metric label="Losers" [value]="losers" [valueClass]="losers > 0 ? 'loss' : ''" />
-        <at-metric label="Win Rate" [value]="winRate" />
-        <at-metric label="Realized PnL" [value]="formatPnl(totalPnl)" [valueClass]="pnlClass(totalPnl)" />
-        <at-metric label="Best Trade" [value]="formatPnl(bestPnl)" [valueClass]="'profit'" />
-        <at-metric label="Worst Trade" [value]="formatPnl(worstPnl)" [valueClass]="'loss'" />
+        <at-metric label="Trades Today" [value]="state.recentTrades().length" />
+        <at-metric label="Winners" [value]="winners()" [valueClass]="'profit'" />
+        <at-metric label="Win Rate" [value]="winRate()" />
+        <at-metric label="Realized PnL" [value]="formatPnl(totalPnl())" [valueClass]="pnlClass(totalPnl())" />
+        <at-metric label="Best Trade" [value]="formatPnl(bestPnl())" [valueClass]="'profit'" />
       </at-status-card>
 
       <!-- Risk Utilization -->
       <at-status-card title="Risk Utilization" icon="shield" iconColor="var(--warning)">
-        @if (risk) {
-          <at-metric label="Daily PnL" [value]="formatPnl(risk.dailyPnl)" [valueClass]="pnlClass(risk.dailyPnl)" />
-          <at-metric label="Loss Limit" [value]="formatPnl(-risk.maxDailyLossInr)" />
-          <div class="bar-section">
-            <div class="bar-label">Loss Utilization</div>
-            <div class="bar-container">
-              <div class="bar-fill" [style.width.%]="lossUtilPct" [class]="barClass"></div>
-            </div>
-            <div class="bar-value">{{ lossUtilPct.toFixed(0) }}%</div>
+        <at-metric label="Daily PnL" [value]="formatPnl(state.dailyPnl())" [valueClass]="pnlClass(state.dailyPnl())" />
+        <at-metric label="Loss Limit" [value]="formatPnl(-1 * (state.risk()?.maxDailyLossInr ?? 0))" />
+        <div class="bar-section">
+          <div class="bar-label">Loss Utilization</div>
+          <div class="bar-container">
+            <div class="bar-fill" [style.width.%]="lossUtilPct()" [class]="barClass()"></div>
           </div>
-          <at-metric label="Kill Switch" [value]="risk.killSwitchActive ? 'ON' : 'OFF'"
-                     [valueClass]="risk.killSwitchActive ? 'loss' : ''" />
-          <at-metric label="Profit Lock" [value]="risk.dailyProfitLocked ? 'LOCKED' : 'Open'" />
-        } @else {
-          <div class="empty">No risk data</div>
-        }
+          <div class="bar-value">{{ lossUtilPct().toFixed(0) }}%</div>
+        </div>
+        <at-metric label="Kill Switch" [value]="state.isKillSwitchActive() ? 'ON' : 'OFF'"
+                   [valueClass]="state.isKillSwitchActive() ? 'loss' : ''" />
       </at-status-card>
     </div>
 
     <!-- Recent Exits -->
     <at-status-card title="Recent Exits" icon="logout" iconColor="var(--text-secondary)"
                     style="margin-top: 16px">
-      @if (recentExits.length === 0) {
-        <div class="empty">No exits today</div>
-      } @else {
-        <div class="table-wrap">
-          <table class="at-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Symbol</th>
-                <th>Strategy</th>
-                <th>Dir</th>
-                <th class="r">PnL</th>
-                <th class="r">R</th>
-                <th>Reason</th>
-                <th>Hold</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (t of recentExits; track t.correlationId) {
-                <tr>
-                  <td class="mono text-muted">{{ formatTime(t.exitTime) }}</td>
-                  <td class="mono">{{ shortSymbol(t.symbol) }}</td>
-                  <td class="text-muted">{{ t.strategyId }}</td>
-                  <td><span class="badge" [class]="t.direction === 'BUY' ? 'buy' : 'sell'">{{ t.direction }}</span></td>
-                  <td class="r mono" [class]="pnlClass(t.pnl)">{{ formatPnl(t.pnl) }}</td>
-                  <td class="r mono">{{ t.rMultipleAchieved != null ? t.rMultipleAchieved.toFixed(1) + 'R' : '—' }}</td>
-                  <td class="text-muted">{{ t.exitReason || '—' }}</td>
-                  <td class="mono text-muted">{{ t.holdDuration || '—' }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+      <table mat-table [dataSource]="recentExits()" class="mat-elevation-z0">
+        <ng-container matColumnDef="exitTime">
+          <th mat-header-cell *matHeaderCellDef> Time </th>
+          <td mat-cell *matCellDef="let t" class="mono text-muted"> {{ formatTime(t.exitTime) }} </td>
+        </ng-container>
+
+        <ng-container matColumnDef="symbol">
+          <th mat-header-cell *matHeaderCellDef> Symbol </th>
+          <td mat-cell *matCellDef="let t" class="mono"> {{ shortSymbol(t.symbol) }} </td>
+        </ng-container>
+
+        <ng-container matColumnDef="direction">
+          <th mat-header-cell *matHeaderCellDef> Dir </th>
+          <td mat-cell *matCellDef="let t">
+            <span class="badge" [class]="t.direction === 'BUY' ? 'buy' : 'sell'">{{ t.direction }}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="pnl">
+          <th mat-header-cell *matHeaderCellDef class="r"> PnL </th>
+          <td mat-cell *matCellDef="let t" class="r mono" [class]="pnlClass(t.pnl)">
+            {{ formatPnl(t.pnl) }}
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="reason">
+          <th mat-header-cell *matHeaderCellDef> Reason </th>
+          <td mat-cell *matCellDef="let t" class="text-muted"> {{ t.exitReason || '—' }} </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="exitColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: exitColumns;"></tr>
+      </table>
+      @if (recentExits().length === 0) {
+        <div class="empty-row">No exits today</div>
       }
     </at-status-card>
   `,
@@ -128,22 +117,15 @@ import { environment } from '../../../environments/environment';
     .page-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
     h1 { margin: 0; font-size: 20px; font-weight: 500; }
     .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--profit); animation: pulse 2s infinite; }
+    .live-dot.stopped { background: var(--loss); animation: none; }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
     .paper-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
-
-    .table-wrap { overflow-x: auto; }
-    .at-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .at-table.compact { font-size: 12px; }
-    .at-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
-      color: var(--text-secondary); padding: 4px 6px; border-bottom: 1px solid var(--border); }
-    .at-table td { padding: 4px 6px; border-bottom: 1px solid var(--bg-hover); }
-    .at-table tr:hover td { background: var(--bg-hover); }
-    .r { text-align: right; }
+    .r { text-align: right !important; justify-content: flex-end; }
     .badge { padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; }
     .badge.buy { background: rgba(63, 185, 80, 0.15); color: var(--profit); }
     .badge.sell { background: rgba(248, 81, 73, 0.15); color: var(--loss); }
-    .empty { color: var(--text-muted); font-size: 13px; padding: 8px 0; }
+    .empty-row { text-align: center; padding: 24px !important; color: var(--text-muted); font-size: 13px; }
 
     .bar-section { margin: 8px 0; }
     .bar-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
@@ -153,59 +135,39 @@ import { environment } from '../../../environments/environment';
     .bar-fill.caution { background: var(--warning); }
     .bar-fill.danger { background: var(--loss); }
     .bar-value { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .compact-table ::ng-deep .mat-mdc-cell { padding: 4px 8px !important; font-size: 12px; }
   `],
 })
-export class PaperTradeComponent implements OnInit, OnDestroy {
-  positions: Position[] = [];
-  risk: RiskResponse | null = null;
-  todayTrades: TradeRecord[] = [];
+export class PaperTradeComponent {
+  positionColumns = ['symbol', 'direction', 'pnl'];
+  exitColumns = ['exitTime', 'symbol', 'direction', 'pnl', 'reason'];
 
-  private destroy$ = new Subject<void>();
-
-  constructor(private api: ApiService) {}
-
-  ngOnInit(): void {
-    interval(environment.pollingIntervalMs).pipe(
-      startWith(0),
-      switchMap(() => forkJoin({
-        positions: this.api.getPositions().pipe(catchError(() => of([]))),
-        risk: this.api.getRisk().pipe(catchError(() => of(null))),
-        trades: this.api.getTrades().pipe(catchError(() => of([]))),
-      })),
-      takeUntil(this.destroy$),
-    ).subscribe(data => {
-      this.positions = data.positions as Position[];
-      if (data.risk) this.risk = data.risk as RiskResponse;
-      this.todayTrades = (data.trades as TradeRecord[]) || [];
-    });
-  }
-
-  get winners(): number { return this.todayTrades.filter(t => t.pnl != null && t.pnl > 0).length; }
-  get losers(): number { return this.todayTrades.filter(t => t.pnl != null && t.pnl <= 0).length; }
-  get winRate(): string {
-    const total = this.winners + this.losers;
-    return total > 0 ? `${((this.winners / total) * 100).toFixed(0)}%` : '—';
-  }
-  get totalPnl(): number { return this.todayTrades.reduce((s, t) => s + (t.pnl ?? 0), 0); }
-  get bestPnl(): number | null {
-    const pnls = this.todayTrades.filter(t => t.pnl != null).map(t => t.pnl!);
+  readonly winners = computed(() => this.state.recentTrades().filter(t => t.pnl != null && t.pnl > 0).length);
+  readonly losers = computed(() => this.state.recentTrades().filter(t => t.pnl != null && t.pnl <= 0).length);
+  readonly winRate = computed(() => {
+    const total = this.winners() + this.losers();
+    return total > 0 ? `${((this.winners() / total) * 100).toFixed(0)}%` : '—';
+  });
+  readonly totalPnl = computed(() => this.state.recentTrades().reduce((s, t) => s + (t.pnl ?? 0), 0));
+  readonly bestPnl = computed(() => {
+    const pnls = this.state.recentTrades().filter(t => t.pnl != null).map(t => t.pnl!);
     return pnls.length > 0 ? Math.max(...pnls) : null;
-  }
-  get worstPnl(): number | null {
-    const pnls = this.todayTrades.filter(t => t.pnl != null).map(t => t.pnl!);
-    return pnls.length > 0 ? Math.min(...pnls) : null;
-  }
-  get recentExits(): TradeRecord[] {
-    return this.todayTrades.filter(t => t.status === 'CLOSED').slice(-10).reverse();
-  }
-  get lossUtilPct(): number {
-    if (!this.risk || !this.risk.maxDailyLossInr) return 0;
-    return Math.min(100, Math.abs(this.risk.dailyPnl) / this.risk.maxDailyLossInr * 100);
-  }
-  get barClass(): string {
-    const p = this.lossUtilPct;
+  });
+  readonly recentExits = computed(() =>
+    this.state.recentTrades().filter(t => t.status === 'CLOSED').slice(-5).reverse()
+  );
+  readonly lossUtilPct = computed(() => {
+    const risk = this.state.risk();
+    if (!risk || !risk.maxDailyLossInr) return 0;
+    return Math.min(100, Math.abs(risk.dailyPnl) / risk.maxDailyLossInr * 100);
+  });
+  readonly barClass = computed(() => {
+    const p = this.lossUtilPct();
     return p < 50 ? 'safe' : p < 80 ? 'caution' : 'danger';
-  }
+  });
+
+  constructor(public state: GlobalStateService) {}
 
   shortSymbol(s: string): string { return s.replace(/^(NSE|BSE|MCX):/, ''); }
   pnlClass(v: number | null | undefined): string { return v == null ? '' : v >= 0 ? 'profit' : 'loss'; }
@@ -217,6 +179,4 @@ export class PaperTradeComponent implements OnInit, OnDestroy {
     if (!iso) return '—';
     try { return new Date(iso).toLocaleTimeString('en-IN', { hour12: false }); } catch { return iso; }
   }
-
-  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
 }

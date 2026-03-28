@@ -37,6 +37,7 @@ public class BacktestEngine {
 
     private final List<Candle> m5Candles;
     private final String symbol;
+    private final InstrumentInfo instrumentInfo;
     private final RiskConfig riskConfig;
     private final BacktestOrderExecutor executor;
     private final TradeJournal journal;
@@ -62,7 +63,13 @@ public class BacktestEngine {
     private Instant lastExitTime = Instant.EPOCH;
 
     public BacktestEngine(List<Candle> m5Candles, String symbol, RiskConfig riskConfig) {
-        this(m5Candles, symbol, riskConfig,
+        this(m5Candles, symbol, InstrumentInfo.EQUITY_DEFAULT, riskConfig,
+                new BacktestOrderExecutor(),
+                new TradeJournal(ExecutionMode.BACKTEST));
+    }
+
+    public BacktestEngine(List<Candle> m5Candles, String symbol, InstrumentInfo info, RiskConfig riskConfig) {
+        this(m5Candles, symbol, info, riskConfig,
                 new BacktestOrderExecutor(),
                 new TradeJournal(ExecutionMode.BACKTEST));
     }
@@ -71,15 +78,20 @@ public class BacktestEngine {
      * Create a BacktestEngine from M1 candles — aggregates to M5 first.
      */
     public static BacktestEngine fromM1(List<Candle> m1Candles, String symbol, RiskConfig riskConfig) {
-        List<Candle> m5 = aggregateToHigherTimeframe(m1Candles, 5);
-        log.info("[BT][{}] Aggregated {} M1 candles → {} M5 candles", symbol, m1Candles.size(), m5.size());
-        return new BacktestEngine(m5, symbol, riskConfig);
+        return fromM1(m1Candles, symbol, InstrumentInfo.EQUITY_DEFAULT, riskConfig);
     }
 
-    BacktestEngine(List<Candle> m5Candles, String symbol, RiskConfig riskConfig,
+    public static BacktestEngine fromM1(List<Candle> m1Candles, String symbol, InstrumentInfo info, RiskConfig riskConfig) {
+        List<Candle> m5 = aggregateToHigherTimeframe(m1Candles, 5);
+        log.info("[BT][{}] Aggregated {} M1 candles → {} M5 candles", symbol, m1Candles.size(), m5.size());
+        return new BacktestEngine(m5, symbol, info, riskConfig);
+    }
+
+    BacktestEngine(List<Candle> m5Candles, String symbol, InstrumentInfo info, RiskConfig riskConfig,
                    BacktestOrderExecutor executor, TradeJournal journal) {
         this.m5Candles = new ArrayList<>(m5Candles);
         this.symbol = symbol;
+        this.instrumentInfo = info;
         this.riskConfig = riskConfig;
         this.executor = executor;
         this.journal = journal;
@@ -164,7 +176,7 @@ public class BacktestEngine {
             // ── Feed M5 candle to analyzer ────────────────────────────────────
             Instant winStart = Instant.ofEpochSecond(m5.timestamp);
             Instant winEnd = winStart.plus(Timeframe.M5.getDuration());
-            CandleRecommendation m5Rec = m5Analyzer.addAndAnalyze(m5, winStart, winEnd);
+            CandleRecommendation m5Rec = m5Analyzer.addAndAnalyze(m5, winStart, winEnd, instrumentInfo);
             latestRecs.put(Timeframe.M5, m5Rec);
 
             // ── Aggregate to M15 (every 3 M5 candles) ────────────────────────
@@ -173,7 +185,7 @@ public class BacktestEngine {
                 Candle m15 = aggregate(m15Buffer, Timeframe.M15);
                 Instant m15End = Instant.ofEpochSecond(m15.timestamp).plus(Timeframe.M15.getDuration());
                 CandleRecommendation m15Rec = m15Analyzer.addAndAnalyze(
-                        m15, Instant.ofEpochSecond(m15.timestamp), m15End);
+                        m15, Instant.ofEpochSecond(m15.timestamp), m15End, instrumentInfo);
                 latestRecs.put(Timeframe.M15, m15Rec);
                 m15Buffer.clear();
             }
@@ -184,7 +196,7 @@ public class BacktestEngine {
                 Candle h1 = aggregate(h1Buffer, Timeframe.H1);
                 Instant h1End = Instant.ofEpochSecond(h1.timestamp).plus(Timeframe.H1.getDuration());
                 CandleRecommendation h1Rec = h1Analyzer.addAndAnalyze(
-                        h1, Instant.ofEpochSecond(h1.timestamp), h1End);
+                        h1, Instant.ofEpochSecond(h1.timestamp), h1End, instrumentInfo);
                 latestRecs.put(Timeframe.H1, h1Rec);
                 h1Buffer.clear();
             }

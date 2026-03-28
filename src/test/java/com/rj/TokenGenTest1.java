@@ -1,4 +1,4 @@
-import fyers.TokenGenerator;
+import com.rj.fyers.TokenGenerator;
 
 void main() {
     String appHashID = "40d7592d23f36fa436fc72d60dc6d690d8055feadc8d1f87a28c91fc4e27e6a8";

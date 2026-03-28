@@ -1,44 +1,39 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Subject, takeUntil, forkJoin, interval, switchMap, startWith, catchError, of } from 'rxjs';
-import { ApiService } from '../../core/services/api.service';
-import {
-  StatusResponse, RiskResponse, HealthResponse,
-  AnomalyStatus, CircuitBreakerStatus, TokenStatus,
-} from '../../core/models/api.models';
+import { GlobalStateService } from '../../core/services/global-state.service';
 import { AlertBannerComponent } from '../../shared/components/alert-banner.component';
 import { StatusCardComponent } from '../../shared/components/status-card.component';
 import { MetricRowComponent } from '../../shared/components/metric-row.component';
-import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'at-dashboard',
   standalone: true,
   imports: [CommonModule, AlertBannerComponent, StatusCardComponent, MetricRowComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page-header">
       <h1>Dashboard</h1>
     </div>
 
-    <at-alert-banner [anomaly]="anomaly" [cb]="cb" [risk]="risk" />
+    <at-alert-banner [anomaly]="state.anomaly()" [cb]="state.circuitBreaker()" [risk]="state.risk()" />
 
     <div class="card-grid">
       <!-- System Status -->
-      <at-status-card title="System" icon="computer" [iconColor]="status?.running ? 'var(--profit)' : 'var(--loss)'">
-        <at-metric label="Mode" [value]="status?.mode || '—'" />
-        <at-metric label="Running" [value]="status?.running ? 'Yes' : 'No'"
-                   [valueClass]="status?.running ? 'profit' : 'loss'" />
-        <at-metric label="Symbols" [value]="status?.symbols?.length || 0" />
+      <at-status-card title="System" icon="computer" [iconColor]="state.isRunning() ? 'var(--profit)' : 'var(--loss)'">
+        <at-metric label="Mode" [value]="state.executionMode()" />
+        <at-metric label="Running" [value]="state.isRunning() ? 'Yes' : 'No'"
+                   [valueClass]="state.isRunning() ? 'profit' : 'loss'" />
+        <at-metric label="Symbols" [value]="state.status()?.symbols?.length || 0" />
       </at-status-card>
 
       <!-- Risk Summary -->
       <at-status-card title="Risk" icon="shield"
-                      [iconColor]="(risk?.dailyPnl ?? 0) >= 0 ? 'var(--profit)' : 'var(--loss)'">
-        <at-metric label="Daily PnL" [value]="formatPnl(risk?.dailyPnl)"
-                   [valueClass]="pnlClass(risk?.dailyPnl)" />
-        <at-metric label="Loss Limit" [value]="formatPnl(-1 * (risk?.maxDailyLossInr ?? 0))" />
-        <at-metric label="Profit Lock" [value]="risk?.dailyProfitLocked ? 'LOCKED' : 'Open'"
-                   [valueClass]="risk?.dailyProfitLocked ? 'warning' : ''" />
+                      [iconColor]="state.dailyPnl() >= 0 ? 'var(--profit)' : 'var(--loss)'">
+        <at-metric label="Daily PnL" [value]="formatPnl(state.dailyPnl())"
+                   [valueClass]="pnlClass(state.dailyPnl())" />
+        <at-metric label="Loss Limit" [value]="formatPnl(-1 * (state.risk()?.maxDailyLossInr ?? 0))" />
+        <at-metric label="Profit Lock" [value]="state.risk()?.dailyProfitLocked ? 'LOCKED' : 'Open'"
+                   [valueClass]="state.risk()?.dailyProfitLocked ? 'warning' : ''" />
         <div class="loss-bar-container">
           <div class="loss-bar" [style.width.%]="lossUtilPct" [class]="lossBarClass"></div>
         </div>
@@ -47,7 +42,7 @@ import { environment } from '../../../environments/environment';
 
       <!-- Health -->
       <at-status-card title="Health" icon="monitor_heart" iconColor="var(--info)">
-        @if (health?.components) {
+        @if (state.health()?.components) {
           @for (entry of healthEntries; track entry[0]) {
             <div class="health-row">
               <span class="dot" [class]="healthDotClass(entry[1].status)"></span>
@@ -63,34 +58,34 @@ import { environment } from '../../../environments/environment';
       <!-- Circuit Breaker -->
       <at-status-card title="Circuit Breaker" icon="electrical_services"
                       [iconColor]="cbIconColor">
-        <at-metric label="State" [value]="cb?.state || '—'"
+        <at-metric label="State" [value]="state.circuitBreaker()?.state || '—'"
                    [valueClass]="cbStateClass" />
-        <at-metric label="Failures" [value]="cb?.consecutiveFailures ?? '—'" />
-        <at-metric label="429 Today" [value]="cb?.daily429Count ?? '—'" />
-        <at-metric label="Last Failure" [value]="formatTime(cb?.lastFailureTime)" />
+        <at-metric label="Failures" [value]="state.circuitBreaker()?.consecutiveFailures ?? '—'" />
+        <at-metric label="429 Today" [value]="state.circuitBreaker()?.daily429Count ?? '—'" />
+        <at-metric label="Last Failure" [value]="formatTime(state.circuitBreaker()?.lastFailureTime)" />
       </at-status-card>
 
       <!-- Anomaly -->
       <at-status-card title="Anomaly Protection" icon="security"
-                      [iconColor]="anomaly?.anomalyMode ? 'var(--loss)' : 'var(--profit)'">
-        <at-metric label="Status" [value]="anomaly?.anomalyMode ? 'ACTIVE' : 'Clear'"
-                   [valueClass]="anomaly?.anomalyMode ? 'loss' : 'profit'" />
-        <at-metric label="Kill Switch" [value]="anomaly?.killSwitchActive ? 'ON' : 'OFF'"
-                   [valueClass]="anomaly?.killSwitchActive ? 'loss' : ''" />
-        <at-metric label="Broker Errors" [value]="anomaly?.consecutiveBrokerErrors ?? '—'" />
-        @if (anomaly?.reason) {
-          <at-metric label="Reason" [value]="anomaly!.reason!" [mono]="false" />
+                      [iconColor]="state.isAnomalyMode() ? 'var(--loss)' : 'var(--profit)'">
+        <at-metric label="Status" [value]="state.isAnomalyMode() ? 'ACTIVE' : 'Clear'"
+                   [valueClass]="state.isAnomalyMode() ? 'loss' : 'profit'" />
+        <at-metric label="Kill Switch" [value]="state.isKillSwitchActive() ? 'ON' : 'OFF'"
+                   [valueClass]="state.isKillSwitchActive() ? 'loss' : ''" />
+        <at-metric label="Broker Errors" [value]="state.anomaly()?.consecutiveBrokerErrors ?? '—'" />
+        @if (state.anomaly()?.reason) {
+          <at-metric label="Reason" [value]="state.anomaly()!.reason!" [mono]="false" />
         }
       </at-status-card>
 
       <!-- Token -->
       <at-status-card title="Token" icon="vpn_key"
-                      [iconColor]="token?.tokenValid ? 'var(--profit)' : 'var(--loss)'">
-        <at-metric label="Valid" [value]="token?.tokenValid ? 'Yes' : 'No'"
-                   [valueClass]="token?.tokenValid ? 'profit' : 'loss'" />
-        <at-metric label="Scheduler" [value]="token?.schedulerRunning ? 'Running' : 'Stopped'" />
-        <at-metric label="Last Refresh" [value]="token?.lastRefreshStatus || '—'" />
-        <at-metric label="Refreshed At" [value]="formatTime(token?.lastRefreshTime)" />
+                      [iconColor]="state.token()?.tokenValid ? 'var(--profit)' : 'var(--loss)'">
+        <at-metric label="Valid" [value]="state.token()?.tokenValid ? 'Yes' : 'No'"
+                   [valueClass]="state.token()?.tokenValid ? 'profit' : 'loss'" />
+        <at-metric label="Scheduler" [value]="state.token()?.schedulerRunning ? 'Running' : 'Stopped'" />
+        <at-metric label="Last Refresh" [value]="state.token()?.lastRefreshStatus || '—'" />
+        <at-metric label="Refreshed At" [value]="formatTime(state.token()?.lastRefreshTime)" />
       </at-status-card>
     </div>
   `,
@@ -136,44 +131,14 @@ import { environment } from '../../../environments/environment';
     }
   `],
 })
-export class DashboardComponent implements OnInit, OnDestroy {
-  status: StatusResponse | null = null;
-  risk: RiskResponse | null = null;
-  health: HealthResponse | null = null;
-  anomaly: AnomalyStatus | null = null;
-  cb: CircuitBreakerStatus | null = null;
-  token: TokenStatus | null = null;
-
-  private destroy$ = new Subject<void>();
-
-  constructor(private api: ApiService) {}
-
-  ngOnInit(): void {
-    interval(environment.pollingIntervalMs).pipe(
-      startWith(0),
-      switchMap(() => forkJoin({
-        status: this.api.getStatus().pipe(catchError(() => of(null))),
-        risk: this.api.getRisk().pipe(catchError(() => of(null))),
-        health: this.api.getHealth().pipe(catchError(() => of(null))),
-        anomaly: this.api.getAnomalyStatus().pipe(catchError(() => of(null))),
-        cb: this.api.getCircuitBreakerStatus().pipe(catchError(() => of(null))),
-        token: this.api.getTokenStatus().pipe(catchError(() => of(null))),
-      })),
-      takeUntil(this.destroy$),
-    ).subscribe(data => {
-      if (data.status) this.status = data.status;
-      if (data.risk) this.risk = data.risk;
-      if (data.health) this.health = data.health;
-      if (data.anomaly) this.anomaly = data.anomaly;
-      if (data.cb) this.cb = data.cb;
-      if (data.token) this.token = data.token;
-    });
-  }
+export class DashboardComponent {
+  constructor(public state: GlobalStateService) {}
 
   // ── Helpers ──────────────────────────────────────────────────
   get lossUtilPct(): number {
-    if (!this.risk || !this.risk.maxDailyLossInr) return 0;
-    return Math.min(100, Math.abs(this.risk.dailyPnl) / this.risk.maxDailyLossInr * 100);
+    const risk = this.state.risk();
+    if (!risk || !risk.maxDailyLossInr) return 0;
+    return Math.min(100, Math.abs(risk.dailyPnl) / risk.maxDailyLossInr * 100);
   }
 
   get lossBarClass(): string {
@@ -184,20 +149,23 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   get healthEntries(): [string, any][] {
-    if (!this.health?.components) return [];
-    return Object.entries(this.health.components);
+    const health = this.state.health();
+    if (!health?.components) return [];
+    return Object.entries(health.components);
   }
 
   get cbIconColor(): string {
-    if (!this.cb) return 'var(--text-secondary)';
-    return this.cb.state === 'CLOSED' ? 'var(--profit)' :
-           this.cb.state === 'OPEN' ? 'var(--loss)' : 'var(--warning)';
+    const cb = this.state.circuitBreaker();
+    if (!cb) return 'var(--text-secondary)';
+    return cb.state === 'CLOSED' ? 'var(--profit)' :
+           cb.state === 'OPEN' ? 'var(--loss)' : 'var(--warning)';
   }
 
   get cbStateClass(): string {
-    if (!this.cb) return '';
-    return this.cb.state === 'CLOSED' ? 'profit' :
-           this.cb.state === 'OPEN' ? 'loss' : 'warning';
+    const cb = this.state.circuitBreaker();
+    if (!cb) return '';
+    return cb.state === 'CLOSED' ? 'profit' :
+           cb.state === 'OPEN' ? 'loss' : 'warning';
   }
 
   formatPnl(value: number | undefined | null): string {
@@ -222,10 +190,5 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   healthDotClass(status: string): string {
     return status === 'UP' ? 'green' : status === 'DEGRADED' ? 'amber' : 'red';
-  }
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
   }
 }

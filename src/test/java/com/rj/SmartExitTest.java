@@ -1,5 +1,5 @@
 import com.rj.model.SmartExitTrigger;
-import fyers.FyersSmartExit;
+import com.rj.fyers.FyersSmartExit;
 import org.json.JSONObject;
 
 void main() {

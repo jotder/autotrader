@@ -15,7 +15,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # ── Parse arguments ───────────────────────────────────────────────────
-TOOL="claude"  # Mod A: default to claude
+TOOL="gemini"  # Mod A: default to gemini
 MAX_ITERATIONS=10
 VERSION_PREFIX="v1.0.0"  # SemVer prefix for P1
 
@@ -47,8 +47,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate tool choice
-if [[ "$TOOL" != "amp" && "$TOOL" != "claude" ]]; then
-  echo "Error: Invalid tool '$TOOL'. Must be 'amp' or 'claude'."
+if [[ "$TOOL" != "amp" && "$TOOL" != "gemini" ]]; then
+  echo "Error: Invalid tool '$TOOL'. Must be 'amp' or 'gemini'."
   exit 1
 fi
 
@@ -122,7 +122,8 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   if [[ "$TOOL" == "amp" ]]; then
     OUTPUT=$(cat "$SCRIPT_DIR/prompt.md" | amp --dangerously-allow-all 2>&1 | tee /dev/stderr) || true
   else
-    OUTPUT=$(claude --dangerously-skip-permissions --print < "$SCRIPT_DIR/CLAUDE.md" 2>&1 | tee /dev/stderr) || true
+    # Use gemini in headless mode with the new instructions
+    OUTPUT=$(gemini -p "$(cat "$SCRIPT_DIR/GEMINI.md")" -y 2>&1 | tee /dev/stderr) || true
   fi
 
   # ── Mod B: Post-iteration Maven quality gate ─────────────────────

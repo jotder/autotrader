@@ -226,7 +226,7 @@ class BrokerCircuitBreakerTest {
         final AtomicInteger errorCount = new AtomicInteger(0);
 
         MockAnomalyDetector() {
-            super(null, null, null, null, null);
+            super();
         }
 
         @Override

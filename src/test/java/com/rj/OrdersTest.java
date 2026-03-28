@@ -1,5 +1,5 @@
 import com.rj.model.OrderEntry;
-import fyers.FyersOrders;
+import com.rj.fyers.FyersOrders;
 
 void main() {
     FyersOrders app = new FyersOrders();

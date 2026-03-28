@@ -1,5 +1,5 @@
 import com.rj.model.ClientProfile;
-import fyers.FyersProfile;
+import com.rj.fyers.FyersProfile;
 
 void main() {
 

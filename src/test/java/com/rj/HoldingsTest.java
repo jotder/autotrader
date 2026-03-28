@@ -1,5 +1,5 @@
 import com.rj.model.HoldingsSummary;
-import fyers.FyersHoldings;
+import com.rj.fyers.FyersHoldings;
 
 void main(String[] args) {
 

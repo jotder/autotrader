@@ -2,7 +2,7 @@ package com.rj.engine;
 
 import com.rj.model.Candle;
 import com.tts.in.model.StockHistoryModel;
-import fyers.FyersDataApi;
+import com.rj.fyers.FyersDataApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

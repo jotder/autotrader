@@ -1,6 +1,6 @@
 import com.rj.model.ReportOrder;
 import com.rj.model.ReportTrade;
-import fyers.FyersReports;
+import com.rj.fyers.FyersReports;
 
 void main() {
     FyersReports app = new FyersReports();

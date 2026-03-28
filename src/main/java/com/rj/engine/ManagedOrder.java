@@ -20,10 +20,10 @@ public final class ManagedOrder {
 
     // ── Valid state transitions ──────────────────────────────────────────────
     private static final Map<OrderState, Set<OrderState>> VALID_TRANSITIONS = Map.of(
-            OrderState.CREATED, Set.of(OrderState.SUBMITTED),
-            OrderState.SUBMITTED, Set.of(OrderState.ACCEPTED, OrderState.REJECTED, OrderState.EXPIRED),
-            OrderState.ACCEPTED, Set.of(OrderState.FILLED, OrderState.PARTIALLY_FILLED, OrderState.CANCELLED),
-            OrderState.PARTIALLY_FILLED, Set.of(OrderState.FILLED, OrderState.CANCELLED)
+            OrderState.CREATED, Set.of(OrderState.SUBMITTED, OrderState.REJECTED),
+            OrderState.SUBMITTED, Set.of(OrderState.ACCEPTED, OrderState.REJECTED, OrderState.EXPIRED, OrderState.FILLED, OrderState.CANCELLED),
+            OrderState.ACCEPTED, Set.of(OrderState.FILLED, OrderState.PARTIALLY_FILLED, OrderState.CANCELLED, OrderState.REJECTED),
+            OrderState.PARTIALLY_FILLED, Set.of(OrderState.FILLED, OrderState.CANCELLED, OrderState.REJECTED)
     );
 
     // ── Identity (immutable) ────────────────────────────────────────────────
@@ -35,6 +35,7 @@ public final class ManagedOrder {
     private final int requestedQuantity;
     private final String strategyId;
     private final Instant createdAt;
+    private final OrderTracker tracker;
 
     // ── Mutable state (guarded by stateLock) ────────────────────────────────
     private final ReentrantLock stateLock = new ReentrantLock();
@@ -48,7 +49,7 @@ public final class ManagedOrder {
 
     public ManagedOrder(String clientOrderId, String correlationId,
                         String symbol, OrderSideType side, Signal direction,
-                        int requestedQuantity, String strategyId) {
+                        int requestedQuantity, String strategyId, OrderTracker tracker) {
         this.clientOrderId = clientOrderId;
         this.correlationId = correlationId;
         this.symbol = symbol;
@@ -56,6 +57,7 @@ public final class ManagedOrder {
         this.direction = direction;
         this.requestedQuantity = requestedQuantity;
         this.strategyId = strategyId;
+        this.tracker = tracker;
         this.createdAt = Instant.now();
         this.state = OrderState.CREATED;
         this.lastUpdatedAt = this.createdAt;
@@ -93,16 +95,46 @@ public final class ManagedOrder {
             if (filledQty > 0) this.filledQuantity = filledQty;
             if (reason != null) this.rejectReason = reason;
 
-            history.add(new StateTransition(previousState, newState, this.lastUpdatedAt, reason));
+            StateTransition transition = new StateTransition(previousState, newState, this.lastUpdatedAt, reason);
+            history.add(transition);
 
             log.debug("[OMS] Order {} transitioned: {} → {} (broker={}, fill={}/{})",
                     clientOrderId, previousState, newState, this.brokerOrderId,
                     this.filledQuantity, requestedQuantity);
 
+            if (tracker != null) {
+                tracker.notifyListeners(this, transition);
+            }
+
             return true;
         } finally {
             stateLock.unlock();
         }
+    }
+
+    /**
+     * Update order state based on a broker callback (e.g. from WebSocket).
+     * Maps broker-specific status codes to internal OrderState.
+     */
+    public boolean updateFromBroker(int brokerStatus, String brokerId,
+                                    double price, int qty, String message) {
+        OrderState newState = mapBrokerStatus(brokerStatus);
+        if (newState == null) return false;
+
+        return transitionTo(newState, brokerId, price, qty, message);
+    }
+
+    private OrderState mapBrokerStatus(int status) {
+        // Fyers status codes:
+        // 1 -> Cancelled, 2 -> Filled, 4 -> Transit, 5 -> Rejected, 6 -> Pending
+        return switch (status) {
+            case 1 -> OrderState.CANCELLED;
+            case 2 -> OrderState.FILLED;
+            case 4 -> OrderState.SUBMITTED;
+            case 5 -> OrderState.REJECTED;
+            case 6 -> OrderState.ACCEPTED;
+            default -> null;
+        };
     }
 
     // ── Backward compatibility ──────────────────────────────────────────────

@@ -5,7 +5,7 @@ import com.tts.in.model.MultiLegModel;
 import com.tts.in.model.PlaceOrderModel;
 import com.tts.in.utilities.ProductType;
 import com.tts.in.utilities.TransactionType;
-import fyers.FyersOrderPlacement;
+import com.rj.fyers.FyersOrderPlacement;
 
 void main() {
     FyersOrderPlacement app = new FyersOrderPlacement();

@@ -1,0 +1,48 @@
+Key,Data Type Of Values,Description
+fyToken,string,Unique token for the security
+,,View Details
+isin,string,ISIN code for the security
+exSymbol,string,Exchange symbol of the security
+symDetails,string,Full name of the security
+symTicker,string,Unique string to identify the security
+exchange,int,Exchange mapping
+,,View Details
+segment,int,Segment of the security
+,,View Details
+exSymName,string,Symbol name of the security
+exToken,int,Exchange token
+exSeries,string,Series of the security. This can be used only for CM segments
+optType,string,CE/PE - For options
+,,XX - For others
+underSym,string,name of underlying symbol
+underFyTok,string,Unique token for the underlying symbol
+exInstType,int,Exchange instrument type
+,,View Details
+minLotSize,int,Minimum qty multiplier
+tickSize,float,Minimum price multiplier
+tradingSession,string,Trading session provided in IST
+lastUpdate,string,Date of last update in YYYY-MM-DD format
+expiryDate,string,Date of expiry for a symbol in timestamp.Applicable only for derivative contracts
+strikePrice,float,Strike price
+qtyFreeze,string,Freeze qty
+,,Empty string in case value is not applicable
+tradeStatus,int,Flag to check if security is allowed to trade.
+,,Expected values - 0/1
+,,1 = Active. 0 = Inactive.
+currencyCode,string,Currency code
+upperPrice,float,Upper circut price
+lowerPrice,float,Lower circut price
+faceValue,float,Face value
+qtyMultiplier,float,Quantity multipler
+previousClose,float,Previous close price
+previousOi,float,Previous OI value
+asmGsmVal,string,Surveillance Indicator message
+exchangeName,string,Exchange Name
+,,NSE/BSE/MCX
+symbolDesc,string,Full name of the security
+originalExpDate,string,Kindly ignore this field
+is_mtf_tradable,int,0: Not MTF tradable.
+,,1: MTF tradable.
+mtf_margin,float,Indicates the margin multiplier available for MTF transactions.
+,,"For example, a value of 2.9 means you receive 2.9x margin on the stock or security."
+stream,string,Stream Group

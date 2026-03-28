@@ -1,15 +1,17 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Subject, takeUntil, interval, switchMap, startWith, catchError, of } from 'rxjs';
-import { ApiService } from '../../core/services/api.service';
+import { MatTableModule, MatTableDataSource } from '@angular/material/table';
+import { MatSortModule, MatSort } from '@angular/material/sort';
+import { MatButtonModule } from '@angular/material/button';
+import { MatSelectModule } from '@angular/material/select';
+import { MatChipsModule } from '@angular/material/chips';
+import { Subject, takeUntil, interval } from 'rxjs';
+import { GlobalStateService } from '../../core/services/global-state.service';
 import { TradeRecord } from '../../core/models/api.models';
-import { environment } from '../../../environments/environment';
 
 type GroupBy = 'none' | 'symbol' | 'strategy' | 'mode' | 'exitReason' | 'direction';
-type SortField = 'entryTime' | 'pnl' | 'pnlPct' | 'rMultipleAchieved' | 'symbol' | 'strategyId';
-type SortDir = 'asc' | 'desc';
 
 interface FilterState {
   dateFrom: string;
@@ -34,11 +36,14 @@ interface GroupSummary {
 @Component({
   selector: 'at-transactions',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [
+    CommonModule, FormsModule, MatTableModule, MatSortModule,
+    MatButtonModule, MatSelectModule, MatChipsModule
+  ],
   template: `
     <div class="page-header">
       <h1>Transaction Center</h1>
-      <button class="btn-export" (click)="exportCsv()">Export CSV</button>
+      <button mat-stroked-button (click)="exportCsv()">Export CSV</button>
     </div>
 
     <!-- Summary Bar -->
@@ -82,36 +87,37 @@ interface GroupSummary {
       <div class="filter-group">
         <label>Symbol</label>
         <select [(ngModel)]="filters.symbol" (ngModelChange)="applyFilters()">
-          <option value="">All</option>
+          <option value="">All Symbols</option>
           @for (s of uniqueSymbols; track s) { <option [value]="s">{{ s }}</option> }
         </select>
       </div>
       <div class="filter-group">
         <label>Strategy</label>
         <select [(ngModel)]="filters.strategy" (ngModelChange)="applyFilters()">
-          <option value="">All</option>
+          <option value="">All Strategies</option>
           @for (s of uniqueStrategies; track s) { <option [value]="s">{{ s }}</option> }
         </select>
       </div>
-      <div class="filter-chips">
-        @for (m of ['BT','PT','LIVE']; track m) {
-          <button class="chip" [class.active]="filters.mode === m" (click)="toggleMode(m)">{{ m }}</button>
-        }
+      <div class="filter-group">
+        <label>Mode</label>
+        <div class="filter-chips">
+          @for (m of ['BT','PT','LIVE']; track m) {
+            <button class="chip" [class.active]="filters.mode === m" (click)="toggleMode(m)">{{ m }}</button>
+          }
+        </div>
       </div>
-      <div class="filter-chips">
-        @for (d of ['BUY','SELL']; track d) {
-          <button class="chip" [class.active]="filters.direction === d" (click)="toggleDirection(d)">{{ d }}</button>
-        }
-      </div>
-      <div class="filter-chips">
-        @for (r of ['W','L']; track r) {
-          <button class="chip" [class.active]="filters.result === r" (click)="toggleResult(r)">{{ r === 'W' ? 'Winners' : 'Losers' }}</button>
-        }
+      <div class="filter-group">
+        <label>Direction</label>
+        <div class="filter-chips">
+          @for (d of ['BUY','SELL']; track d) {
+            <button class="chip" [class.active]="filters.direction === d" (click)="toggleDirection(d)">{{ d }}</button>
+          }
+        </div>
       </div>
       <div class="filter-group">
         <label>Group by</label>
         <select [(ngModel)]="groupBy" (ngModelChange)="applyFilters()">
-          <option value="none">None</option>
+          <option value="none">No Grouping</option>
           <option value="symbol">Symbol</option>
           <option value="strategy">Strategy</option>
           <option value="mode">Mode</option>
@@ -124,36 +130,65 @@ interface GroupSummary {
     <!-- Grouped or flat table -->
     @if (groupBy === 'none') {
       <div class="table-wrap">
-        <table class="at-table">
-          <thead><tr>
-            @for (col of columns; track col.field) {
-              <th [class.r]="col.align === 'right'" (click)="sortByField(col.field)" class="sortable">
-                {{ col.label }}
-                @if (sortField === col.field) { <span>{{ sortDir === 'asc' ? '▲' : '▼' }}</span> }
-              </th>
-            }
-          </tr></thead>
-          <tbody>
-            @for (t of sorted; track t.correlationId) {
-              <tr>
-                <td class="mono text-muted">{{ formatTime(t.entryTime) }}</td>
-                <td><a class="link" (click)="navSymbol(t.symbol)">{{ shortSymbol(t.symbol) }}</a></td>
-                <td><a class="link" (click)="navStrategy(t.strategyId)">{{ t.strategyId }}</a></td>
-                <td><span class="badge mode">{{ modeLabel(t.mode) }}</span></td>
-                <td><span class="badge" [class]="t.direction === 'BUY' ? 'buy' : 'sell'">{{ t.direction }}</span></td>
-                <td class="r mono">{{ t.entryPrice | number:'1.2-2' }}</td>
-                <td class="r mono">{{ t.exitPrice != null ? (t.exitPrice | number:'1.2-2') : '—' }}</td>
-                <td class="r mono">{{ t.quantity }}</td>
-                <td class="r mono" [class]="pnlClass(t.pnl)">{{ formatPnl(t.pnl) }}</td>
-                <td class="r mono" [class]="pnlClass(t.pnlPct)">{{ t.pnlPct != null ? (t.pnlPct | number:'1.1-1') + '%' : '—' }}</td>
-                <td class="r mono">{{ t.rMultipleAchieved != null ? (t.rMultipleAchieved | number:'1.1-1') + 'R' : '—' }}</td>
-                <td class="mono text-muted">{{ t.holdDuration || '—' }}</td>
-                <td><span class="badge exit">{{ t.exitReason || '—' }}</span></td>
-              </tr>
-            }
-          </tbody>
+        <table mat-table [dataSource]="dataSource" matSort class="mat-elevation-z0">
+          <ng-container matColumnDef="entryTime">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> Time </th>
+            <td mat-cell *matCellDef="let t" class="mono text-muted"> {{ formatTime(t.entryTime) }} </td>
+          </ng-container>
+
+          <ng-container matColumnDef="symbol">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> Symbol </th>
+            <td mat-cell *matCellDef="let t">
+              <a class="link" (click)="navSymbol(t.symbol)">{{ shortSymbol(t.symbol) }}</a>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="strategyId">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> Strategy </th>
+            <td mat-cell *matCellDef="let t">
+              <a class="link" (click)="navStrategy(t.strategyId)">{{ t.strategyId }}</a>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="mode">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> Mode </th>
+            <td mat-cell *matCellDef="let t">
+              <span class="badge mode">{{ modeLabel(t.mode) }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="direction">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> Dir </th>
+            <td mat-cell *matCellDef="let t">
+              <span class="badge" [class]="t.direction === 'BUY' ? 'buy' : 'sell'">{{ t.direction }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="pnl">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header class="r"> PnL ₹ </th>
+            <td mat-cell *matCellDef="let t" class="r mono" [class]="pnlClass(t.pnl)">
+              {{ formatPnl(t.pnl) }}
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="rMultipleAchieved">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header class="r"> R </th>
+            <td mat-cell *matCellDef="let t" class="r mono">
+              {{ t.rMultipleAchieved != null ? (t.rMultipleAchieved | number:'1.1-1') + 'R' : '—' }}
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="exitReason">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> Reason </th>
+            <td mat-cell *matCellDef="let t">
+              <span class="badge exit">{{ t.exitReason || '—' }}</span>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
         </table>
-        @if (sorted.length === 0) {
+        @if (filtered.length === 0) {
           <div class="empty">No trades match current filters</div>
         }
       </div>
@@ -199,20 +234,19 @@ interface GroupSummary {
   styles: [`
     .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     h1 { margin: 0; font-size: 20px; font-weight: 500; }
-    .btn-export { background: transparent; border: 1px solid var(--border); color: var(--text-primary); padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; }
-    .btn-export:hover { background: var(--bg-hover); }
+    .r { text-align: right !important; justify-content: flex-end; }
 
     .summary-bar { display: flex; gap: 16px; padding: 10px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; flex-wrap: wrap; }
     .summary-item { display: flex; flex-direction: column; gap: 2px; }
     .summary-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
     .summary-value { font-size: 15px; font-weight: 600; }
 
-    .filter-bar { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; padding: 10px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; }
-    .filter-group { display: flex; flex-direction: column; gap: 2px; }
-    .filter-group label { font-size: 10px; text-transform: uppercase; color: var(--text-muted); }
-    .filter-group input, .filter-group select { background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-family: var(--font-mono); }
-    .filter-chips { display: flex; gap: 4px; align-items: flex-end; }
-    .chip { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); padding: 4px 10px; border-radius: 12px; cursor: pointer; font-size: 11px; }
+    .filter-bar { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; }
+    .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .filter-group label { font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+    .filter-group input, .filter-group select { background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-family: var(--font-mono); height: 28px; }
+    .filter-chips { display: flex; gap: 4px; align-items: center; }
+    .chip { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); padding: 2px 10px; border-radius: 12px; cursor: pointer; font-size: 11px; height: 24px; }
     .chip:hover { background: var(--bg-hover); }
     .chip.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
 
@@ -221,11 +255,9 @@ interface GroupSummary {
     .at-table.compact { font-size: 11px; }
     .at-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
       color: var(--text-secondary); padding: 5px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-    .at-table th.sortable { cursor: pointer; }
-    .at-table th.sortable:hover { color: var(--accent); }
     .at-table td { padding: 5px 6px; border-bottom: 1px solid var(--bg-hover); white-space: nowrap; }
     .at-table tr:hover td { background: var(--bg-hover); }
-    .r { text-align: right; }
+
     .badge { padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; }
     .badge.buy { background: rgba(63,185,80,0.15); color: var(--profit); }
     .badge.sell { background: rgba(248,81,73,0.15); color: var(--loss); }
@@ -242,59 +274,42 @@ interface GroupSummary {
   `],
 })
 export class TransactionsComponent implements OnInit, OnDestroy {
-  allTrades: TradeRecord[] = [];
+  displayedColumns = ['entryTime', 'symbol', 'strategyId', 'mode', 'direction', 'pnl', 'rMultipleAchieved', 'exitReason'];
+  dataSource = new MatTableDataSource<TradeRecord>([]);
   filtered: TradeRecord[] = [];
-  sorted: TradeRecord[] = [];
   groups: GroupSummary[] = [];
 
   filters: FilterState = { dateFrom: '', dateTo: '', symbol: '', strategy: '', mode: '', direction: '', result: '' };
   groupBy: GroupBy = 'none';
-  sortField: SortField = 'entryTime';
-  sortDir: SortDir = 'desc';
 
-  columns = [
-    { field: 'entryTime', label: 'Time', align: 'left' },
-    { field: 'symbol', label: 'Symbol', align: 'left' },
-    { field: 'strategyId', label: 'Strategy', align: 'left' },
-    { field: 'mode', label: 'Mode', align: 'left' },
-    { field: 'direction', label: 'Dir', align: 'left' },
-    { field: 'entryPrice', label: 'Entry', align: 'right' },
-    { field: 'exitPrice', label: 'Exit', align: 'right' },
-    { field: 'quantity', label: 'Qty', align: 'right' },
-    { field: 'pnl', label: 'PnL ₹', align: 'right' },
-    { field: 'pnlPct', label: 'PnL %', align: 'right' },
-    { field: 'rMultipleAchieved', label: 'R', align: 'right' },
-    { field: 'holdDuration', label: 'Hold', align: 'left' },
-    { field: 'exitReason', label: 'Reason', align: 'left' },
-  ];
+  @ViewChild(MatSort) sort!: MatSort;
 
   private destroy$ = new Subject<void>();
 
-  constructor(private api: ApiService, private router: Router) {}
+  constructor(
+    public state: GlobalStateService,
+    private router: Router
+  ) {}
 
   ngOnInit(): void {
-    interval(environment.pollingIntervalMs).pipe(
-      startWith(0),
-      switchMap(() => this.api.getTrades().pipe(catchError(() => of([])))),
-      takeUntil(this.destroy$),
-    ).subscribe(trades => {
-      this.allTrades = trades;
+    // Re-apply filters whenever global trades update
+    interval(1000).pipe(takeUntil(this.destroy$)).subscribe(() => {
       this.applyFilters();
     });
   }
 
   // ── Unique values for dropdowns ──────────────────────────
-  get uniqueSymbols(): string[] { return [...new Set(this.allTrades.map(t => t.symbol))].sort(); }
-  get uniqueStrategies(): string[] { return [...new Set(this.allTrades.map(t => t.strategyId))].sort(); }
+  get uniqueSymbols(): string[] { return [...new Set(this.state.recentTrades().map(t => t.symbol))].sort(); }
+  get uniqueStrategies(): string[] { return [...new Set(this.state.recentTrades().map(t => t.strategyId))].sort(); }
 
   // ── Filter toggles ───────────────────────────────────────
   toggleMode(m: string): void { this.filters.mode = this.filters.mode === m ? '' : m; this.applyFilters(); }
   toggleDirection(d: string): void { this.filters.direction = this.filters.direction === d ? '' : d; this.applyFilters(); }
   toggleResult(r: string): void { this.filters.result = this.filters.result === r ? '' : r; this.applyFilters(); }
 
-  // ── Apply filters + group + sort ─────────────────────────
+  // ── Apply filters + group ────────────────────────────────
   applyFilters(): void {
-    let result = [...this.allTrades];
+    let result = [...this.state.recentTrades()];
 
     if (this.filters.symbol) result = result.filter(t => t.symbol === this.filters.symbol);
     if (this.filters.strategy) result = result.filter(t => t.strategyId === this.filters.strategy);
@@ -312,33 +327,14 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     }
 
     this.filtered = result;
-    this.sorted = this.sortTrades(result);
+    this.dataSource.data = result;
+    if (this.sort) this.dataSource.sort = this.sort;
 
     if (this.groupBy !== 'none') {
       this.groups = this.buildGroups(result);
     } else {
       this.groups = [];
     }
-  }
-
-  sortByField(field: string): void {
-    if (this.sortField === field) {
-      this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
-    } else {
-      this.sortField = field as SortField;
-      this.sortDir = 'desc';
-    }
-    this.sorted = this.sortTrades(this.filtered);
-  }
-
-  private sortTrades(trades: TradeRecord[]): TradeRecord[] {
-    const dir = this.sortDir === 'asc' ? 1 : -1;
-    return [...trades].sort((a, b) => {
-      const av = (a as any)[this.sortField] ?? '';
-      const bv = (b as any)[this.sortField] ?? '';
-      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
-      return String(av).localeCompare(String(bv)) * dir;
-    });
   }
 
   private buildGroups(trades: TradeRecord[]): GroupSummary[] {
@@ -398,7 +394,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   // ── Export ───────────────────────────────────────────────
   exportCsv(): void {
     const headers = ['Time', 'Symbol', 'Strategy', 'Mode', 'Direction', 'Entry', 'Exit', 'Qty', 'PnL', 'PnL%', 'R', 'Hold', 'Reason'];
-    const rows = this.sorted.map(t => [
+    const rows = this.filtered.map(t => [
       t.entryTime, t.symbol, t.strategyId, t.mode, t.direction,
       t.entryPrice, t.exitPrice ?? '', t.quantity, t.pnl ?? '', t.pnlPct ?? '',
       t.rMultipleAchieved ?? '', t.holdDuration ?? '', t.exitReason ?? '',
@@ -417,7 +413,8 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   pnlClass(v: number | null): string { return v == null ? '' : v >= 0 ? 'profit' : 'loss'; }
   formatPnl(v: number | null): string {
     if (v == null) return '—';
-    return `${v >= 0 ? '+' : ''}₹${v.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    const sign = v >= 0 ? '+' : '';
+    return `${sign}₹${v.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   }
   formatTime(iso: string | null): string {
     if (!iso) return '—';

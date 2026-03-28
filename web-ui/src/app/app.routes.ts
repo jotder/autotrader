@@ -1,28 +1,55 @@
 import { Routes } from '@angular/router';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
-import { TransactionsComponent } from './pages/transactions/transactions.component';
-import { PositionsComponent } from './pages/positions/positions.component';
-import { PaperTradeComponent } from './pages/paper-trade/paper-trade.component';
-import { ControlsComponent } from './pages/controls/controls.component';
-import { StrategiesComponent } from './pages/strategies/strategies.component';
-import { SymbolsComponent } from './pages/symbols/symbols.component';
-import { MarketComponent } from './pages/market/market.component';
-import { BacktestComponent } from './pages/backtest/backtest.component';
-import { ConfigComponent } from './pages/config/config.component';
-import { KnowledgeComponent } from './pages/knowledge/knowledge.component';
 
 export const routes: Routes = [
   { path: '', component: DashboardComponent },
-  { path: 'transactions', component: TransactionsComponent },
-  { path: 'paper-trade', component: PaperTradeComponent },
-  { path: 'positions', component: PositionsComponent },
-  { path: 'strategies', component: StrategiesComponent },
-  { path: 'symbols', component: SymbolsComponent },
-  { path: 'symbols/:symbol', component: SymbolsComponent },
-  { path: 'market', component: MarketComponent },
-  { path: 'backtest', component: BacktestComponent },
-  { path: 'config', component: ConfigComponent },
-  { path: 'knowledge', component: KnowledgeComponent },
-  { path: 'controls', component: ControlsComponent },
+  {
+    path: 'transactions',
+    loadComponent: () => import('./pages/transactions/transactions.component').then(m => m.TransactionsComponent)
+  },
+  {
+    path: 'paper-trade',
+    loadComponent: () => import('./pages/paper-trade/paper-trade.component').then(m => m.PaperTradeComponent)
+  },
+  {
+    path: 'positions',
+    loadComponent: () => import('./pages/positions/positions.component').then(m => m.PositionsComponent)
+  },
+  {
+    path: 'strategies',
+    loadComponent: () => import('./pages/strategies/strategies.component').then(m => m.StrategiesComponent)
+  },
+  {
+    path: 'symbols',
+    loadComponent: () => import('./pages/symbols/symbols.component').then(m => m.SymbolsComponent)
+  },
+  {
+    path: 'symbols/:symbol',
+    loadComponent: () => import('./pages/symbols/symbols.component').then(m => m.SymbolsComponent)
+  },
+  {
+    path: 'market',
+    loadComponent: () => import('./pages/market/market.component').then(m => m.MarketComponent)
+  },
+  {
+    path: 'backtest',
+    loadComponent: () => import('./pages/backtest/backtest.component').then(m => m.BacktestComponent)
+  },
+  {
+    path: 'go-live',
+    loadComponent: () => import('./pages/go-live/go-live.component').then(m => m.GoLiveGateComponent)
+  },
+  {
+    path: 'config',
+    loadComponent: () => import('./pages/config/config.component').then(m => m.ConfigComponent)
+  },
+  {
+    path: 'knowledge',
+    loadComponent: () => import('./pages/knowledge/knowledge.component').then(m => m.KnowledgeComponent)
+  },
+  {
+    path: 'controls',
+    loadComponent: () => import('./pages/controls/controls.component').then(m => m.ControlsComponent)
+  },
   { path: '**', redirectTo: '' },
 ];

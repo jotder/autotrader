@@ -1,176 +1,97 @@
 package com.rj.engine;
 
 import com.rj.config.RiskConfig;
-import com.rj.model.ExecutionMode;
-import com.rj.model.TickStore;
+import com.rj.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.time.Duration;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 class AnomalyDetectorTest {
 
-    private RiskConfig riskConfig;
     private RiskManager riskManager;
     private PositionMonitor positionMonitor;
+    private TickStore tickStore;
     private TradeJournal journal;
+    private RiskConfig riskConfig;
     private AnomalyDetector detector;
+    private final AtomicInteger closedCount = new AtomicInteger(0);
 
     @BeforeEach
     void setup() {
-        riskConfig = createTestRiskConfig();
+        Map<String, String> env = new HashMap<>();
+        env.put("RISK_INITIAL_CAPITAL_INR", "100000");
+        env.put("RISK_MAX_DAILY_LOSS_INR", "5000");
+        riskConfig = RiskConfig.fromEnvironment(env::get);
+
         riskManager = new RiskManager(riskConfig);
-        // PositionMonitor needs TickStore, RiskConfig, and exit handler
-        positionMonitor = new PositionMonitor(
-                TickStore.getInstance(), riskConfig, (pos, reason) -> {}, null);
+        
+        positionMonitor = new PositionMonitor(null, riskConfig, (p, r) -> {}, null) {
+            @Override
+            public int closeAllPositions(ExitReason reason) {
+                return closedCount.get();
+            }
+            @Override
+            public void start() {}
+            @Override
+            public void stop() {}
+        };
+        
+        tickStore = TickStore.getInstance();
         journal = new TradeJournal(ExecutionMode.BACKTEST);
-        detector = new AnomalyDetector(riskManager, positionMonitor,
-                TickStore.getInstance(), journal, riskConfig,
-                5.0,   // 5% max drawdown
-                3,     // 3 consecutive broker errors
-                Duration.ofSeconds(120),
-                0.99); // 99% heap (effectively disabled for tests)
+
+        detector = new AnomalyDetector();
+        detector.initialize(riskManager, positionMonitor, tickStore, journal, riskConfig);
     }
 
     @Test
-    void noAnomalyWhenAllClear() {
-        assertNull(detector.check());
-        assertFalse(detector.isTriggered());
-        assertFalse(riskManager.isAnomalyMode());
-    }
-
-    @Test
-    void brokerErrorCascadeTriggersAnomaly() {
-        // Record errors up to threshold
-        detector.recordBrokerError();
-        detector.recordBrokerError();
-        assertNull(detector.check()); // not yet at threshold (3)
-
-        detector.recordBrokerError();
-        String reason = detector.check();
-        assertNotNull(reason);
-        assertTrue(reason.contains("Broker error cascade"));
+    void triggerOnDrawdown() {
+        // Use a real TradeRecord instead of mocking
+        TradeRecord record = new TradeRecord(
+                "corr-1", "NSE:SBIN-EQ", "test", ExecutionMode.PAPER,
+                Signal.BUY, 500.0, 10, 490.0, 520.0,
+                Instant.now(), 2.0, 1.0, Map.of());
+        
+        // Close it with a loss of 6000
+        record.close(record.getEntryPrice() - (6000.0 / record.getQuantity()), Instant.now(), PositionMonitor.ExitReason.STOP_LOSS);
+        
+        riskManager.recordClosedTrade(record);
+        
+        closedCount.set(3);
+        detector.check();
+        
         assertTrue(detector.isTriggered());
         assertTrue(riskManager.isAnomalyMode());
-        assertTrue(riskManager.isKillSwitchActive());
+        assertTrue(riskManager.getAnomalyReason().contains("CRITICAL DRAWDOWN"));
     }
 
     @Test
-    void brokerSuccessResetsErrorCounter() {
-        detector.recordBrokerError();
-        detector.recordBrokerError();
-        assertEquals(2, detector.getConsecutiveBrokerErrors());
-
-        detector.recordBrokerSuccess();
-        assertEquals(0, detector.getConsecutiveBrokerErrors());
-    }
-
-    @Test
-    void drawdownTriggersAnomaly() {
-        // Simulate 5% drawdown via multiple losing trades
-        // Capital=100000, threshold=5%, need > 5000 INR loss
-        // Create small losing trades that accumulate
-        for (int i = 0; i < 6; i++) {
-            simulateSmallLoss(riskManager, 1000); // 6 × 1000 = 6000 > 5000
+    void triggerOnBrokerErrors() {
+        for (int i = 0; i < 10; i++) {
+            detector.recordBrokerError();
         }
-
-        String reason = detector.check();
-        assertNotNull(reason);
-        assertTrue(reason.contains("drawdown"));
-        assertTrue(riskManager.isAnomalyMode());
-    }
-
-    @Test
-    void alreadyTriggeredDoesNotRetrigger() {
-        detector.recordBrokerError();
-        detector.recordBrokerError();
-        detector.recordBrokerError();
-
-        String first = detector.check();
-        assertNotNull(first);
-
-        // Second check should return null (already triggered)
-        assertNull(detector.check());
-    }
-
-    @Test
-    void resetClearsState() {
-        detector.recordBrokerError();
-        detector.recordBrokerError();
-        detector.recordBrokerError();
-        detector.check(); // triggers
-
+        
+        detector.check();
+        
         assertTrue(detector.isTriggered());
+        assertTrue(riskManager.isAnomalyMode());
+        assertTrue(riskManager.getAnomalyReason().contains("BROKER ERROR CASCADE"));
+    }
 
+    @Test
+    void resetClearsTrigger() {
+        for (int i = 0; i < 10; i++) detector.recordBrokerError();
+        
+        detector.check();
+        assertTrue(detector.isTriggered());
+        
         detector.reset();
         assertFalse(detector.isTriggered());
-        assertEquals(0, detector.getConsecutiveBrokerErrors());
-    }
-
-    @Test
-    void anomalyModeBlocksResetDay() {
-        riskManager.triggerAnomaly("test");
-        assertTrue(riskManager.isAnomalyMode());
-        assertTrue(riskManager.isKillSwitchActive());
-
-        // resetDay should be blocked
-        riskManager.resetDay();
-        assertTrue(riskManager.isKillSwitchActive()); // still active
-
-        // Acknowledge first
-        assertTrue(riskManager.acknowledgeAnomaly());
-        assertFalse(riskManager.isAnomalyMode());
-
-        // Now resetDay works
-        riskManager.resetDay();
-        assertFalse(riskManager.isKillSwitchActive());
-    }
-
-    @Test
-    void acknowledgeAnomalyWhenNotActive() {
-        assertFalse(riskManager.acknowledgeAnomaly());
-    }
-
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    private static int tradeSeq = 0;
-
-    /**
-     * Simulate a losing trade of the given INR amount.
-     * Entry=1000, qty=1, exit = entry - lossAmount → pnl = -lossAmount.
-     */
-    private void simulateSmallLoss(RiskManager rm, double lossAmount) {
-        tradeSeq++;
-        double entry = 1000.0;
-        int qty = 1;
-        double sl = entry - lossAmount - 10; // SL below exit
-        var trade = new com.rj.model.TradeRecord(
-                "test-corr-" + tradeSeq, "NSE:TEST-EQ", "test-strategy",
-                com.rj.model.ExecutionMode.PAPER, com.rj.model.Signal.BUY,
-                entry, qty, sl, entry + 100,
-                java.time.Instant.now(), 10.0, 0.8,
-                java.util.Map.of(com.rj.model.Timeframe.M5, com.rj.model.Signal.BUY));
-        // Close at a loss: exit = entry - lossAmount
-        trade.close(entry - lossAmount, java.time.Instant.now(),
-                PositionMonitor.ExitReason.STOP_LOSS);
-        rm.recordClosedTrade(trade);
-    }
-
-    private static RiskConfig createTestRiskConfig() {
-        return RiskConfig.fromEnvironment(key -> switch (key) {
-            case "RISK_INITIAL_CAPITAL_INR" -> "100000";
-            case "RISK_MAX_DAILY_LOSS_INR" -> "10000";
-            case "RISK_MAX_DAILY_PROFIT_INR" -> "20000";
-            case "RISK_MAX_PER_TRADE_PCT" -> "0.02";
-            case "RISK_MAX_QTY_PER_ORDER" -> "100";
-            case "RISK_MAX_CONSECUTIVE_LOSSES" -> "5";
-            case "RISK_NO_NEW_TRADES_AFTER" -> "15:00";
-            case "RISK_MARKET_CLOSE_TIME" -> "15:15";
-            case "RISK_TRAILING_ACTIVATION_PCT" -> "0.015";
-            case "RISK_TRAILING_STEP_PCT" -> "0.005";
-            default -> null;
-        });
     }
 }

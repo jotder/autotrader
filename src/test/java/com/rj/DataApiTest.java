@@ -3,7 +3,7 @@ import com.rj.model.MarketDepthResult;
 import com.rj.model.OptionChainResult;
 import com.rj.model.QuoteEntry;
 import com.tts.in.model.StockHistoryModel;
-import fyers.FyersDataApi;
+import com.rj.fyers.FyersDataApi;
 
 void main() {
     FyersDataApi app = new FyersDataApi();

@@ -1,43 +1,51 @@
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 
 @Component({
   selector: 'at-status-card',
   standalone: true,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatCardModule, MatIconModule],
   template: `
-    <div class="at-card status-card">
-      <div class="card-header">
-        <mat-icon [style.color]="iconColor">{{ icon }}</mat-icon>
-        <span class="card-title">{{ title }}</span>
-      </div>
-      <div class="card-body">
-        <ng-content />
-      </div>
-    </div>
+    <mat-card class="status-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar [style.color]="iconColor">{{ icon }}</mat-icon>
+        <mat-card-title>{{ title }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="card-body">
+          <ng-content />
+        </div>
+      </mat-card-content>
+    </mat-card>
   `,
   styles: [`
     .status-card {
-      min-height: 120px;
+      height: 100%;
     }
-    .card-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid var(--border);
+    ::ng-deep .mat-mdc-card-header {
+      padding: 12px 16px 8px !important;
     }
-    .card-title {
-      font-size: 12px;
+    ::ng-deep .mat-mdc-card-header-text {
+      margin: 0 !important;
+    }
+    mat-card-title {
+      font-size: 11px !important;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 1px;
       color: var(--text-secondary);
-      font-weight: 500;
+      font-weight: 600;
+      margin-top: 4px;
     }
     .card-body {
-      font-size: 13px;
+      padding-top: 8px;
+    }
+    mat-icon[mat-card-avatar] {
+      margin-right: 8px !important;
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
     }
   `],
 })

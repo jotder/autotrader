@@ -1,208 +1,264 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
+import { MatTabsModule } from '@angular/material/tabs';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatTableModule } from '@angular/material/table';
+import { MatRadioModule } from '@angular/material/radio';
 import { ApiService } from '../../core/services/api.service';
+import { ConnectionService, ConnectionMode } from '../../core/services/connection.service';
 import { catchError, of } from 'rxjs';
 import { StatusCardComponent } from '../../shared/components/status-card.component';
 
 @Component({
   selector: 'at-config',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatIconModule, StatusCardComponent],
+  imports: [
+    CommonModule, FormsModule, MatIconModule, MatTabsModule, MatButtonModule,
+    MatFormFieldModule, MatInputModule, MatSelectModule, MatTableModule,
+    MatRadioModule, StatusCardComponent
+  ],
   template: `
     <div class="page-header">
-      <h1>Configuration</h1>
-      <span class="text-muted" style="font-size: 12px">Read-only view — edit via YAML files + hot-reload</span>
-    </div>
-
-    <!-- Tabs -->
-    <div class="tabs">
-      @for (tab of tabs; track tab) {
-        <button class="tab" [class.active]="activeTab === tab" (click)="activeTab = tab">{{ tab }}</button>
-      }
-    </div>
-
-    <!-- Risk Config -->
-    @if (activeTab === 'Risk') {
-      <div class="config-grid">
-        <at-status-card title="Capital & Limits" icon="account_balance" iconColor="var(--accent)">
-          @for (field of riskCapitalFields; track field.key) {
-            <div class="config-row">
-              <span class="config-label">{{ field.label }}</span>
-              <span class="config-value mono">{{ formatValue(riskConfig, field.key, field.format) }}</span>
-            </div>
-          }
-        </at-status-card>
-        <at-status-card title="Position Sizing" icon="pie_chart" iconColor="var(--info)">
-          @for (field of riskSizingFields; track field.key) {
-            <div class="config-row">
-              <span class="config-label">{{ field.label }}</span>
-              <span class="config-value mono">{{ formatValue(riskConfig, field.key, field.format) }}</span>
-            </div>
-          }
-        </at-status-card>
-        <at-status-card title="Trailing & Timing" icon="timer" iconColor="var(--warning)">
-          @for (field of riskTimingFields; track field.key) {
-            <div class="config-row">
-              <span class="config-label">{{ field.label }}</span>
-              <span class="config-value mono">{{ formatValue(riskConfig, field.key, field.format) }}</span>
-            </div>
-          }
-        </at-status-card>
+      <h1>System Configuration</h1>
+      <div class="header-actions">
+        <button mat-stroked-button color="accent" (click)="loadAll()">
+          <mat-icon>refresh</mat-icon> Reload
+        </button>
       </div>
-    }
+    </div>
 
-    <!-- Symbols -->
-    @if (activeTab === 'Symbols') {
-      <div class="symbols-section">
-        <at-status-card title="Active Symbols" icon="list" iconColor="var(--accent)">
-          @if (activeSymbols.length > 0) {
-            <div class="symbol-list">
-              @for (s of activeSymbols; track s) {
-                <div class="symbol-item">
-                  <span class="mono">{{ s }}</span>
+    <mat-tab-group class="config-tabs">
+      <!-- UI & Backend (Dynamic Connection) -->
+      <mat-tab label="UI & Backend">
+        <div class="tab-content config-grid">
+          <at-status-card title="Connection Settings" icon="settings_ethernet" iconColor="var(--accent)">
+            <div class="connection-form">
+              <div class="field">
+                <label>Connection Mode</label>
+                <mat-radio-group [(ngModel)]="localMode" (change)="updateConnection()" class="radio-group">
+                  <mat-radio-button value="live">Live Backend</mat-radio-button>
+                  <mat-radio-button value="mock">Demo / Mock Mode</mat-radio-button>
+                </mat-radio-group>
+              </div>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Backend API URL</mat-label>
+                <input matInput [(ngModel)]="localUrl" placeholder="/api">
+                <mat-hint>Relative (e.g. /api) or Absolute (e.g. http://localhost:7777/api)</mat-hint>
+              </mat-form-field>
+
+              <button mat-flat-button color="accent" (click)="updateConnection()" style="margin-top: 16px">
+                Apply Connection Settings
+              </button>
+            </div>
+          </at-status-card>
+
+          <at-status-card title="Operational State" icon="info" iconColor="var(--info)">
+            <div class="config-list">
+              <div class="config-row">
+                <span class="label">Current Mode</span>
+                <span class="value">{{ connection.mode() | uppercase }}</span>
+              </div>
+              <div class="config-row">
+                <span class="label">Base URL</span>
+                <span class="value mono">{{ connection.backendUrl() }}</span>
+              </div>
+              <div class="config-row">
+                <span class="label">Source</span>
+                <span class="value">{{ connection.isMock() ? 'Mock Generator' : 'Real HTTP' }}</span>
+              </div>
+            </div>
+          </at-status-card>
+        </div>
+        <div class="yaml-hint warning">
+          <mat-icon>warning</mat-icon>
+          <span>Switching modes resets the polling feeds. "Live Backend" requires the Spring Boot engine to be running at the specified URL.</span>
+        </div>
+      </mat-tab>
+
+      <!-- Risk & Capital -->
+      <mat-tab label="Risk & Limits">
+        <div class="tab-content config-grid">
+          <at-status-card title="Capital & Thresholds" icon="account_balance" iconColor="var(--accent)">
+            <div class="config-list">
+              @for (field of riskCapitalFields; track field.key) {
+                <div class="config-row">
+                  <span class="label">{{ field.label }}</span>
+                  <span class="value mono">{{ formatValue(riskConfig, field.key, field.format) }}</span>
                 </div>
               }
             </div>
-          } @else {
-            <div class="empty">No active symbols configured</div>
-          }
-          <div class="config-hint">
-            <mat-icon>info</mat-icon>
-            Edit <code>.env</code> → <code>ACTIVE_SYMBOLS</code> or strategy YAML files to change
-          </div>
-        </at-status-card>
+          </at-status-card>
 
-        <at-status-card title="Symbol Master" icon="storage" iconColor="var(--info)" style="margin-top: 16px">
-          <div class="search-section">
-            <input type="text" [(ngModel)]="symbolSearch" (ngModelChange)="searchSymbols()" placeholder="Search symbol master (e.g., SBIN, RELIANCE, NIFTY)…" class="search-input" />
-          </div>
-          @if (symbolResults.length > 0) {
-            <div class="table-wrap">
-              <table class="at-table">
-                <thead><tr>
-                  <th>Ticker</th><th>Exchange</th><th>Segment</th><th>Lot</th><th>Tick</th>
-                </tr></thead>
-                <tbody>
-                  @for (s of symbolResults.slice(0, 20); track s.symbolTicker) {
-                    <tr>
-                      <td class="mono">{{ s.symbolTicker }}</td>
-                      <td>{{ s.exchange }}</td>
-                      <td>{{ s.segment }}</td>
-                      <td class="r mono">{{ s.minLotSize }}</td>
-                      <td class="r mono">{{ s.tickSize }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-              @if (symbolResults.length > 20) {
-                <div class="text-muted" style="font-size: 11px; padding: 4px 6px;">Showing 20 of {{ symbolResults.length }} results</div>
+          <at-status-card title="Position Sizing" icon="pie_chart" iconColor="var(--info)">
+            <div class="config-list">
+              @for (field of riskSizingFields; track field.key) {
+                <div class="config-row">
+                  <span class="label">{{ field.label }}</span>
+                  <span class="value mono">{{ formatValue(riskConfig, field.key, field.format) }}</span>
+                </div>
               }
             </div>
-          }
-        </at-status-card>
-      </div>
-    }
+          </at-status-card>
 
-    <!-- Dimensions -->
-    @if (activeTab === 'Dimensions') {
-      <div class="dim-section">
-        <div class="dim-selector">
-          <label>Table</label>
-          <select [(ngModel)]="selectedDim" (ngModelChange)="loadDimension()">
-            @for (d of dimTables; track d) {
-              <option [value]="d">{{ d }}</option>
-            }
-          </select>
+          <at-status-card title="Trading Schedule" icon="timer" iconColor="var(--warning)">
+            <div class="config-list">
+              @for (field of riskTimingFields; track field.key) {
+                <div class="config-row">
+                  <span class="label">{{ field.label }}</span>
+                  <span class="value mono">{{ formatValue(riskConfig, field.key, field.format) }}</span>
+                </div>
+              }
+            </div>
+          </at-status-card>
         </div>
-        @if (dimData.length > 0) {
-          <div class="table-wrap">
-            <table class="at-table">
-              <thead><tr>
-                @for (col of dimColumns; track col) {
-                  <th>{{ col }}</th>
+        <div class="yaml-hint">
+          <mat-icon>info</mat-icon>
+          <span>These limits are defined in <code>config/defaults.yaml</code>. Changes require an engine restart.</span>
+        </div>
+      </mat-tab>
+
+      <!-- Symbol Management -->
+      <mat-tab label="Symbol Universe">
+        <div class="tab-content symbols-layout">
+          <div class="side-panel">
+            <at-status-card title="Active Selection" icon="list" iconColor="var(--accent)">
+              <div class="symbol-scroll">
+                @for (s of activeSymbols; track s) {
+                  <div class="symbol-chip">
+                    <span class="mono">{{ s }}</span>
+                  </div>
                 }
-              </tr></thead>
-              <tbody>
-                @for (row of dimData; track $index) {
-                  <tr>
-                    @for (col of dimColumns; track col) {
-                      <td class="mono">{{ row[col] ?? '—' }}</td>
-                    }
-                  </tr>
+                @if (activeSymbols.length === 0) {
+                  <div class="empty">No active symbols</div>
                 }
-              </tbody>
+              </div>
+            </at-status-card>
+          </div>
+
+          <div class="main-panel">
+            <at-status-card title="Symbol Master Explorer" icon="search" iconColor="var(--info)">
+              <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
+                <mat-label>Search Exchange Master</mat-label>
+                <input matInput [(ngModel)]="symbolSearch" (ngModelChange)="searchSymbols()" placeholder="e.g. SBIN, NIFTY…">
+                <mat-icon matSuffix>search</mat-icon>
+              </mat-form-field>
+
+              @if (symbolResults.length > 0) {
+                <table mat-table [dataSource]="symbolResults.slice(0, 15)" class="master-table">
+                  <ng-container matColumnDef="ticker">
+                    <th mat-header-cell *matHeaderCellDef> Ticker </th>
+                    <td mat-cell *matCellDef="let s" class="mono"> {{ s.symbolTicker }} </td>
+                  </ng-container>
+                  <ng-container matColumnDef="exchange">
+                    <th mat-header-cell *matHeaderCellDef> Exchange </th>
+                    <td mat-cell *matCellDef="let s"> {{ s.exchange }} </td>
+                  </ng-container>
+                  <ng-container matColumnDef="segment">
+                    <th mat-header-cell *matHeaderCellDef> Segment </th>
+                    <td mat-cell *matCellDef="let s"> {{ s.segment }} </td>
+                  </ng-container>
+                  <ng-container matColumnDef="lot">
+                    <th mat-header-cell *matHeaderCellDef class="r"> Lot </th>
+                    <td mat-cell *matCellDef="let s" class="r mono"> {{ s.minLotSize }} </td>
+                  </ng-container>
+
+                  <tr mat-header-row *matHeaderRowDef="['ticker', 'exchange', 'segment', 'lot']"></tr>
+                  <tr mat-row *matRowDef="let row; columns: ['ticker', 'exchange', 'segment', 'lot'];"></tr>
+                </table>
+                <div class="table-footer" *ngIf="symbolResults.length > 15">
+                  Showing top 15 of {{ symbolResults.length }} matches
+                </div>
+              }
+            </at-status-card>
+          </div>
+        </div>
+      </mat-tab>
+
+      <!-- Dimension Tables -->
+      <mat-tab label="Dimensions">
+        <div class="tab-content dimensions-layout">
+          <div class="dim-toolbar">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Dimension Table</mat-label>
+              <mat-select [(ngModel)]="selectedDim" (selectionChange)="loadDimension()">
+                @for (d of dimTables; track d) { <mat-option [value]="d">{{ d | titlecase }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+          </div>
+
+          <div class="table-container at-card">
+            <table mat-table [dataSource]="dimData" class="dim-table">
+              @for (col of dimColumns; track col) {
+                <ng-container [matColumnDef]="col">
+                  <th mat-header-cell *matHeaderCellDef> {{ col }} </th>
+                  <td mat-cell *matCellDef="let row" class="mono"> {{ row[col] ?? '—' }} </td>
+                </ng-container>
+              }
+              <tr mat-header-row *matHeaderRowDef="dimColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: dimColumns;"></tr>
             </table>
           </div>
-        } @else {
-          <div class="empty">Select a dimension table to view</div>
-        }
-      </div>
-    }
-
-    <!-- Environment -->
-    @if (activeTab === 'Environment') {
-      <at-status-card title="Engine Status" icon="settings" iconColor="var(--accent)">
-        @if (engineStatus) {
-          @for (entry of statusEntries; track entry[0]) {
-            <div class="config-row">
-              <span class="config-label">{{ entry[0] }}</span>
-              <span class="config-value mono">{{ formatStatusValue(entry[1]) }}</span>
-            </div>
-          }
-        } @else {
-          <div class="empty">Engine not reachable</div>
-        }
-        <div class="config-hint" style="margin-top: 12px">
-          <mat-icon>info</mat-icon>
-          Environment is configured via <code>.env</code> file and strategy YAML files. Changes require restart or hot-reload.
         </div>
-      </at-status-card>
-    }
+      </mat-tab>
+
+      <!-- Environment -->
+      <mat-tab label="Runtime Env">
+        <div class="tab-content">
+          <at-status-card title="Engine Runtime Properties" icon="settings_suggest" iconColor="var(--accent)">
+            <div class="config-list env-list">
+              @for (entry of statusEntries; track entry[0]) {
+                <div class="config-row">
+                  <span class="label">{{ entry[0] }}</span>
+                  <span class="value mono">{{ formatStatusValue(entry[1]) }}</span>
+                </div>
+              }
+            </div>
+          </at-status-card>
+        </div>
+      </mat-tab>
+    </mat-tab-group>
   `,
   styles: [`
     .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    h1 { margin: 0; font-size: 20px; font-weight: 500; }
+    h1 { margin: 0; font-size: 22px; font-weight: 500; }
 
-    .tabs { display: flex; gap: 2px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
-    .tab { background: transparent; border: none; color: var(--text-secondary); padding: 8px 16px; cursor: pointer; font-size: 13px; border-bottom: 2px solid transparent; }
-    .tab:hover { color: var(--text-primary); }
-    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-
+    .tab-content { padding: 20px 0; }
     .config-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 
-    .config-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--bg-hover); }
-    .config-label { font-size: 12px; color: var(--text-secondary); }
-    .config-value { font-size: 13px; font-weight: 500; }
+    .config-list { display: flex; flex-direction: column; }
+    .config-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .config-row:last-child { border-bottom: none; }
+    .config-row .label { font-size: 12px; color: var(--text-secondary); }
+    .config-row .value { font-size: 13px; font-weight: 600; color: var(--text-primary); }
 
-    .config-hint { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); margin-top: 12px; padding: 8px; background: var(--bg-hover); border-radius: 4px; }
-    .config-hint mat-icon { font-size: 16px; }
-    .config-hint code { background: var(--bg-primary); padding: 1px 4px; border-radius: 2px; font-family: var(--font-mono); }
+    .yaml-hint { margin-top: 24px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); padding: 12px; background: var(--bg-secondary); border-radius: 6px; }
+    .yaml-hint mat-icon { font-size: 18px; width: 18px; height: 18px; }
 
-    .symbol-list { display: flex; flex-wrap: wrap; gap: 6px; }
-    .symbol-item { background: var(--bg-hover); padding: 4px 10px; border-radius: 4px; font-size: 12px; }
+    .symbols-layout { display: grid; grid-template-columns: 240px 1fr; gap: 20px; }
+    .symbol-scroll { max-height: 400px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+    .symbol-chip { background: var(--bg-hover); padding: 4px 10px; border-radius: 4px; font-size: 11px; border: 1px solid var(--border); }
 
-    .search-section { margin-bottom: 10px; }
-    .search-input { width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); font-size: 12px; font-family: var(--font-mono); box-sizing: border-box; }
+    .search-field { width: 100%; margin-bottom: 16px; }
+    .master-table { width: 100%; background: transparent; }
+    .table-footer { padding: 8px; font-size: 11px; color: var(--text-muted); text-align: center; }
+    .r { text-align: right !important; justify-content: flex-end; }
 
-    .dim-section { }
-    .dim-selector { margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-    .dim-selector label { font-size: 12px; color: var(--text-secondary); }
-    .dim-selector select { padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 12px; }
+    .dimensions-layout { display: flex; flex-direction: column; gap: 16px; }
+    .dim-toolbar { display: flex; }
+    .table-container { overflow-x: auto; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; }
+    .dim-table { width: 100%; background: transparent; }
 
-    .table-wrap { overflow-x: auto; }
-    .at-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .at-table th { text-align: left; font-size: 10px; text-transform: uppercase; color: var(--text-secondary); padding: 5px 6px; border-bottom: 1px solid var(--border); }
-    .at-table td { padding: 5px 6px; border-bottom: 1px solid var(--bg-hover); }
-    .at-table tr:hover td { background: var(--bg-hover); }
-    .r { text-align: right; }
-    .empty { color: var(--text-muted); font-size: 13px; padding: 16px; text-align: center; }
+    .env-list { max-width: 600px; }
   `],
 })
 export class ConfigComponent implements OnInit {
   activeTab = 'Risk';
-  tabs = ['Risk', 'Symbols', 'Dimensions', 'Environment'];
 
   // Risk config
   riskConfig: any = {};
@@ -219,8 +275,8 @@ export class ConfigComponent implements OnInit {
   riskTimingFields = [
     { key: 'trailingActivationPct', label: 'Trailing Activation', format: 'pct' },
     { key: 'trailingStepPct', label: 'Trailing Step', format: 'pct' },
-    { key: 'noNewTradesAfter', label: 'No New Trades After', format: 'str' },
-    { key: 'marketCloseTime', label: 'Market Close Time', format: 'str' },
+    { key: 'noNewTradesAfter', label: 'Trade Cutoff', format: 'str' },
+    { key: 'marketCloseTime', label: 'Market Close', format: 'str' },
   ];
 
   // Symbols
@@ -237,19 +293,30 @@ export class ConfigComponent implements OnInit {
   // Environment
   engineStatus: any = null;
 
+  // Dynamic Connection (UI Local State)
+  public connection = inject(ConnectionService);
+  localMode: ConnectionMode = this.connection.mode();
+  localUrl = this.connection.backendUrl();
+
   constructor(private api: ApiService) {}
 
   ngOnInit(): void {
-    // Load risk config
+    this.loadAll();
+  }
+
+  updateConnection(): void {
+    this.connection.setMode(this.localMode);
+    this.connection.setBackendUrl(this.localUrl);
+    // Reload data after applying settings
+    this.loadAll();
+  }
+
+  loadAll(): void {
     this.api.getRisk().pipe(catchError(() => of({}))).subscribe(r => this.riskConfig = r);
-
-    // Load active symbols from status
-    this.api.getStatus().pipe(catchError(() => of({ symbols: [] }))).subscribe(s => this.activeSymbols = s.symbols || []);
-
-    // Load engine status
-    this.api.getStatus().pipe(catchError(() => of(null))).subscribe(s => this.engineStatus = s);
-
-    // Load first dimension
+    this.api.getStatus().pipe(catchError(() => of({ symbols: [] }))).subscribe(s => {
+      this.activeSymbols = s.symbols || [];
+      this.engineStatus = s;
+    });
     this.loadDimension();
   }
 

@@ -3,7 +3,7 @@ package com.rj.engine;
 import com.rj.config.RiskConfig;
 import com.rj.model.*;
 import com.rj.model.Timeframe;
-import fyers.FyersPositions;
+import com.rj.fyers.FyersPositions;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;

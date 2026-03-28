@@ -2,7 +2,7 @@ import com.rj.model.GTTOrderBook;
 import com.rj.model.OrderResult;
 import com.tts.in.model.GTTLeg;
 import com.tts.in.model.GTTModel;
-import fyers.FyersGTT;
+import com.rj.fyers.FyersGTT;
 
 void main() {
     FyersGTT app = new FyersGTT();
