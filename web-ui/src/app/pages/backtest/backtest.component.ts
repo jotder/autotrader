@@ -80,7 +80,7 @@ interface DownloadJob {
               @for (d of downloads; track d.jobId) {
                 <div class="dl-row">
                   <span class="dl-status badge" [class]="dlStatusClass(d.status)">{{ d.status }}</span>
-                  <span class="mono text-muted">{{ d.symbols?.join(', ') }}</span>
+                  <span class="mono text-muted">{{ d.symbols.join(', ') }}</span>
                   @if (d.progress) { <span class="text-muted">{{ d.progress }}</span> }
                 </div>
               }
@@ -287,64 +287,63 @@ interface DownloadJob {
     .field { margin-bottom: 10px; }
     .field label { display: block; font-size: 10px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 3px; letter-spacing: 0.5px; }
     .field input, .field select { width: 100%; padding: 6px 8px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 12px; font-family: var(--font-mono); box-sizing: border-box; }
-    .field-row { display: flex; gap: 8px; }
-    .field-row .field { flex: 1; }
+    .field-row {display:flex;gap:8px;}
+    .field-row .field {flex:1;}
 
-    .symbol-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-    .chip { background: var(--bg-hover); padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: var(--font-mono); color: var(--text-secondary); }
-    .chip:hover { background: var(--border); }
-    .chip.selected { background: var(--accent); color: #000; font-weight: 600; }
+    .symbol-chips {display:flex;flex-wrap:wrap;gap:4px;}
+    .chip {background:var(--bg-hover);padding:3px 8px;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--font-mono);color:var(--text-secondary);}
+    .chip:hover {background:var(--border);}
+    .chip.selected {background:var(--accent);color:#000;font-weight:600;}
 
-    .btn-primary { width: 100%; padding: 8px; background: var(--accent); color: #000; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; margin-top: 8px; }
-    .btn-primary:hover { opacity: 0.85; }
-    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary {width:100%;padding:8px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600;margin-top:8px;}
+    .btn-primary:hover {opacity:0.85;}
+    .btn-primary:disabled {opacity:0.4;cursor:not-allowed;}
 
-    .download-section { margin-top: 10px; }
-    .download-section summary { cursor: pointer; font-size: 12px; color: var(--accent); margin-bottom: 8px; }
-    .downloads { margin-top: 10px; }
-    .downloads label { font-size: 10px; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 4px; }
-    .dl-row { display: flex; gap: 8px; align-items: center; font-size: 11px; padding: 3px 0; }
-    .dl-status { font-size: 10px; }
+    .download-section {margin-top:10px;}
+    .download-section summary {cursor:pointer;font-size:12px;color:var(--accent);margin-bottom:8px;}
+    .downloads {margin-top:10px;}
+    .downloads label {font-size:10px;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:4px;}
+    .dl-row {display:flex;gap:8px;align-items:center;font-size:11px;padding:3px 0;}
 
-    .available-dates { font-size: 11px; margin: 4px 0 4px; }
-    .error-msg { color: var(--loss); font-size: 12px; margin-top: 6px; }
+    .available-dates {font-size:11px;margin:4px 0 4px;}
+    .error-msg {color:var(--loss);font-size:12px;margin-top:6px;}
 
-    .history-row { display: flex; justify-content: space-between; padding: 5px 0; cursor: pointer; font-size: 12px; border-bottom: 1px solid var(--bg-hover); }
-    .history-row:hover { background: var(--bg-hover); }
-    .history-row.active { border-left: 2px solid var(--accent); padding-left: 6px; }
+    .history-row {display:flex;justify-content:space-between;padding:5px 0;cursor:pointer;font-size:12px;border-bottom:1px solid var(--bg-hover);}
+    .history-row:hover {background:var(--bg-hover);}
+    .history-row.active {border-left:2px solid var(--accent);padding-left:6px;}
 
-    .results-panel { min-height: 400px; }
-    .empty-results { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; color: var(--text-muted); gap: 12px; }
-    .empty-results mat-icon { font-size: 48px; opacity: 0.3; }
-    .empty-results p { font-size: 13px; }
+    .results-panel {min-height:400px;}
+    .empty-results {display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;color:var(--text-muted);gap:12px;}
+    .empty-results mat-icon {font-size:48px;opacity:0.3;}
+    .empty-results p {font-size:13px;}
 
-    .tabs { display: flex; gap: 2px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
-    .tab { background: transparent; border: none; color: var(--text-secondary); padding: 8px 16px; cursor: pointer; font-size: 13px; border-bottom: 2px solid transparent; }
-    .tab:hover { color: var(--text-primary); }
-    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tabs {display:flex;gap:2px;margin-bottom:16px;border-bottom:1px solid var(--border);}
+    .tab {background:transparent;border:none;color:var(--text-secondary);padding:8px 16px;cursor:pointer;font-size:13px;border-bottom:2px solid transparent;}
+    .tab:hover {color:var(--text-primary);}
+    .tab.active {color:var(--accent);border-bottom-color:var(--accent);}
 
-    .results-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .results-grid {display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
 
-    .equity-curve { display: flex; align-items: flex-end; height: 80px; gap: 1px; padding: 8px 0; }
-    .eq-bar { flex: 1; min-width: 2px; border-radius: 1px 1px 0 0; transition: height 0.2s; }
-    .profit-bar { background: var(--profit); }
-    .loss-bar { background: var(--loss); }
-    .eq-labels { display: flex; justify-content: space-between; font-size: 10px; }
+    .equity-curve {display:flex;align-items:flex-end;height:80px;gap:1px;padding:8px 0;}
+    .eq-bar {flex:1;min-width:2px;border-radius:1px 1px 0 0;transition:height 0.2s;}
+    .profit-bar {background:var(--profit);}
+    .loss-bar {background:var(--loss);}
+    .eq-labels {display:flex;justify-content:space-between;font-size:10px;}
 
-    .at-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .at-table th { text-align: left; font-size: 10px; text-transform: uppercase; color: var(--text-secondary); padding: 5px 6px; border-bottom: 1px solid var(--border); }
-    .at-table td { padding: 5px 6px; border-bottom: 1px solid var(--bg-hover); }
-    .at-table tr:hover td { background: var(--bg-hover); }
-    .r { text-align: right; }
+    .at-table {width:100%;border-collapse:collapse;font-size:12px;}
+    .at-table th {text-align:left;font-size:10px;text-transform:uppercase;color:var(--text-secondary);padding:5px 6px;border-bottom:1px solid var(--border);}
+    .at-table td {padding:5px 6px;border-bottom:1px solid var(--bg-hover);}
+    .at-table tr:hover td {background:var(--bg-hover);}
+    .r {text-align:right;}
 
-    .suggestion-row { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; font-size: 12px; border-bottom: 1px solid var(--bg-hover); }
-    .suggestion-row mat-icon { font-size: 16px; color: var(--warning); flex-shrink: 0; margin-top: 1px; }
+    .suggestion-row {display:flex;gap:8px;align-items:flex-start;padding:6px 0;font-size:12px;border-bottom:1px solid var(--bg-hover);}
+    .suggestion-row mat-icon {font-size:16px;color:var(--warning);flex-shrink:0;margin-top:1px;}
 
-    .badge { padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; }
-    .badge.RUNNING, .badge.running { background: rgba(0,188,212,0.15); color: var(--accent); }
-    .badge.COMPLETED, .badge.completed { background: rgba(63,185,80,0.15); color: var(--profit); }
-    .badge.FAILED, .badge.failed { background: rgba(248,81,73,0.15); color: var(--loss); }
-    .empty { color: var(--text-muted); font-size: 13px; padding: 24px; text-align: center; }
+    .badge {padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600;}
+    .badge.RUNNING,.badge.running {background:rgba(0,188,212,0.15);color:var(--accent);}
+    .badge.COMPLETED,.badge.completed {background:rgba(63,185,80,0.15);color:var(--profit);}
+    .badge.FAILED,.badge.failed {background:rgba(248,81,73,0.15);color:var(--loss);}
+    .empty {color:var(--text-muted);font-size:13px;padding:24px;text-align:center;}
   `],
 })
 export class BacktestComponent implements OnInit, OnDestroy {

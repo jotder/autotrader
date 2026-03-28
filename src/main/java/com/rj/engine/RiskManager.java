@@ -35,6 +35,8 @@ public class RiskManager {
     private static final Logger log = LoggerFactory.getLogger(RiskManager.class);
 
     private final RiskConfig riskConfig;
+    private final java.util.function.Supplier<ZonedDateTime> clock;
+
     // Kill switches
     private final AtomicBoolean killSwitchActive = new AtomicBoolean(false);
     private final AtomicBoolean dailyProfitLocked = new AtomicBoolean(false);
@@ -52,7 +54,12 @@ public class RiskManager {
     private volatile double dailyRealizedPnl = 0;
 
     public RiskManager(RiskConfig riskConfig) {
+        this(riskConfig, () -> ZonedDateTime.now(riskConfig.getExchangeZone()));
+    }
+
+    public RiskManager(RiskConfig riskConfig, java.util.function.Supplier<ZonedDateTime> clock) {
         this.riskConfig = riskConfig;
+        this.clock = clock;
     }
 
     // ── Pre-trade check ───────────────────────────────────────────────────────
@@ -93,7 +100,7 @@ public class RiskManager {
         }
 
         // ── Gate 4: time cutoff ───────────────────────────────────────────────
-        ZonedDateTime now = ZonedDateTime.now(riskConfig.getExchangeZone());
+        ZonedDateTime now = clock.get();
         if (now.toLocalTime().isAfter(riskConfig.getNoNewTradesAfter())) {
             return reject("Past no-new-trades cutoff " + riskConfig.getNoNewTradesAfter() + " IST");
         }
