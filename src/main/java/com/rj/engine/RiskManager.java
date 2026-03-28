@@ -52,6 +52,8 @@ public class RiskManager {
             = new java.util.concurrent.ConcurrentHashMap<>();
     // Daily running totals
     private volatile double dailyRealizedPnl = 0;
+    private volatile double peakSessionEquity;
+    private volatile double currentOpenPnl = 0;
 
     public RiskManager(RiskConfig riskConfig) {
         this(riskConfig, () -> ZonedDateTime.now(riskConfig.getExchangeZone()));
@@ -60,6 +62,7 @@ public class RiskManager {
     public RiskManager(RiskConfig riskConfig, java.util.function.Supplier<ZonedDateTime> clock) {
         this.riskConfig = riskConfig;
         this.clock = clock;
+        this.peakSessionEquity = riskConfig.getInitialCapitalInr();
     }
 
     // ── Pre-trade check ───────────────────────────────────────────────────────
@@ -87,12 +90,17 @@ public class RiskManager {
             return reject("Kill switch active — trading halted for the day");
         }
 
-        // ── Gate 2: daily profit lock ─────────────────────────────────────────
+        // ── Gate 2: drawdown check ───────────────────────────────────────────
+        if (checkDrawdown()) {
+            return reject("Drawdown limit breached — kill switch active");
+        }
+
+        // ── Gate 3: daily profit lock ─────────────────────────────────────────
         if (dailyProfitLocked.get()) {
             return reject("Daily profit target reached (" + riskConfig.getMaxDailyProfitInr() + " INR) — no new entries");
         }
 
-        // ── Gate 3: daily loss limit ──────────────────────────────────────────
+        // ── Gate 4: daily loss limit ──────────────────────────────────────────
         if (dailyRealizedPnl <= -riskConfig.getMaxDailyLossInr()) {
             killSwitchActive.set(true);
             log.error("KILL SWITCH: daily loss limit breached — realizedPnl={}", dailyRealizedPnl);
@@ -199,6 +207,8 @@ public class RiskManager {
         if (trade.getPnl() == null) return;
 
         dailyRealizedPnl += trade.getPnl();
+        updatePeakEquity(0); // Update peak based on realized change
+        checkDrawdown(); // Check for drawdown breach after realization
 
         // Update consecutive loss counter for the strategy
         AtomicInteger counter = consecutiveLosses
@@ -222,6 +232,38 @@ public class RiskManager {
         log.info("Daily PnL updated: {} (trade PnL={})",
                 String.format("%.2f", dailyRealizedPnl),
                 String.format("%.2f", trade.getPnl()));
+    }
+
+    /**
+     * Updates current equity tracking with latest open PnL.
+     * Also checks for drawdown breach.
+     */
+    public void updateCurrentEquity(double totalOpenPnL) {
+        this.currentOpenPnl = totalOpenPnL;
+        updatePeakEquity(totalOpenPnL);
+        if (checkDrawdown()) {
+            triggerAnomaly("3% Drawdown Breached (Trailing)");
+        }
+    }
+
+    private void updatePeakEquity(double totalOpenPnL) {
+        double currentEquity = riskConfig.getInitialCapitalInr() + dailyRealizedPnl + totalOpenPnL;
+        if (currentEquity > peakSessionEquity) {
+            peakSessionEquity = currentEquity;
+            log.debug("New session peak equity: {}", String.format("%.2f", peakSessionEquity));
+        }
+    }
+
+    private boolean checkDrawdown() {
+        double currentEquity = riskConfig.getInitialCapitalInr() + dailyRealizedPnl + currentOpenPnl;
+        double dd = (peakSessionEquity - currentEquity) / peakSessionEquity;
+        if (dd >= riskConfig.getMaxDrawdownPercent() / 100.0) {
+            if (!killSwitchActive.get()) {
+                activateKillSwitch(String.format("Drawdown limit breached: %.2f%%", dd * 100.0));
+            }
+            return true;
+        }
+        return false;
     }
 
     /**

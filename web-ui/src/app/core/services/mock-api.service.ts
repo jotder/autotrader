@@ -123,8 +123,19 @@ export class MockApiService {
     return of(mockCandleDbSymbols()).pipe(delay(mockDelay()));
   }
 
+  getCandleDbSummary(): Observable<any[]> {
+    return of([
+      { symbol: 'NSE:SBIN-EQ', startDate: '2026-03-01', endDate: '2026-03-25', count: 20 },
+      { symbol: 'NSE:RELIANCE-EQ', startDate: '2026-03-10', endDate: '2026-03-25', count: 12 },
+    ]).pipe(delay(mockDelay()));
+  }
+
   getCandleDbDates(_symbol: string): Observable<string[]> {
     return of(mockCandleDbDates()).pipe(delay(mockDelay()));
+  }
+
+  searchSymbols(q: string): Observable<any[]> {
+    return of(mockSymbolMasterSearch(q)).pipe(delay(mockDelay()));
   }
 
   getDownloads(): Observable<any[]> {

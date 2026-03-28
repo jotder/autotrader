@@ -59,6 +59,12 @@ public class TickStore {
         return buffers.get(symbol);
     }
 
+    /** Returns the latest tick for the given symbol, or null. */
+    public Tick getLastTick(String symbol) {
+        TickBuffer buf = buffers.get(symbol);
+        return buf != null ? buf.newestTick() : null;
+    }
+
     /**
      * Returns an unmodifiable view of all currently registered symbols.
      * The set reflects the live map — symbols appear as soon as the first tick

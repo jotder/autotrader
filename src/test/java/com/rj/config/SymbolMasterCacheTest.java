@@ -108,4 +108,26 @@ class SymbolMasterCacheTest {
         SymbolMasterCache empty = SymbolMasterCache.load(Path.of("nonexistent/dir"));
         assertEquals(0, empty.size());
     }
+
+    @Test
+    void loadWithSegmentFiltering() {
+        // Only load NSE_CM
+        SymbolMasterCache filtered = SymbolMasterCache.load(
+                Path.of("src/test/resources/symbol_master"),
+                java.util.Set.of("NSE_CM"));
+        
+        // 3 symbols from NSE_CM, 0 from NSE_FO
+        assertEquals(3, filtered.size());
+        assertTrue(filtered.byTicker("NSE:SBIN-EQ").isPresent());
+        assertTrue(filtered.byTicker("NSE:NIFTY26MARFUT").isEmpty());
+    }
+
+    @Test
+    void loadWithMultipleSegments() {
+        SymbolMasterCache filtered = SymbolMasterCache.load(
+                Path.of("src/test/resources/symbol_master"),
+                java.util.Set.of("NSE_CM", "NSE_FO"));
+        
+        assertEquals(5, filtered.size());
+    }
 }

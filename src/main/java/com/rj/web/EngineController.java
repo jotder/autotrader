@@ -267,6 +267,24 @@ public class EngineController {
         return candleDatabase.availableSymbols();
     }
 
+    @GetMapping("/candle-db/summary")
+    public List<Map<String, Object>> candleDbSummary() {
+        var symbols = candleDatabase.availableSymbols();
+        var result = new ArrayList<Map<String, Object>>();
+        for (String s : symbols) {
+            var dates = candleDatabase.availableDates(s);
+            if (!dates.isEmpty()) {
+                result.add(Map.of(
+                        "symbol", s,
+                        "startDate", dates.getFirst().toString(),
+                        "endDate", dates.getLast().toString(),
+                        "count", dates.size()
+                ));
+            }
+        }
+        return result;
+    }
+
     @GetMapping("/candle-db/{symbol}/dates")
     public List<LocalDate> candleDbDates(@PathVariable String symbol) {
         return candleDatabase.availableDates(symbol);

@@ -1,11 +1,15 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Subject, takeUntil, interval, switchMap, catchError, of, startWith } from 'rxjs';
+import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
+import { Subject, takeUntil, interval, switchMap, catchError, of, startWith, debounceTime, distinctUntilChanged } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { StatusCardComponent } from '../../shared/components/status-card.component';
 import { MetricRowComponent } from '../../shared/components/metric-row.component';
 import { MatIconModule } from '@angular/material/icon';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 
 interface BacktestResult {
   overall: any;
@@ -24,59 +28,82 @@ interface DownloadJob {
   startTime?: string;
 }
 
+interface DataSummary {
+  symbol: string;
+  startDate: string;
+  endDate: string;
+  count: number;
+}
+
 @Component({
   selector: 'at-backtest',
   standalone: true,
-  imports: [CommonModule, FormsModule, StatusCardComponent, MetricRowComponent, MatIconModule],
+  imports: [
+    CommonModule, FormsModule, ReactiveFormsModule,
+    StatusCardComponent, MetricRowComponent, MatIconModule,
+    MatAutocompleteModule, MatChipsModule, MatFormFieldModule, MatInputModule
+  ],
   template: `
     <div class="page-header">
-      <h1>Backtest</h1>
+      <h1>Backtest & Data Manager</h1>
     </div>
 
     <div class="backtest-layout">
       <!-- Left: Controls -->
       <div class="controls-panel">
-        <!-- Data Manager -->
+        
+        <!-- M1 Data Downloader -->
         <div class="at-card section">
-          <h3><mat-icon>storage</mat-icon> Data Manager</h3>
+          <h3><mat-icon>cloud_download</mat-icon> Download M1 Data</h3>
+          
           <div class="field">
-            <label>Available Symbols</label>
-            <div class="symbol-chips">
-              @for (s of availableSymbols; track s) {
-                <span class="chip" [class.selected]="btSymbol === s" (click)="btSymbol = s">{{ shortSymbol(s) }}</span>
-              }
-              @if (availableSymbols.length === 0) {
-                <span class="text-muted">No data downloaded yet</span>
-              }
+            <label>Search Symbols</label>
+            <mat-form-field appearance="outline" class="symbol-search-field">
+              <mat-chip-grid #chipGrid aria-label="Symbol selection">
+                @for (s of selectedDlSymbols; track s) {
+                  <mat-chip-row (removed)="removeSymbol(s)">
+                    {{ shortSymbol(s) }}
+                    <button matChipRemove [attr.aria-label]="'remove ' + s">
+                      <mat-icon>cancel</mat-icon>
+                    </button>
+                  </mat-chip-row>
+                }
+              </mat-chip-grid>
+              <input placeholder="Type to search (e.g. SBIN)..."
+                     [formControl]="symbolSearchCtrl"
+                     [matChipInputFor]="chipGrid"
+                     [matAutocomplete]="auto" />
+              <mat-autocomplete #auto="matAutocomplete" (optionSelected)="addSymbol($event.option.value)">
+                @for (s of filteredSymbols; track s.symbolTicker) {
+                  <mat-option [value]="s.symbolTicker">
+                    <span class="mono">{{ s.symbolTicker }}</span>
+                    <small class="text-muted" style="margin-left: 8px">{{ s.symbolDetails }}</small>
+                  </mat-option>
+                }
+              </mat-autocomplete>
+            </mat-form-field>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label>From</label>
+              <input type="date" [(ngModel)]="dlFrom" />
+            </div>
+            <div class="field">
+              <label>To</label>
+              <input type="date" [(ngModel)]="dlTo" />
             </div>
           </div>
 
-          <!-- Download form -->
-          <details class="download-section">
-            <summary>Download M1 Data</summary>
-            <div class="field">
-              <label>Symbols (comma-separated)</label>
-              <input type="text" [(ngModel)]="dlSymbols" placeholder="NSE:SBIN-EQ, NSE:RELIANCE-EQ" />
-            </div>
-            <div class="field-row">
-              <div class="field">
-                <label>From</label>
-                <input type="date" [(ngModel)]="dlFrom" />
-              </div>
-              <div class="field">
-                <label>To</label>
-                <input type="date" [(ngModel)]="dlTo" />
-              </div>
-            </div>
-            <button class="btn-primary" (click)="startDownload()" [disabled]="dlPending || !dlSymbols">
-              {{ dlPending ? 'Downloading…' : 'Start Download' }}
-            </button>
-          </details>
+          <button class="btn-primary" (click)="startDownload()" 
+                  [disabled]="dlPending || selectedDlSymbols.length === 0 || !dlFrom || !dlTo">
+            {{ dlPending ? 'Downloading…' : 'Start Download' }}
+          </button>
 
           <!-- Active downloads -->
           @if (downloads.length > 0) {
             <div class="downloads">
-              <label>Downloads</label>
+              <label>Active Jobs</label>
               @for (d of downloads; track d.jobId) {
                 <div class="dl-row">
                   <span class="dl-status badge" [class]="dlStatusClass(d.status)">{{ d.status }}</span>
@@ -93,7 +120,7 @@ interface DownloadJob {
           <h3><mat-icon>science</mat-icon> Run Backtest</h3>
           <div class="field">
             <label>Symbol</label>
-            <select [(ngModel)]="btSymbol">
+            <select [(ngModel)]="btSymbol" (change)="onSymbolChange()">
               <option value="">Select symbol…</option>
               @for (s of availableSymbols; track s) { <option [value]="s">{{ s }}</option> }
             </select>
@@ -144,16 +171,55 @@ interface DownloadJob {
         }
       </div>
 
-      <!-- Right: Results -->
+      <!-- Right: Results & Data Summary -->
       <div class="results-panel">
+        
+        <!-- Data Summary Table -->
+        <div class="at-card section summary-card">
+          <div class="card-header">
+            <h3><mat-icon>storage</mat-icon> Available Data Summary</h3>
+            <button class="btn-icon" (click)="refreshSummary()" title="Refresh summary">
+              <mat-icon>refresh</mat-icon>
+            </button>
+          </div>
+          
+          <table class="at-table summary-table">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Start Date</th>
+                <th>End Date</th>
+                <th class="r">Days</th>
+                <th class="r">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of dataSummary; track item.symbol) {
+                <tr>
+                  <td class="mono font-bold">{{ item.symbol }}</td>
+                  <td class="mono text-muted">{{ item.startDate }}</td>
+                  <td class="mono text-muted">{{ item.endDate }}</td>
+                  <td class="r mono">{{ item.count }}</td>
+                  <td class="r">
+                    <button class="btn-small" (click)="prepareSync(item)">Update</button>
+                  </td>
+                </tr>
+              }
+              @if (dataSummary.length === 0) {
+                <tr><td colspan="5" class="empty">No M1 data available on server</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
         @if (!result) {
-          <div class="empty-results">
+          <div class="empty-results" style="margin-top: 24px">
             <mat-icon>science</mat-icon>
-            <p>Select a symbol, date range, and run a backtest to see results here.</p>
+            <p>Select a symbol and run a backtest to see results here.</p>
           </div>
         } @else {
           <!-- Result tabs -->
-          <div class="tabs">
+          <div class="tabs" style="margin-top: 24px">
             @for (tab of ['Overview', 'By Strategy', 'By Symbol', 'Suggestions']; track tab) {
               <button class="tab" [class.active]="resultTab === tab" (click)="resultTab = tab">{{ tab }}</button>
             }
@@ -290,17 +356,15 @@ interface DownloadJob {
     .field-row {display:flex;gap:8px;}
     .field-row .field {flex:1;}
 
-    .symbol-chips {display:flex;flex-wrap:wrap;gap:4px;}
-    .chip {background:var(--bg-hover);padding:3px 8px;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--font-mono);color:var(--text-secondary);}
-    .chip:hover {background:var(--border);}
-    .chip.selected {background:var(--accent);color:#000;font-weight:600;}
-
+    .symbol-search-field { width: 100%; font-size: 12px; margin-bottom: 0; }
+    ::ng-deep .symbol-search-field .mat-mdc-form-field-subscript-wrapper { display: none; }
+    ::ng-deep .symbol-search-field .mat-mdc-text-field-wrapper { padding-top: 0; padding-bottom: 0; background: var(--bg-primary) !important; min-height: 40px; }
+    ::ng-deep .symbol-search-field .mat-mdc-chip-grid { min-height: 32px; }
+    
     .btn-primary {width:100%;padding:8px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600;margin-top:8px;}
     .btn-primary:hover {opacity:0.85;}
     .btn-primary:disabled {opacity:0.4;cursor:not-allowed;}
 
-    .download-section {margin-top:10px;}
-    .download-section summary {cursor:pointer;font-size:12px;color:var(--accent);margin-bottom:8px;}
     .downloads {margin-top:10px;}
     .downloads label {font-size:10px;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:4px;}
     .dl-row {display:flex;gap:8px;align-items:center;font-size:11px;padding:3px 0;}
@@ -336,6 +400,18 @@ interface DownloadJob {
     .at-table tr:hover td {background:var(--bg-hover);}
     .r {text-align:right;}
 
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .card-header h3 { margin: 0; }
+    .btn-icon { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 2px; border-radius: 4px; }
+    .btn-icon:hover { background: var(--bg-hover); color: var(--accent); }
+    .btn-icon mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+    .btn-small { background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-primary); padding: 2px 8px; border-radius: 3px; font-size: 10px; cursor: pointer; }
+    .btn-small:hover { border-color: var(--accent); color: var(--accent); }
+
+    .summary-table td { padding: 8px 6px; }
+    .font-bold { font-weight: 600; }
+
     .suggestion-row {display:flex;gap:8px;align-items:flex-start;padding:6px 0;font-size:12px;border-bottom:1px solid var(--bg-hover);}
     .suggestion-row mat-icon {font-size:16px;color:var(--warning);flex-shrink:0;margin-top:1px;}
 
@@ -350,8 +426,13 @@ export class BacktestComponent implements OnInit, OnDestroy {
   // Data manager
   availableSymbols: string[] = [];
   availableDates: string[] = [];
+  dataSummary: DataSummary[] = [];
   downloads: DownloadJob[] = [];
-  dlSymbols = '';
+  
+  // Download Form
+  symbolSearchCtrl = new FormControl('');
+  filteredSymbols: any[] = [];
+  selectedDlSymbols: string[] = [];
   dlFrom = '';
   dlTo = '';
   dlPending = false;
@@ -373,8 +454,20 @@ export class BacktestComponent implements OnInit, OnDestroy {
   constructor(private api: ApiService) {}
 
   ngOnInit(): void {
-    // Load available symbols
-    this.api.getCandleDbSymbols().pipe(catchError(() => of([]))).subscribe(s => this.availableSymbols = s);
+    // Initial data load
+    this.refreshAvailable();
+    this.refreshSummary();
+
+    // Symbol autocomplete
+    this.symbolSearchCtrl.valueChanges.pipe(
+      debounceTime(300),
+      distinctUntilChanged(),
+      switchMap(val => {
+        if (!val || typeof val !== 'string' || val.length < 2) return of([]);
+        return this.api.searchSymbols(val).pipe(catchError(() => of([])));
+      }),
+      takeUntil(this.destroy$)
+    ).subscribe(list => this.filteredSymbols = list);
 
     // Poll downloads
     interval(5000).pipe(
@@ -382,6 +475,35 @@ export class BacktestComponent implements OnInit, OnDestroy {
       switchMap(() => this.api.getDownloads().pipe(catchError(() => of([])))),
       takeUntil(this.destroy$),
     ).subscribe(dl => this.downloads = dl);
+  }
+
+  refreshAvailable(): void {
+    this.api.getCandleDbSymbols().pipe(catchError(() => of([]))).subscribe(s => this.availableSymbols = s);
+  }
+
+  refreshSummary(): void {
+    this.api.getCandleDbSummary().pipe(catchError(() => of([]))).subscribe(s => this.dataSummary = s);
+  }
+
+  // ── Symbol Search Helpers ────────────────────────────────
+  addSymbol(symbol: string): void {
+    if (symbol && !this.selectedDlSymbols.includes(symbol)) {
+      this.selectedDlSymbols.push(symbol);
+    }
+    this.symbolSearchCtrl.setValue('');
+  }
+
+  removeSymbol(symbol: string): void {
+    this.selectedDlSymbols = this.selectedDlSymbols.filter(s => s !== symbol);
+  }
+
+  prepareSync(item: DataSummary): void {
+    if (!this.selectedDlSymbols.includes(item.symbol)) {
+      this.selectedDlSymbols.push(item.symbol);
+    }
+    // Set dates to match current range or expand it
+    this.dlFrom = item.startDate;
+    this.dlTo = new Date().toISOString().split('T')[0]; // To today
   }
 
   // ── Symbol selection → load dates ────────────────────────
@@ -401,14 +523,17 @@ export class BacktestComponent implements OnInit, OnDestroy {
 
   // ── Download ─────────────────────────────────────────────
   startDownload(): void {
-    const symbols = this.dlSymbols.split(',').map(s => s.trim()).filter(s => s);
-    if (symbols.length === 0) return;
+    if (this.selectedDlSymbols.length === 0) return;
     this.dlPending = true;
-    this.api.startDownload(symbols, this.dlFrom, this.dlTo).subscribe({
+    this.api.startDownload(this.selectedDlSymbols, this.dlFrom, this.dlTo).subscribe({
       next: () => {
         this.dlPending = false;
-        // Refresh available symbols after a delay
-        setTimeout(() => this.api.getCandleDbSymbols().pipe(catchError(() => of([]))).subscribe(s => this.availableSymbols = s), 3000);
+        this.selectedDlSymbols = [];
+        // Refresh UI state after a delay
+        setTimeout(() => {
+          this.refreshAvailable();
+          this.refreshSummary();
+        }, 3000);
       },
       error: (e) => { this.dlPending = false; this.btError = e.error?.message || 'Download failed'; },
     });

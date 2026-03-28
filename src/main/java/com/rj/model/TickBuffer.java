@@ -136,6 +136,16 @@ public class TickBuffer {
         }
     }
 
+    /** newest buffered tick, or {@code null} if empty. */
+    public Tick newestTick() {
+        lock.readLock().lock();
+        try {
+            return ticks.peekLast();
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
     /** Newest buffered tick's feedTime, or {@code Instant.EPOCH} if empty. */
     public Instant newestTime() {
         lock.readLock().lock();
