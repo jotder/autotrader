@@ -7,7 +7,7 @@ import com.rj.model.Signal;
 import com.rj.model.Timeframe;
 import com.rj.model.TradeRecord;
 import com.rj.model.ExecutionMode;
-import fyers.FyersPositions;
+import com.rj.fyers.FyersPositions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

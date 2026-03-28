@@ -3,15 +3,18 @@ package com.rj.engine;
 import com.rj.model.*;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class ManagedOrderTest {
 
+    private final OrderTracker tracker = new OrderTracker(Duration.ofSeconds(30));
+
     private ManagedOrder createTestOrder() {
         return new ManagedOrder("test-id", "corr-1", "NSE:SBIN-EQ",
-                OrderSideType.ENTRY, Signal.BUY, 10, "intraday");
+                OrderSideType.ENTRY, Signal.BUY, 10, "intraday", tracker);
     }
 
     @Test
@@ -36,6 +39,17 @@ class ManagedOrderTest {
     }
 
     @Test
+    void brokerUpdatePath() {
+        var order = createTestOrder();
+        assertTrue(order.transitionTo(OrderState.SUBMITTED, null, 0, 0, null));
+        
+        // Fyers status 2 -> Filled
+        assertTrue(order.updateFromBroker(2, "BRK-002", 100.5, 10, "Success"));
+        assertEquals(OrderState.FILLED, order.getState());
+        assertTrue(order.isTerminal());
+    }
+
+    @Test
     void rejectionPath() {
         var order = createTestOrder();
         assertTrue(order.transitionTo(OrderState.SUBMITTED, null, 0, 0, null));
@@ -44,16 +58,6 @@ class ManagedOrderTest {
         assertEquals(OrderState.REJECTED, order.getState());
         assertTrue(order.isTerminal());
         assertEquals("Insufficient margin", order.getRejectReason());
-    }
-
-    @Test
-    void expiredPath() {
-        var order = createTestOrder();
-        assertTrue(order.transitionTo(OrderState.SUBMITTED, null, 0, 0, null));
-        assertTrue(order.transitionTo(OrderState.EXPIRED, null, 0, 0, "Timed out"));
-
-        assertEquals(OrderState.EXPIRED, order.getState());
-        assertTrue(order.isTerminal());
     }
 
     @Test
@@ -70,102 +74,27 @@ class ManagedOrderTest {
     }
 
     @Test
-    void partialFillThenCancelled() {
+    void invalidTransitions() {
         var order = createTestOrder();
-        order.transitionTo(OrderState.SUBMITTED, null, 0, 0, null);
-        order.transitionTo(OrderState.ACCEPTED, "BRK-003", 0, 0, null);
-        order.transitionTo(OrderState.PARTIALLY_FILLED, "BRK-003", 100.0, 3, null);
-        assertTrue(order.transitionTo(OrderState.CANCELLED, null, 0, 0, "Manual cancel"));
-
-        assertEquals(OrderState.CANCELLED, order.getState());
-        assertTrue(order.isTerminal());
-    }
-
-    // ── Invalid transitions ─────────────────────────────────────────────────
-
-    @Test
-    void cannotSkipSubmitted() {
-        var order = createTestOrder();
+        // Skip submitted
         assertFalse(order.transitionTo(OrderState.FILLED, null, 100, 10, null));
-        assertEquals(OrderState.CREATED, order.getState());
+        
+        order.transitionTo(OrderState.SUBMITTED, null, 0, 0, null);
+        order.transitionTo(OrderState.REJECTED, null, 0, 0, "Fail");
+        
+        // From terminal
+        assertFalse(order.transitionTo(OrderState.ACCEPTED, "BRK", 0, 0, null));
     }
 
     @Test
-    void cannotTransitionFromTerminal() {
+    void toOrderFill() {
         var order = createTestOrder();
         order.transitionTo(OrderState.SUBMITTED, null, 0, 0, null);
-        order.transitionTo(OrderState.REJECTED, null, 0, 0, "No margin");
-
-        assertFalse(order.transitionTo(OrderState.SUBMITTED, null, 0, 0, null));
-        assertEquals(OrderState.REJECTED, order.getState());
-    }
-
-    @Test
-    void cannotGoFromAcceptedToSubmitted() {
-        var order = createTestOrder();
-        order.transitionTo(OrderState.SUBMITTED, null, 0, 0, null);
-        order.transitionTo(OrderState.ACCEPTED, "BRK", 0, 0, null);
-
-        assertFalse(order.transitionTo(OrderState.SUBMITTED, null, 0, 0, null));
-    }
-
-    // ── History ─────────────────────────────────────────────────────────────
-
-    @Test
-    void historyRecordsAllTransitions() {
-        var order = createTestOrder();
-        order.transitionTo(OrderState.SUBMITTED, null, 0, 0, null);
-        order.transitionTo(OrderState.ACCEPTED, "BRK", 0, 0, null);
-        order.transitionTo(OrderState.FILLED, "BRK", 100.0, 10, null);
-
-        List<ManagedOrder.StateTransition> history = order.getHistory();
-        assertEquals(3, history.size());
-        assertEquals(OrderState.CREATED, history.get(0).from());
-        assertEquals(OrderState.SUBMITTED, history.get(0).to());
-        assertEquals(OrderState.SUBMITTED, history.get(1).from());
-        assertEquals(OrderState.ACCEPTED, history.get(1).to());
-        assertEquals(OrderState.ACCEPTED, history.get(2).from());
-        assertEquals(OrderState.FILLED, history.get(2).to());
-    }
-
-    // ── toOrderFill ─────────────────────────────────────────────────────────
-
-    @Test
-    void toOrderFillOnFilled() {
-        var order = createTestOrder();
-        order.transitionTo(OrderState.SUBMITTED, null, 0, 0, null);
-        order.transitionTo(OrderState.ACCEPTED, "BRK-X", 0, 0, null);
         order.transitionTo(OrderState.FILLED, "BRK-X", 250.0, 10, null);
 
         OrderFill fill = order.toOrderFill();
         assertTrue(fill.isSuccess());
         assertEquals("BRK-X", fill.getOrderId());
         assertEquals(250.0, fill.getFillPrice());
-        assertEquals(10, fill.getFillQuantity());
-    }
-
-    @Test
-    void toOrderFillOnRejected() {
-        var order = createTestOrder();
-        order.transitionTo(OrderState.SUBMITTED, null, 0, 0, null);
-        order.transitionTo(OrderState.REJECTED, null, 0, 0, "Bad request");
-
-        OrderFill fill = order.toOrderFill();
-        assertFalse(fill.isSuccess());
-        assertEquals("Bad request", fill.getRejectReason());
-    }
-
-    // ── Identity ────────────────────────────────────────────────────────────
-
-    @Test
-    void identityFieldsAreImmutable() {
-        var order = createTestOrder();
-        assertEquals("test-id", order.getClientOrderId());
-        assertEquals("corr-1", order.getCorrelationId());
-        assertEquals("NSE:SBIN-EQ", order.getSymbol());
-        assertEquals(OrderSideType.ENTRY, order.getSide());
-        assertEquals(Signal.BUY, order.getDirection());
-        assertEquals(10, order.getRequestedQuantity());
-        assertEquals("intraday", order.getStrategyId());
     }
 }

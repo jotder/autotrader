@@ -51,7 +51,7 @@ public class EngineController {
             synchronized (this) {
                 if (downloadTracker == null) {
                     var downloader = new CandleDownloader(
-                            new fyers.FyersDataApi(), candleDatabase, 500,
+                            new com.rj.fyers.FyersDataApi(), candleDatabase, 500,
                             engine.getCircuitBreaker());
                     downloadTracker = new DownloadTracker(downloader);
                 }

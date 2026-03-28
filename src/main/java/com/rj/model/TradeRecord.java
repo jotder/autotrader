@@ -66,7 +66,9 @@ public class TradeRecord {
         this.entryTime = entryTime;
         this.entryAtr = entryAtr;
         this.entryConfidence = entryConfidence;
-        this.timeframeVotes = new EnumMap<>(timeframeVotes);
+        this.timeframeVotes = timeframeVotes.isEmpty() 
+                ? new EnumMap<>(Timeframe.class) 
+                : new EnumMap<>(timeframeVotes);
     }
 
     // ── Constructor ───────────────────────────────────────────────────────────

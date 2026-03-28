@@ -3,7 +3,7 @@ package com.rj.engine;
 import com.rj.model.*;
 import com.tts.in.model.FyersClass;
 import com.tts.in.model.PlaceOrderModel;
-import fyers.FyersOrderPlacement;
+import com.rj.fyers.FyersOrderPlacement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,12 +64,18 @@ public class LiveOrderExecutor implements IOrderExecutor {
     @Override
     public OrderFill placeEntry(TradeSignal signal, int quantity) {
         int side = signal.getDirection() == Signal.BUY ? 1 : -1;
+        
+        // F&O Support: Derivatives MUST use MARGIN product type
         String productType = signal.getProductType();
+        if (signal.getInstrumentInfo() != null && signal.getInstrumentInfo().isDerivative()) {
+            productType = "MARGIN";
+        }
+
         PlaceOrderModel model = FyersOrderPlacement.marketOrder(
                 signal.getSymbol(), quantity, side, productType);
 
-        log.info("[LIVE] Placing entry: {} {} qty={} correlationId={}",
-                signal.getSymbol(), signal.getDirection(), quantity,
+        log.info("[LIVE] Placing entry: {} {} qty={} product={} correlationId={}",
+                signal.getSymbol(), signal.getDirection(), quantity, productType,
                 signal.getCorrelationId());
 
         return executeViaCircuitBreaker(model, "ENTRY:" + signal.getCorrelationId(), true);
@@ -81,14 +87,18 @@ public class LiveOrderExecutor implements IOrderExecutor {
                                double exitPrice) {
         // Exit direction is opposite to entry direction
         int side = position.getDirection() == Signal.BUY ? -1 : 1;
+        
         String productType = position.getProductType();
+        if (position.getInstrumentInfo() != null && position.getInstrumentInfo().isDerivative()) {
+            productType = "MARGIN";
+        }
 
         PlaceOrderModel model = FyersOrderPlacement.marketOrder(
                 position.getSymbol(), position.getQuantity(), side, productType);
 
-        log.info("[LIVE] Placing exit: {} {} qty={} reason={} triggerPrice={}",
+        log.info("[LIVE] Placing exit: {} {} qty={} product={} reason={} triggerPrice={}",
                 position.getSymbol(), position.getDirection(),
-                position.getQuantity(), reason,
+                position.getQuantity(), productType, reason,
                 String.format("%.2f", exitPrice));
 
         // Exits are always critical — capital protection

@@ -60,3 +60,8 @@ logs/
 scripts/ralph/progress.txt
 scripts/ralph/.last-branch
 scripts/ralph/archive/
+
+# Data backups & journals
+data/backup/*.json
+data/journal/*.ndjson
+data/**/*.csv~

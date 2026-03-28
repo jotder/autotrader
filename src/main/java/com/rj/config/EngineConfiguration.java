@@ -3,6 +3,8 @@ package com.rj.config;
 import com.rj.engine.CandleDatabase;
 import com.rj.engine.SymbolProfiler;
 import com.rj.engine.TradingEngine;
+import com.rj.engine.disruptor.TickDisruptorEngine;
+import com.rj.fyers.FyersSocketListener;
 import com.rj.model.TickStore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -45,6 +47,16 @@ public class EngineConfiguration {
     @Bean
     public TradingEngine tradingEngine() {
         return TradingEngine.create();
+    }
+
+    @Bean
+    public TickDisruptorEngine tickDisruptorEngine(TradingEngine tradingEngine) {
+        return tradingEngine.getDisruptorEngine();
+    }
+
+    @Bean
+    public FyersSocketListener fyersSocketListener(TradingEngine tradingEngine) {
+        return tradingEngine.getSocketListener();
     }
 
     @Bean

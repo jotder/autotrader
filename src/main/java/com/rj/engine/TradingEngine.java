@@ -1,8 +1,11 @@
 package com.rj.engine;
 
+import com.rj.engine.disruptor.TickDisruptorEngine;
+import com.rj.engine.disruptor.TickStoreUpdater;
+import com.rj.fyers.FyersSocketListener;
 import com.rj.config.*;
 import com.rj.model.*;
-import fyers.FyersPositions;
+import com.rj.fyers.FyersPositions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,24 +19,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Main orchestrator — wires all five service threads and manages their lifecycle.
- *
- * <pre>
- * Thread 1  FyersSocketListener  → TickStore.append(tick)
- * Thread 2  CandleService        → BlockingQueue&lt;CandleRecommendation&gt;
- * Thread 3  StrategyEvaluator    → handleSignal() [risk → size → entry order → position]
- * Thread 4  PositionMonitor      → handleExit()   [exit order → journal → risk accounting]
- * Thread 5  HealthMonitor        → health log every 60 s
- * </pre>
- *
- * <h3>Execution mode selection</h3>
- * <ul>
- *   <li>{@code APP_ENV=backtest} — use {@link BacktestOrderExecutor}</li>
- *   <li>{@code APP_ENV=paper}    — use {@link PaperOrderExecutor} (default)</li>
- *   <li>{@code APP_ENV=live}     — use {@link LiveOrderExecutor}; go-live checklist must be complete</li>
- * </ul>
+ * Main orchestrator — wires all service threads and manages their lifecycle.
  */
-public class TradingEngine {
+public class TradingEngine implements OrderStateListener {
 
     private static final Logger log = LoggerFactory.getLogger(TradingEngine.class);
     private static final int REC_QUEUE_CAPACITY = 2048;
@@ -46,10 +34,12 @@ public class TradingEngine {
     private final RiskManager riskManager;
     private final TradeJournal journal;
     private final ConfigManager config;
+    private final TickDisruptorEngine disruptorEngine;
+    private final FyersSocketListener socketListener;
 
     /**
      * Open trade records keyed by correlationId.
-     * Created on entry fill; removed and closed on exit fill.
+     * Created on SUBMITTED; removed and closed on exit FILLED.
      */
     private final ConcurrentHashMap<String, TradeRecord> openRecords = new ConcurrentHashMap<>();
 
@@ -61,7 +51,7 @@ public class TradingEngine {
     private HealthMonitor healthMonitor;
     private PositionReconciler positionReconciler;
     private ConfigFileWatcher configFileWatcher;
-    private fyers.TokenRefreshScheduler tokenRefreshScheduler;
+    private com.rj.fyers.TokenRefreshScheduler tokenRefreshScheduler;
     private AnomalyDetector anomalyDetector;
     private BrokerCircuitBreaker circuitBreaker;
 
@@ -69,12 +59,15 @@ public class TradingEngine {
 
     private TradingEngine(ExecutionMode mode, IOrderExecutor executor,
                           RiskManager riskManager, TradeJournal journal,
-                          ConfigManager config) {
+                          ConfigManager config, TickDisruptorEngine disruptorEngine,
+                          FyersSocketListener socketListener) {
         this.mode = mode;
         this.executor = executor;
         this.riskManager = riskManager;
         this.journal = journal;
         this.config = config;
+        this.disruptorEngine = disruptorEngine;
+        this.socketListener = socketListener;
 
         // OMS state machine wraps the raw executor
         var orderTracker = new OrderTracker(java.time.Duration.ofSeconds(30));
@@ -83,8 +76,6 @@ public class TradingEngine {
 
     /**
      * Creates a fully wired TradingEngine.
-     * The Fyers WebSocket (Thread 1) must be started separately by the caller so
-     * that {@code FyersSocketListener.OnScrips} feeds into {@link TickStore}.
      */
     public static TradingEngine create() {
         ConfigManager config = ConfigManager.getInstance();
@@ -97,54 +88,75 @@ public class TradingEngine {
         TradeJournal journal = new TradeJournal(mode);
         RiskManager riskMgr = new RiskManager(riskCfg);
 
-        TradingEngine engine = new TradingEngine(mode, executor, riskMgr, journal, config);
+        // Disruptor & WebSocket Ingestion
+        TickDisruptorEngine disruptor = new TickDisruptorEngine();
+        FyersSocketListener listener = new FyersSocketListener(disruptor, null); // Wired below
 
-        // Queue between Thread 2 (candle workers) and Thread 3 (strategy evaluator)
+        TradingEngine engine = new TradingEngine(mode, executor, riskMgr, journal, config, disruptor, listener);
+
+        // Fix circular dependency for listener -> manager -> engine
+        FyersSocketListener updatedListener = new FyersSocketListener(disruptor, engine.orderManager);
+        TradingEngine engineFinal = new TradingEngine(mode, executor, riskMgr, journal, config, disruptor, updatedListener);
+
+        // Queue between Thread 4 (candle workers) and Thread 5 (strategy evaluator)
         LinkedBlockingQueue<CandleRecommendation> recQueue =
                 new LinkedBlockingQueue<>(REC_QUEUE_CAPACITY);
 
-        // Thread 4: position monitor — constructed before StrategyEvaluator;
-        //           StrategyEvaluator injected via setter to break circular dependency.
+        // Position Monitor — Disruptor Handler 2
         PositionMonitor pm = new PositionMonitor(
-                tickStore, riskCfg, engine::handleExit, null);
-        engine.positionMonitor = pm;
+                tickStore, riskCfg, engineFinal::handleExit, null);
+        engineFinal.positionMonitor = pm;
 
-        // Thread 3: strategy evaluator
+        // Register Disruptor Handlers
+        disruptor.addHandler(new TickStoreUpdater());
+        disruptor.addHandler(pm);
+
+        // Strategy Evaluator
         StrategyEvaluator se = new StrategyEvaluator(
-                recQueue, engine::handleSignal, riskCfg, pm);
+                recQueue, engineFinal::handleSignal, riskCfg, pm);
         pm.setStrategyEvaluator(se);    // complete the cycle
-        engine.strategyEvaluator = se;
+        engineFinal.strategyEvaluator = se;
 
-        // Thread 2: candle workers
-        CandleService cs = new CandleService(tickStore, recQueue);
-        engine.candleService = cs;
+        // Candle Workers
+        CandleService cs = new CandleService(tickStore, recQueue, config);
+        engineFinal.candleService = cs;
 
-        // Anomaly detector — monitors for emergency conditions
-        AnomalyDetector ad = new AnomalyDetector(riskMgr, pm, tickStore, journal, riskCfg);
-        engine.anomalyDetector = ad;
+        // Anomaly detector
+        AnomalyDetector ad = new AnomalyDetector();
+        ad.initialize(riskMgr, pm, tickStore, journal, riskCfg);
+        engineFinal.anomalyDetector = ad;
 
-        // Circuit breaker — wraps all broker API calls with retry + state machine
+        // Circuit breaker
         var cbConfig = com.rj.config.CircuitBreakerConfig.fromEnvironment(config::getProperty);
         BrokerCircuitBreaker cb = new BrokerCircuitBreaker(cbConfig, ad);
-        engine.circuitBreaker = cb;
+        engineFinal.circuitBreaker = cb;
 
-        // Attach circuit breaker to LiveOrderExecutor if in LIVE mode
         if (executor instanceof LiveOrderExecutor loe) {
             loe.setCircuitBreaker(cb);
         }
 
-        // Thread 5: health monitor
+        // Health monitor
         HealthMonitor hm = new HealthMonitor(
                 tickStore, cs, se, pm, config.getActiveSymbols());
-        engine.healthMonitor = hm;
+        engineFinal.healthMonitor = hm;
 
-        // Position reconciler — only meaningful in LIVE mode
         if (mode == ExecutionMode.LIVE) {
-            engine.positionReconciler = new PositionReconciler(
-                    new FyersPositions(), pm, engine.openRecords, journal, riskCfg);
+            engineFinal.positionReconciler = new PositionReconciler(
+                    new FyersPositions(), pm, engineFinal.openRecords, journal, riskCfg);
         }
 
-        // Load YAML strategy configs at startup
+        // OMS Listener
+        engineFinal.orderManager.getTracker().addListener(engineFinal);
+
+        // Load YAML strategies...
+        engineFinal.loadYamlStrategies(cs, se, riskMgr);
+
+        log.info("TradingEngine created — mode={} symbols={}",
+                mode, String.join(",", config.getActiveSymbols()));
+        return engineFinal;
+    }
+
+    private void loadYamlStrategies(CandleService cs, StrategyEvaluator se, RiskManager riskMgr) {
         Path strategiesDir = Path.of("config/strategies");
         Path strategiesPath = Path.of("config/strategies/intraday.yaml");
         Path defaultsPath = Path.of("config/defaults.yaml");
@@ -155,41 +167,175 @@ public class TradingEngine {
                 cs.setStrategyConfigs(initialConfigs);
                 se.updateStrategyConfigs(initialConfigs);
 
-                // Apply initial risk overrides
                 for (Map.Entry<String, StrategyYamlConfig> entry : initialConfigs.entrySet()) {
                     StrategyRiskConfig riskOverride = StrategyRiskConfig.from(entry.getValue().getRisk());
                     riskMgr.applyStrategyRiskOverride(entry.getKey(), riskOverride);
                 }
                 log.info("Loaded {} strategy configs from YAML at startup", initialConfigs.size());
 
-                // Config hot-reload watcher — watches config/strategies/ for YAML changes
                 ConfigValidator validator = new ConfigValidator(config.getSymbolRegistry());
-                engine.configFileWatcher = new ConfigFileWatcher(
+                this.configFileWatcher = new ConfigFileWatcher(
                         strategiesDir, strategiesPath, defaultsPath,
                         loader, validator,
                         newStrategies -> {
-                            // Update risk overrides
                             for (Map.Entry<String, StrategyYamlConfig> entry : newStrategies.entrySet()) {
                                 StrategyRiskConfig riskOverride = StrategyRiskConfig.from(entry.getValue().getRisk());
                                 riskMgr.applyStrategyRiskOverride(entry.getKey(), riskOverride);
                             }
-                            // Update strategy evaluator configs (confidence, cooldown, active hours, SL/TP)
                             se.updateStrategyConfigs(newStrategies);
-                            log.info("Hot-reload applied: {} strategy configs updated (risk + evaluator)", newStrategies.size());
+                            log.info("Hot-reload applied: {} strategy configs updated", newStrategies.size());
                         });
             } catch (Exception e) {
-                log.warn("Failed to load strategy YAML configs at startup: {} — using defaults", e.getMessage());
+                log.warn("Failed to load strategy YAML configs at startup: {}", e.getMessage());
             }
-        } else {
-            log.warn("Strategy config directory/files not found: {} — using defaults, hot-reload disabled", strategiesDir);
         }
-
-        log.info("TradingEngine created — mode={} symbols={}",
-                mode, String.join(",", config.getActiveSymbols()));
-        return engine;
     }
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
+    // ── OrderStateListener ───────────────────────────────────────────────────
+
+    @Override
+    public void onStateChange(ManagedOrder order, ManagedOrder.StateTransition transition) {
+        OrderState newState = transition.to();
+        log.debug("[OMS][{}] State: {} -> {}", order.getSymbol(), transition.from(), newState);
+
+        if (newState == OrderState.FILLED) {
+            if (order.getSide() == OrderSideType.ENTRY) {
+                handleEntryFilled(order);
+            } else {
+                handleExitFilled(order);
+            }
+        } else if (newState == OrderState.REJECTED || newState == OrderState.EXPIRED) {
+            handleOrderFailed(order, newState);
+        }
+    }
+
+    private void handleEntryFilled(ManagedOrder order) {
+        log.info("[{}] ENTRY FILLED: {} @ {}", order.getSymbol(), order.getFilledQuantity(), order.getFillPrice());
+        
+        TradeRecord record = openRecords.get(order.getCorrelationId());
+        double sl = record != null ? record.getInitialStopLoss() : order.getFillPrice() * 0.99;
+        double tp = record != null ? record.getTakeProfit() : order.getFillPrice() * 1.02;
+
+        OpenPosition pos = new OpenPosition(
+                order.getSymbol(),
+                order.getCorrelationId(),
+                order.getStrategyId(),
+                order.getDirection(),
+                order.getFillPrice(),
+                order.getFilledQuantity(),
+                sl, tp,
+                order.getLastUpdatedAt());
+
+        positionMonitor.addPosition(pos);
+        journal.logOrderEntry(null, order.toOrderFill());
+    }
+
+    private void handleExitFilled(ManagedOrder order) {
+        log.info("[{}] EXIT FILLED: {} @ {}", order.getSymbol(), order.getFilledQuantity(), order.getFillPrice());
+        
+        TradeRecord record = openRecords.remove(order.getCorrelationId());
+        if (record != null) {
+            PositionMonitor.ExitReason reason = PositionMonitor.ExitReason.MANUAL;
+            if (order.getRejectReason() != null && order.getRejectReason().startsWith("reason=")) {
+                try { reason = PositionMonitor.ExitReason.valueOf(order.getRejectReason().substring(7)); } catch (Exception ignored) {}
+            }
+
+            record.close(order.getFillPrice(), order.getLastUpdatedAt(), reason);
+            riskManager.recordClosedTrade(record);
+            journal.logTradeClosed(record);
+            
+            log.info("[{}] Trade CLOSED: pnl={} R={}", order.getSymbol(), 
+                    String.format("%.2f", record.getPnl()), 
+                    String.format("%.2f", record.getRMultipleAchieved()));
+        }
+    }
+
+    private void handleOrderFailed(ManagedOrder order, OrderState state) {
+        log.warn("[{}] ORDER {}: {} reason={}", order.getSymbol(), state, order.getClientOrderId(), order.getRejectReason());
+        if (order.getSide() == OrderSideType.ENTRY) {
+            openRecords.remove(order.getCorrelationId());
+        }
+    }
+
+    // ── Lifecycle & Handlers ─────────────────────────────────────────────────
+
+    private void handleSignal(TradeSignal signal) {
+        log.info("[{}] Signal received: {}", signal.getSymbol(), signal);
+        journal.logSignalGenerated(signal);
+
+        RiskManager.PreTradeResult check = riskManager.preTradeCheck(
+                signal, positionMonitor.openPositions(), config.getRiskConfig().getInitialCapitalInr());
+
+        if (!check.approved()) {
+            log.info("[{}] Signal REJECTED: {}", signal.getSymbol(), check.rejectReason());
+            journal.logSignalRejected(signal, check.rejectReason());
+            return;
+        }
+
+        // Initialize TradeRecord placeholder
+        double entryAtr = Math.abs(signal.getSuggestedEntry() - signal.getSuggestedStopLoss()) / 2.0;
+        TradeRecord record = new TradeRecord(
+                signal.getCorrelationId(), signal.getSymbol(), signal.getStrategyId(),
+                mode, signal.getDirection(), 0, 0, check.stopLoss(), check.takeProfit(),
+                Instant.now(), entryAtr, signal.getConfidence(), signal.getTimeframeVotes());
+        openRecords.put(signal.getCorrelationId(), record);
+
+        orderManager.submitEntry(signal, check.quantity());
+    }
+
+    private void handleExit(OpenPosition position, PositionMonitor.ExitReason reason) {
+        double triggerPrice = switch (reason) {
+            case STOP_LOSS, TRAILING_STOP -> position.getCurrentStopLoss();
+            case TAKE_PROFIT -> position.getTakeProfit();
+            default -> 0;
+        };
+        log.info("[{}] Exit triggered: reason={} price={}", position.getSymbol(), reason, triggerPrice);
+        orderManager.submitExit(position, reason, triggerPrice);
+    }
+
+    public void start() {
+        if (!running.compareAndSet(false, true)) return;
+        log.info("TradingEngine starting in {} mode...", mode);
+
+        if (positionReconciler != null) {
+            positionReconciler.reconcile();
+        }
+
+        disruptorEngine.start();
+        positionMonitor.start();
+        anomalyDetector.start();
+        strategyEvaluator.start();
+        candleService.start(config.getActiveSymbols());
+        healthMonitor.start();
+
+        if (mode != ExecutionMode.BACKTEST) {
+            socketListener.startWebSocket();
+            socketListener.subscribe(java.util.Arrays.asList(config.getActiveSymbols()));
+        }
+
+        if (configFileWatcher != null) try { configFileWatcher.start(); } catch (IOException ignored) {}
+        tokenRefreshScheduler = new com.rj.fyers.TokenRefreshScheduler(config);
+        tokenRefreshScheduler.start();
+
+        registerShutdownHook();
+    }
+
+    public void stop() {
+        if (!running.compareAndSet(true, false)) return;
+        log.info("TradingEngine stopping...");
+        if (configFileWatcher != null) configFileWatcher.stop();
+        if (tokenRefreshScheduler != null) tokenRefreshScheduler.stop();
+        socketListener.close();
+        orderManager.shutdown();
+        healthMonitor.stop();
+        candleService.stop();
+        strategyEvaluator.stop();
+        anomalyDetector.stop();
+        positionMonitor.stop();
+        disruptorEngine.stop();
+    }
+
+    // ── Standard Boilerplate ─────────────────────────────────────────────────
 
     private static ExecutionMode resolveMode(String appEnv) {
         if (appEnv == null) return ExecutionMode.PAPER;
@@ -202,274 +348,44 @@ public class TradingEngine {
 
     private static IOrderExecutor createExecutor(ExecutionMode mode, TickStore tickStore) {
         return switch (mode) {
-            case LIVE -> {
-                log.warn("LIVE mode selected — real orders will be placed. Ensure go-live checklist is complete.");
-                yield new LiveOrderExecutor();
-            }
+            case LIVE -> new LiveOrderExecutor();
             case BACKTEST -> new BacktestOrderExecutor();
-            default -> {
-                log.info("PAPER mode — orders will be simulated at live price");
-                yield new PaperOrderExecutor(tickStore);
-            }
+            default -> new PaperOrderExecutor(tickStore);
         };
     }
 
-    public void start() {
-        if (!running.compareAndSet(false, true)) {
-            log.warn("TradingEngine already running");
-            return;
-        }
-        log.info("TradingEngine starting in {} mode...", mode);
+    public boolean isRunning() { return running.get(); }
+    public ExecutionMode getMode() { return mode; }
+    public RiskManager getRiskManager() { return riskManager; }
+    public TradeJournal getJournal() { return journal; }
+    public OrderTracker getOrderTracker() { return orderManager.getTracker(); }
+    public BrokerCircuitBreaker getCircuitBreaker() { return circuitBreaker; }
+    public TickDisruptorEngine getDisruptorEngine() { return disruptorEngine; }
+    public FyersSocketListener getSocketListener() { return socketListener; }
+    
+    // REST API Accessors
+    public PositionMonitor getPositionMonitor() { return positionMonitor; }
+    public HealthMonitor getHealthMonitor() { return healthMonitor; }
+    public CandleService getCandleService() { return candleService; }
+    public StrategyEvaluator getStrategyEvaluator() { return strategyEvaluator; }
+    public PositionReconciler getPositionReconciler() { return positionReconciler; }
+    public com.rj.fyers.TokenRefreshScheduler getTokenRefreshScheduler() { return tokenRefreshScheduler; }
+    public AnomalyDetector getAnomalyDetector() { return anomalyDetector; }
 
-        // ── Position reconciliation (LIVE mode only) ────────────────────────────
-        if (positionReconciler != null) {
-            log.info("Running position reconciliation before startup...");
-            PositionReconciler.ReconciliationResult result = positionReconciler.reconcile();
-            log.info("Reconciliation result: {}", result);
-        }
-
-        positionMonitor.start();                         // Thread 4 first — must be ready before signals fire
-        strategyEvaluator.start();                       // Thread 3
-        candleService.start(config.getActiveSymbols());  // Thread 2
-        healthMonitor.start();                           // Thread 5
-
-        // Config hot-reload watcher (non-critical — engine runs without it)
-        if (configFileWatcher != null) {
-            try {
-                configFileWatcher.start();
-            } catch (IOException e) {
-                log.warn("Failed to start config file watcher — hot-reload disabled: {}", e.getMessage());
-            }
-        }
-
-        // Token auto-refresh (non-critical — engine runs without it)
-        tokenRefreshScheduler = new fyers.TokenRefreshScheduler(config);
-        tokenRefreshScheduler.start();
-
-        registerShutdownHook();
-        log.info("TradingEngine started. Active symbols: {}",
-                String.join(", ", config.getActiveSymbols()));
-    }
-
-    // ── Accessors ─────────────────────────────────────────────────────────────
-
-    public void stop() {
-        if (!running.compareAndSet(true, false)) return;
-        log.info("TradingEngine stopping...");
-        if (configFileWatcher != null) configFileWatcher.stop();
-        if (tokenRefreshScheduler != null) tokenRefreshScheduler.stop();
-        orderManager.shutdown();
-        healthMonitor.stop();
-        candleService.stop();
-        strategyEvaluator.stop();
-        positionMonitor.stop();
-        log.info("TradingEngine stopped. Journal: {} closed trades",
-                journal.closedTradeCount());
-    }
-
-    public boolean isRunning() {
-        return running.get();
-    }
-
-    public CandleService getCandleService() {
-        return candleService;
-    }
-
-    public StrategyEvaluator getStrategyEvaluator() {
-        return strategyEvaluator;
-    }
-
-    public PositionMonitor getPositionMonitor() {
-        return positionMonitor;
-    }
-
-    public HealthMonitor getHealthMonitor() {
-        return healthMonitor;
-    }
-
-    public RiskManager getRiskManager() {
-        return riskManager;
-    }
-
-    public TradeJournal getJournal() {
-        return journal;
-    }
-
-    public PositionReconciler getPositionReconciler() {
-        return positionReconciler;
-    }
-
-    public ConfigFileWatcher getConfigFileWatcher() {
-        return configFileWatcher;
-    }
-
-    public OrderTracker getOrderTracker() {
-        return orderManager.getTracker();
-    }
-
-    public fyers.TokenRefreshScheduler getTokenRefreshScheduler() {
-        return tokenRefreshScheduler;
-    }
-
-    public AnomalyDetector getAnomalyDetector() {
-        return anomalyDetector;
-    }
-
-    public BrokerCircuitBreaker getCircuitBreaker() {
-        return circuitBreaker;
-    }
-
-    /**
-     * Emergency flatten: close all positions and trigger anomaly mode.
-     * Called from REST endpoint or by AnomalyDetector.
-     *
-     * @param reason human-readable reason
-     * @return number of positions closed
-     */
     public int flattenAll(String reason) {
         riskManager.triggerAnomaly(reason);
-        int closed = positionMonitor.closeAllPositions(PositionMonitor.ExitReason.ANOMALY_FLATTEN);
-        log.error("FLATTEN ALL: {} positions closed. Reason: {}", closed, reason);
-        return closed;
+        return positionMonitor.closeAllPositions(PositionMonitor.ExitReason.ANOMALY_FLATTEN);
     }
 
-    // ── Signal handler (Thread 3 → entry pipeline) ───────────────────────────
-
-    public ExecutionMode getMode() {
-        return mode;
-    }
-
-    // ── Exit handler (Thread 4 → exit pipeline) ───────────────────────────────
-
-    /** Run strategy analyzer on all trades closed this session. */
     public StrategyAnalyzer.Report analyzeSession() {
         return StrategyAnalyzer.analyze(journal.closedTrades());
     }
 
-    // ── Mode resolution ───────────────────────────────────────────────────────
-
-    /**
-     * Called by StrategyEvaluator when a compound signal passes all strategy gates.
-     * Runs: pre-trade risk check → position size → place entry order → register position.
-     */
-    private void handleSignal(TradeSignal signal) {
-        log.info("[{}] Signal received: {}", signal.getSymbol(), signal);
-        journal.logSignalGenerated(signal);
-
-        // ── 1. Pre-trade risk check ───────────────────────────────────────────
-        RiskManager.PreTradeResult check = riskManager.preTradeCheck(
-                signal,
-                positionMonitor.openPositions(),
-                config.getRiskConfig().getInitialCapitalInr());
-
-        if (!check.approved()) {
-            log.info("[{}] Signal REJECTED by risk: {}", signal.getSymbol(), check.rejectReason());
-            journal.logSignalRejected(signal, check.rejectReason());
-            return;
-        }
-
-        // ── 2. Place entry order (via OMS state machine) ─────────────────────
-        OrderFill fill = orderManager.submitEntry(signal, check.quantity());
-        journal.logOrderEntry(signal, fill);
-
-        if (!fill.isSuccess()) {
-            log.warn("[{}] Entry order REJECTED by executor: {}", signal.getSymbol(), fill.getRejectReason());
-            journal.logSignalRejected(signal, "Order executor rejected: " + fill.getRejectReason());
-            return;
-        }
-
-        // ── 3. Create open position and register with monitor ─────────────────
-        OpenPosition pos = new OpenPosition(
-                signal.getSymbol(),
-                signal.getCorrelationId(),
-                signal.getStrategyId(),
-                signal.getDirection(),
-                fill.getFillPrice(),
-                fill.getFillQuantity(),
-                check.stopLoss(),
-                check.takeProfit(),
-                fill.getFillTime());
-
-        // ── 4. Create trade record (entry half) ───────────────────────────────
-        double entryAtr = Math.abs(signal.getSuggestedEntry() - signal.getSuggestedStopLoss()) / 2.0;
-        TradeRecord record = new TradeRecord(
-                signal.getCorrelationId(),
-                signal.getSymbol(),
-                signal.getStrategyId(),
-                mode,
-                signal.getDirection(),
-                fill.getFillPrice(),
-                fill.getFillQuantity(),
-                check.stopLoss(),
-                check.takeProfit(),
-                fill.getFillTime(),
-                entryAtr,
-                signal.getConfidence(),
-                signal.getTimeframeVotes());
-
-        openRecords.put(signal.getCorrelationId(), record);
-        positionMonitor.addPosition(pos);
-
-        log.info("[{}] Position OPENED: {}", signal.getSymbol(), pos);
-    }
-
-    /**
-     * Called by PositionMonitor when SL, TP, trailing stop, or time-based exit fires.
-     * Runs: place exit order → close trade record → update risk accounting → journal.
-     */
-    private void handleExit(OpenPosition position, PositionMonitor.ExitReason reason) {
-        // Determine the trigger price based on exit reason
-        double triggerPrice = switch (reason) {
-            case STOP_LOSS, TRAILING_STOP -> position.getCurrentStopLoss();
-            case TAKE_PROFIT -> position.getTakeProfit();
-            default -> 0; // executor uses live price
-        };
-
-        log.info("[{}] Exit triggered: reason={} triggerPrice={}",
-                position.getSymbol(), reason, String.format("%.2f", triggerPrice));
-
-        // ── 1. Place exit order (via OMS state machine) ──────────────────────
-        OrderFill fill = orderManager.submitExit(position, reason, triggerPrice);
-        journal.logOrderExit(position, fill, reason);
-
-        double actualExit = fill.isSuccess() ? fill.getFillPrice() : triggerPrice;
-        Instant exitTime = fill.isSuccess() ? fill.getFillTime() : Instant.now();
-
-        if (!fill.isSuccess()) {
-            log.error("[{}] Exit order FAILED: {} — using trigger price as fill",
-                    position.getSymbol(), fill.getRejectReason());
-        }
-
-        // ── 2. Close trade record ─────────────────────────────────────────────
-        TradeRecord record = openRecords.remove(position.getCorrelationId());
-        if (record != null) {
-            record.close(actualExit, exitTime, reason);
-            riskManager.recordClosedTrade(record);
-            journal.logTradeClosed(record);
-
-            log.info("[{}] Trade CLOSED: pnl={} R={} reason={}",
-                    position.getSymbol(),
-                    String.format("%.2f", record.getPnl()),
-                    String.format("%.2f", record.getRMultipleAchieved()),
-                    reason);
-        } else {
-            log.warn("[{}] No TradeRecord found for correlationId={}",
-                    position.getSymbol(), position.getCorrelationId());
-        }
-    }
-
-    // ── Shutdown hook ─────────────────────────────────────────────────────────
-
     private void registerShutdownHook() {
-        Runtime.getRuntime().addShutdownHook(
-                Thread.ofVirtual().name("engine-shutdown-hook").unstarted(() -> {
-                    log.info("JVM shutdown hook — stopping TradingEngine");
-                    stop();
-                    // Print session report on clean shutdown
-                    StrategyAnalyzer.Report report = analyzeSession();
-                    if (report.totalTrades() > 0) {
-                        log.info(report.summary());
-                    }
-                }));
+        Runtime.getRuntime().addShutdownHook(Thread.ofVirtual().unstarted(() -> {
+            stop();
+            var report = analyzeSession();
+            if (report.totalTrades() > 0) log.info(report.summary());
+        }));
     }
 }

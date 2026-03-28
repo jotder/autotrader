@@ -2,7 +2,7 @@ import com.rj.model.ApiResponse;
 import com.rj.model.PositionsSummary;
 import com.tts.in.model.PositionConversionModel;
 import com.tts.in.utilities.ProductType;
-import fyers.FyersPositions;
+import com.rj.fyers.FyersPositions;
 
 void main() {
     FyersPositions app = new FyersPositions();

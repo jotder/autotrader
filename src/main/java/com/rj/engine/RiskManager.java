@@ -140,27 +140,37 @@ public class RiskManager {
                 : riskConfig.getMaxRiskPerTradePercent();
         double riskBudget = totalCapital * riskFraction;
         int rawQty = (int) Math.floor(riskBudget / riskPerUnit);
-        // Use per-instrument lot size from signal, fall back to global config
-        int lotSize = signal.getLotSize() > 1 ? signal.getLotSize() : riskConfig.getInstrumentLotSize();
-        int lotAlignedQty = lotSize > 1 ? (rawQty / lotSize) * lotSize : rawQty;
-        // Ensure at least 1 lot for derivatives
+        
+        // Use per-instrument lot size from signal (critical for F&O)
+        int lotSize = signal.getLotSize();
+        
+        // Calculate lot-aligned quantity
+        int lotAlignedQty = (rawQty / lotSize) * lotSize;
+        
+        // Ensure at least 1 lot if it's a derivative and we have some budget
         if (lotAlignedQty == 0 && lotSize > 1 && rawQty > 0) {
-            lotAlignedQty = lotSize; // minimum 1 lot
+            lotAlignedQty = lotSize;
         }
 
         int maxQtyPerOrder = stratOverride != null
                 ? stratOverride.maxQty()
                 : riskConfig.getMaxQuantityPerOrder();
-        int exposureCapQty = (int) Math.floor((maxExposure - currentExposure) / entry);
-        int finalQty = Math.min(lotAlignedQty,
-                Math.min(maxQtyPerOrder, exposureCapQty));
-        // Re-align to lot size after applying all caps
+        
+        double symbolMaxExposureFraction = stratOverride != null
+                ? stratOverride.maxExposurePct() / 100.0
+                : riskConfig.getMaxExposurePerSymbolPercent();
+        double symbolMaxExposure = totalCapital * symbolMaxExposureFraction;
+        int exposureCapQty = (int) Math.floor((symbolMaxExposure - currentExposure) / entry);
+        
+        int finalQty = Math.min(lotAlignedQty, Math.min(maxQtyPerOrder, exposureCapQty));
+        
+        // Final lot alignment check after all caps
         if (lotSize > 1) {
             finalQty = (finalQty / lotSize) * lotSize;
         }
 
         if (finalQty <= 0) {
-            return reject("Position sizing yields quantity 0 (risk budget too small for this SL distance)");
+            return reject(String.format("Quantity 0 (budget=%d, lot=%d, cap=%d)", (int)riskBudget, lotSize, exposureCapQty));
         }
 
         log.info("[{}] Pre-trade OK: qty={} riskPerUnit={} riskBudget={} dailyPnl={}",

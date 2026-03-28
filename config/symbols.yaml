@@ -14,6 +14,7 @@ symbols:
   fo:    # Equity Derivatives (NSE_FO / BSE_FO — index + stock futures & options)
     - NSE:NIFTY26MARFUT
     - NSE:BANKNIFTY26MARFUT
+    - NSE:SBIN26MARFUT
 
   com:   # Commodity Derivatives (MCX_COM + NSE_COM)
     - MCX:CRUDEOIL26MARFUT

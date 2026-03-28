@@ -28,11 +28,16 @@ Run the same pipeline in three modes via `APP_ENV`.
 
 ---
 
-### F-02 · Real-Time Tick Ingestion ✅
+### F-02 · Real-Time Tick Pipeline ✅
 
-WebSocket → per-symbol `TickBuffer` (thread-safe `ArrayDeque` with RW lock). Zero-blocking concurrent append + snapshot.
+WebSocket → **LMAX Disruptor (Ring Buffer)** → Multi-consumer analytical pipeline.
+- **Latency:** < 1ms tick-to-trade hot path.
+- **Consumers:**
+  - `TickStoreUpdater`: Updates in-memory buffer for UI/Candle aggregation.
+  - `PositionMonitor`: Real-time SL/TP/Trailing check on *every* tick.
+- **Performance:** Lock-free inter-thread messaging; Virtual Thread execution.
 
-**PRD refs:** MKT-01–04, MKT-07 · **Classes:** `FyersSocketListener`, `TickStore`, `TickBuffer`
+**PRD refs:** MKT-01–04, MKT-07, NFR-01 · **Classes:** `FyersSocketListener`, `TickDisruptorEngine`, `PositionMonitor`
 
 **REST API:** `GET /api/ticks/{symbol}` — latest LTP
 
@@ -284,29 +289,22 @@ All features keyed by symbol. `FYERS_SYMBOLS` comma-separated. Concurrent across
 
 ### P1 — Core Engine (Month 1–2)
 
-| ID | Feature | PRD Refs | Priority |
-|---|---|---|---|
-| F-23 | Position reconciliation on startup | POS-09, NFR-11 | ✅ Done |
-| F-23a | Wire YAML config into CandleAnalyzer & StrategyEvaluator | TA-07, STR-08 | ✅ Done |
-| F-24 | OMS state machine (idempotent client order IDs) | ORD-09 | P1-Critical |
-| F-25 | Token auto-refresh (background, before 8h expiry) | CFG-07 | P1-High |
-| F-26 | YAML strategy configuration system | CFG-Y01–Y09 | ✅ Done |
-| F-27 | Pluggable strategy interface | STR-10 | P1-High |
-| F-28 | Anomaly auto-protection (close all → cash → manual restart) | RSK-14, RSK-16 | P1-Critical |
-| F-29 | Circuit breaker on API error rate | NFR-12 | P1-Medium |
-| F-30 | API health tracking (error rate, latency, rate-limits) | HLT-08 | P1-Medium |
+| ID | Feature | PRD Refs | Priority | Status |
+|---|---|---|---|---|
+| F-24 | OMS state machine (idempotent client order IDs) | ORD-09 | P1-Critical | ✅ Done |
+| F-25 | Token auto-refresh (background, before 8h expiry) | CFG-07 | P1-High | ✅ Done |
+| F-27 | Pluggable strategy interface | STR-10 | P1-High | 📋 Planned |
+| F-28 | Anomaly auto-protection (close all → cash → manual restart) | RSK-14, RSK-16 | P1-Critical | ✅ Done |
+| F-29 | Circuit breaker on API error rate | NFR-12 | P1-Medium | ✅ Done |
+| F-30 | API health tracking (error rate, latency, rate-limits) | HLT-08 | P1-Medium | ✅ Done |
 
 ### P2 — Multi-Asset + UI (Month 3–4)
 
-| ID | Feature | PRD Refs | Priority |
-|---|---|---|---|
-| F-31 | F&O support (futures + options orders) | MKT-09–10, ORD-11, STR-12 | P2-High |
-| F-32 | Multi-leg F&O strategies | STR-12 | P2-Medium |
-| F-33 | Options Greeks computation | TA-09–10 | P2-Medium |
-| F-34 | Telegram bot integration | NTF-01–04 | P2-High |
-| F-35 | Web UI control center (data tables, risk, positions) | UI-01–08 | P2-High |
-| F-36 | UI strategy config editor (YAML read/write) | UI-04, CFG-Y08 | P2-Medium |
-| F-37 | F&O margin awareness | RSK-17–18 | P2-Medium |
+| ID | Feature | PRD Refs | Priority | Status |
+|---|---|---|---|---|
+| F-31 | F&O support (futures + options orders) | MKT-09–10, ORD-11, STR-12 | P2-High | 🔧 Partial |
+| F-35 | Web UI control center (data tables, risk, positions) | UI-01–08 | P2-High | ✅ Done |
+| F-36 | UI strategy config editor (YAML read/write) | UI-04, CFG-Y08 | P2-Medium | ✅ Done |
 
 ### P3 — Intelligence (Month 5–6)
 

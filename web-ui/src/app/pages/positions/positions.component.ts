@@ -1,103 +1,123 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subject, takeUntil, interval, switchMap, startWith, catchError, of, forkJoin } from 'rxjs';
+import { MatTableModule } from '@angular/material/table';
+import { MatButtonModule } from '@angular/material/button';
 import { ApiService } from '../../core/services/api.service';
-import { Position, OrdersResponse, ManagedOrder } from '../../core/models/api.models';
+import { GlobalStateService } from '../../core/services/global-state.service';
+import { Position, ManagedOrder } from '../../core/models/api.models';
 import { StatusCardComponent } from '../../shared/components/status-card.component';
 import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'at-positions',
   standalone: true,
-  imports: [CommonModule, FormsModule, StatusCardComponent],
+  imports: [CommonModule, FormsModule, MatTableModule, MatButtonModule, StatusCardComponent],
   template: `
     <div class="page-header">
-      <h1>Positions</h1>
-      <button class="btn-danger" (click)="flatten()" [disabled]="flattenPending">
+      <h1>Positions & Orders</h1>
+      <button mat-flat-button color="warn" (click)="flatten()" [disabled]="flattenPending">
         Emergency Flatten
       </button>
     </div>
 
     <!-- Open Positions -->
     <at-status-card title="Open Positions" icon="trending_up"
-                    [iconColor]="positions.length > 0 ? 'var(--accent)' : 'var(--text-secondary)'">
-      @if (positions.length === 0) {
-        <div class="empty">No open positions</div>
-      } @else {
-        <div class="table-wrap">
-          <table class="at-table">
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Dir</th>
-                <th class="r">Qty</th>
-                <th class="r">Entry</th>
-                <th class="r">SL</th>
-                <th class="r">TP</th>
-                <th class="r">PnL</th>
-                <th>Trail</th>
-                <th>Since</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (p of positions; track p.correlationId) {
-                <tr>
-                  <td class="mono">{{ p.symbol }}</td>
-                  <td><span class="badge" [class]="p.direction === 'BUY' ? 'buy' : 'sell'">{{ p.direction }}</span></td>
-                  <td class="r mono">{{ p.quantity }}</td>
-                  <td class="r mono">{{ p.entryPrice | number:'1.2-2' }}</td>
-                  <td class="r mono">{{ p.currentStopLoss | number:'1.2-2' }}</td>
-                  <td class="r mono">{{ p.takeProfit | number:'1.2-2' }}</td>
-                  <td class="r mono" [class]="pnlClass(p.unrealizedPnl)">{{ formatPnl(p.unrealizedPnl) }}</td>
-                  <td>{{ p.trailingActivated ? 'Active' : '—' }}</td>
-                  <td class="mono text-muted">{{ formatTime(p.entryTime) }}</td>
-                  <td>
-                    <button class="btn-sm btn-exit" (click)="exitPosition(p)" [disabled]="exitPending[p.correlationId]">
-                      Exit
-                    </button>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+                    [iconColor]="state.positions().length > 0 ? 'var(--accent)' : 'var(--text-secondary)'">
+      <table mat-table [dataSource]="state.positions()" class="mat-elevation-z0">
+        <ng-container matColumnDef="symbol">
+          <th mat-header-cell *matHeaderCellDef> Symbol </th>
+          <td mat-cell *matCellDef="let p" class="mono"> {{ p.symbol }} </td>
+        </ng-container>
+
+        <ng-container matColumnDef="direction">
+          <th mat-header-cell *matHeaderCellDef> Dir </th>
+          <td mat-cell *matCellDef="let p">
+            <span class="badge" [class]="p.direction === 'BUY' ? 'buy' : 'sell'">{{ p.direction }}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="quantity">
+          <th mat-header-cell *matHeaderCellDef class="r"> Qty </th>
+          <td mat-cell *matCellDef="let p" class="r mono"> {{ p.quantity }} </td>
+        </ng-container>
+
+        <ng-container matColumnDef="entryPrice">
+          <th mat-header-cell *matHeaderCellDef class="r"> Entry </th>
+          <td mat-cell *matCellDef="let p" class="r mono"> {{ p.entryPrice | number:'1.2-2' }} </td>
+        </ng-container>
+
+        <ng-container matColumnDef="pnl">
+          <th mat-header-cell *matHeaderCellDef class="r"> PnL </th>
+          <td mat-cell *matCellDef="let p" class="r mono" [class]="pnlClass(p.unrealizedPnl)">
+            {{ formatPnl(p.unrealizedPnl) }}
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="trail">
+          <th mat-header-cell *matHeaderCellDef> Trail </th>
+          <td mat-cell *matCellDef="let p"> {{ p.trailingActivated ? 'Active' : '—' }} </td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef> </th>
+          <td mat-cell *matCellDef="let p" class="r">
+            <button mat-stroked-button color="warn" class="btn-xs"
+                    (click)="exitPosition(p)" [disabled]="exitPending[p.correlationId]">
+              Exit
+            </button>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="positionColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: positionColumns;"></tr>
+      </table>
+      @if (state.positions().length === 0) {
+        <div class="empty-row">No open positions</div>
       }
     </at-status-card>
 
     <!-- Active Orders -->
     <at-status-card title="Active Orders" icon="receipt_long" iconColor="var(--info)"
                     style="margin-top: 16px">
-      @if (activeOrders.length === 0) {
-        <div class="empty">No active orders</div>
-      } @else {
-        <div class="table-wrap">
-          <table class="at-table">
-            <thead>
-              <tr>
-                <th>Order ID</th>
-                <th>Symbol</th>
-                <th>Side</th>
-                <th>State</th>
-                <th class="r">Qty</th>
-                <th>Submitted</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (o of activeOrders; track o.clientOrderId) {
-                <tr>
-                  <td class="mono text-muted">{{ o.clientOrderId | slice:0:16 }}…</td>
-                  <td class="mono">{{ o.symbol }}</td>
-                  <td>{{ o.side }}</td>
-                  <td><span class="badge state">{{ o.state }}</span></td>
-                  <td class="r mono">{{ o.quantity }}</td>
-                  <td class="mono text-muted">{{ formatTime(o.submittedAt) }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+      <table mat-table [dataSource]="state.activeOrders()" class="mat-elevation-z0">
+        <ng-container matColumnDef="orderId">
+          <th mat-header-cell *matHeaderCellDef> Order ID </th>
+          <td mat-cell *matCellDef="let o" class="mono text-muted"> {{ o.clientOrderId | slice:0:12 }}… </td>
+        </ng-container>
+
+        <ng-container matColumnDef="symbol">
+          <th mat-header-cell *matHeaderCellDef> Symbol </th>
+          <td mat-cell *matCellDef="let o" class="mono"> {{ o.symbol }} </td>
+        </ng-container>
+
+        <ng-container matColumnDef="side">
+          <th mat-header-cell *matHeaderCellDef> Side </th>
+          <td mat-cell *matCellDef="let o"> {{ o.side }} </td>
+        </ng-container>
+
+        <ng-container matColumnDef="state">
+          <th mat-header-cell *matHeaderCellDef> State </th>
+          <td mat-cell *matCellDef="let o">
+            <span class="badge state">{{ o.state }}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="quantity">
+          <th mat-header-cell *matHeaderCellDef class="r"> Qty </th>
+          <td mat-cell *matCellDef="let o" class="r mono"> {{ o.quantity }} </td>
+        </ng-container>
+
+        <ng-container matColumnDef="submitted">
+          <th mat-header-cell *matHeaderCellDef class="r"> Submitted </th>
+          <td mat-cell *matCellDef="let o" class="r mono text-muted"> {{ formatTime(o.submittedAt) }} </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="orderColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: orderColumns;"></tr>
+      </table>
+      @if (state.activeOrders().length === 0) {
+        <div class="empty-row">No active orders</div>
       }
     </at-status-card>
 
@@ -112,8 +132,8 @@ import { environment } from '../../../environments/environment';
                    [placeholder]="'Type ' + confirmAction.requireType + ' to confirm'" />
           }
           <div class="confirm-actions">
-            <button class="btn-secondary" (click)="confirmAction = null">Cancel</button>
-            <button class="btn-danger" (click)="executeConfirmed()"
+            <button mat-button (click)="confirmAction = null">Cancel</button>
+            <button mat-flat-button color="warn" (click)="executeConfirmed()"
                     [disabled]="confirmAction.requireType && confirmTyped !== confirmAction.requireType">
               {{ confirmAction.confirmLabel }}
             </button>
@@ -125,58 +145,34 @@ import { environment } from '../../../environments/environment';
   styles: [`
     .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     h1 { margin: 0; font-size: 20px; font-weight: 500; }
-    .table-wrap { overflow-x: auto; }
-    .at-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .at-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
-      color: var(--text-secondary); padding: 6px 8px; border-bottom: 1px solid var(--border); }
-    .at-table td { padding: 6px 8px; border-bottom: 1px solid var(--bg-hover); }
-    .at-table tr:hover td { background: var(--bg-hover); }
-    .r { text-align: right; }
+    .r { text-align: right !important; justify-content: flex-end; }
     .badge { padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; }
     .badge.buy { background: rgba(63, 185, 80, 0.15); color: var(--profit); }
     .badge.sell { background: rgba(248, 81, 73, 0.15); color: var(--loss); }
     .badge.state { background: rgba(0, 188, 212, 0.15); color: var(--accent); }
-    .btn-danger { background: var(--loss); color: #fff; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }
-    .btn-danger:hover { opacity: 0.85; }
-    .btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-sm { padding: 3px 10px; font-size: 12px; border-radius: 3px; border: 1px solid var(--border); background: transparent; color: var(--text-primary); cursor: pointer; }
-    .btn-sm:hover { background: var(--bg-hover); }
-    .btn-exit { border-color: var(--loss); color: var(--loss); }
-    .empty { color: var(--text-muted); font-size: 13px; padding: 12px 0; }
+    .btn-xs { height: 24px; line-height: 24px; padding: 0 8px; font-size: 11px; }
+    .empty-row { text-align: center; padding: 24px !important; color: var(--text-muted); font-size: 13px; }
     .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
     .confirm-dialog { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 24px; max-width: 420px; width: 90%; }
     .confirm-dialog h3 { margin: 0 0 8px; font-size: 16px; }
     .confirm-dialog p { color: var(--text-secondary); font-size: 13px; margin: 0 0 16px; }
-    .confirm-input { width: 100%; padding: 8px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); font-family: var(--font-mono); margin-bottom: 16px; }
+    .confirm-input { width: 100%; padding: 8px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); font-family: var(--font-mono); margin-bottom: 16px; box-sizing: border-box; }
     .confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
-    .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text-primary); padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }
   `],
 })
-export class PositionsComponent implements OnInit, OnDestroy {
-  positions: Position[] = [];
-  activeOrders: ManagedOrder[] = [];
+export class PositionsComponent {
+  positionColumns = ['symbol', 'direction', 'quantity', 'entryPrice', 'pnl', 'trail', 'actions'];
+  orderColumns = ['orderId', 'symbol', 'side', 'state', 'quantity', 'submitted'];
+
   exitPending: Record<string, boolean> = {};
   flattenPending = false;
   confirmAction: { title: string; message: string; requireType?: string; confirmLabel: string; onConfirm: () => void } | null = null;
   confirmTyped = '';
 
-  private destroy$ = new Subject<void>();
-
-  constructor(private api: ApiService) {}
-
-  ngOnInit(): void {
-    interval(environment.pollingIntervalMs).pipe(
-      startWith(0),
-      switchMap(() => forkJoin({
-        positions: this.api.getPositions().pipe(catchError(() => of([]))),
-        orders: this.api.getOrders().pipe(catchError(() => of({ activeCount: 0, active: [], completed: [] }))),
-      })),
-      takeUntil(this.destroy$),
-    ).subscribe(data => {
-      this.positions = data.positions as Position[];
-      this.activeOrders = (data.orders as OrdersResponse).active || [];
-    });
-  }
+  constructor(
+    private api: ApiService,
+    public state: GlobalStateService
+  ) {}
 
   exitPosition(p: Position): void {
     this.confirmAction = {
@@ -226,6 +222,4 @@ export class PositionsComponent implements OnInit, OnDestroy {
     if (!iso) return '—';
     try { return new Date(iso).toLocaleTimeString('en-IN', { hour12: false }); } catch { return iso; }
   }
-
-  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
 }

@@ -3,7 +3,7 @@ import com.rj.model.OrderResult;
 import com.tts.in.model.PlaceOrderModel;
 import com.tts.in.utilities.OrderType;
 import com.tts.in.utilities.TransactionType;
-import fyers.FyersOrderManagement;
+import com.rj.fyers.FyersOrderManagement;
 
 void main() {
     FyersOrderManagement app = new FyersOrderManagement();

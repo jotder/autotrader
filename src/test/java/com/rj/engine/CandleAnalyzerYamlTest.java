@@ -3,6 +3,7 @@ package com.rj.engine;
 import com.rj.config.StrategyYamlConfig;
 import com.rj.model.Candle;
 import com.rj.model.CandleRecommendation;
+import com.rj.model.InstrumentInfo;
 import com.rj.model.Signal;
 import com.rj.model.Timeframe;
 import org.junit.jupiter.api.Test;
@@ -85,7 +86,7 @@ class CandleAnalyzerYamlTest {
                     100.0 + i, 101.0 + i, 99.0 + i, 100.5 + i, 1000L);
             Instant ws = baseTime.plusSeconds(i * 300);
             Instant we = ws.plusSeconds(300);
-            rec = analyzer.addAndAnalyze(candle, ws, we);
+            rec = analyzer.addAndAnalyze(candle, ws, we, InstrumentInfo.EQUITY_DEFAULT);
         }
         assertNotNull(rec);
         assertEquals("INSUFFICIENT_DATA", rec.getStrategySource(),
@@ -110,7 +111,7 @@ class CandleAnalyzerYamlTest {
                     100.0 + i, 101.0 + i, 99.0 + i, 100.5 + i, 1000L);
             Instant ws = baseTime.plusSeconds(i * 300);
             Instant we = ws.plusSeconds(300);
-            rec = analyzer.addAndAnalyze(candle, ws, we);
+            rec = analyzer.addAndAnalyze(candle, ws, we, InstrumentInfo.EQUITY_DEFAULT);
         }
         assertNotNull(rec);
         assertEquals("INSUFFICIENT_DATA", rec.getStrategySource(),

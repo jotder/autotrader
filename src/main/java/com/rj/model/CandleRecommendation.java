@@ -13,18 +13,16 @@ public final class CandleRecommendation {
     private final Instant windowStart;
     private final Instant windowEnd;
     private final Signal signal;
-    private final double confidence;     // 0.0 – 1.0
-    private final String strategySource; // e.g. "TREND_FOLLOWING"
-
-    // Indicator snapshot at analysis time
+    private final double confidence;
+    private final String strategySource;
     private final double ema20;
     private final double ema50;
     private final double rsi14;
     private final double atr14;
     private final double relVolume;
-
     private final Candle candle;
     private final Instant generatedAt;
+    private final InstrumentInfo instrumentInfo;
 
     private CandleRecommendation(Builder b) {
         this.symbol = b.symbol;
@@ -41,6 +39,7 @@ public final class CandleRecommendation {
         this.relVolume = b.relVolume;
         this.candle = b.candle;
         this.generatedAt = b.generatedAt;
+        this.instrumentInfo = b.instrumentInfo;
     }
 
     public static Builder builder() {
@@ -103,10 +102,14 @@ public final class CandleRecommendation {
         return generatedAt;
     }
 
+    public InstrumentInfo getInstrumentInfo() {
+        return instrumentInfo;
+    }
+
     @Override
     public String toString() {
-        return String.format("CandleRec{%s[%s] %s conf=%.2f src=%s window=%s}",
-                symbol, timeframe, signal, confidence, strategySource, windowStart);
+        return String.format("CandleRecommendation{%s %s %s conf=%.2f src=%s}",
+                symbol, timeframe, signal, confidence, strategySource);
     }
 
     public static final class Builder {
@@ -114,12 +117,13 @@ public final class CandleRecommendation {
         private Timeframe timeframe;
         private Instant windowStart;
         private Instant windowEnd;
-        private Signal signal = Signal.HOLD;
-        private double confidence = 0.0;
-        private String strategySource = "UNKNOWN";
+        private Signal signal;
+        private double confidence;
+        private String strategySource;
         private double ema20, ema50, rsi14, atr14, relVolume;
         private Candle candle;
         private Instant generatedAt = Instant.now();
+        private InstrumentInfo instrumentInfo;
 
         public Builder symbol(String v) {
             symbol = v;
@@ -188,6 +192,11 @@ public final class CandleRecommendation {
 
         public Builder generatedAt(Instant v) {
             generatedAt = v;
+            return this;
+        }
+
+        public Builder instrumentInfo(InstrumentInfo v) {
+            this.instrumentInfo = v;
             return this;
         }
 

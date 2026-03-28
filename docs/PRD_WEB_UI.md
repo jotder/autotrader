@@ -750,7 +750,40 @@ export const environment = {
 - No deployment beyond localhost
 - No dark/light theme toggle (dark only)
 
-## 13. Success Metrics
+## 15. Phased Modernization & Implementation Plan
+
+To ensure stability and verify progress incrementally, the frontend will be modernized in four distinct phases.
+
+### Phase 1: Architectural Foundation (Current)
+**Focus:** Reactive infrastructure and Material shell.
+- **1.1 Global State Service:** Implement `GlobalStateService` using Angular Signals for system-wide flags (PnL, Anomaly, Kill Switch).
+- **1.2 Signal Migration:** Refactor `PollingService` to update the global state.
+- **1.3 Material Layout:** Replace custom app shell with `mat-sidenav` and `mat-toolbar`.
+- **Verification:** UI state correctly reflects backend status via Signals; App shell is functional with Material components.
+
+### Phase 2: Design & UI Modernization
+**Focus:** Page-level refactoring to standard components.
+- **2.1 Dashboard Migration:** Convert cards to `mat-card` and implement signal-driven alert banners.
+- **2.2 Data Table Migration:** Refactor Positions and Transactions to use `mat-table` with sort/filter.
+- **2.3 Material Theming:** Implement formal Material Dark Theme and WCAG AA contrast audit.
+- **Verification:** Dashboard and tables are visually consistent with Material Design; accessibility check passes.
+
+### Phase 3: Milestone & Requirement Completion
+**Focus:** Completing high-value functional gaps (M5-M7).
+- **3.1 Go-Live Gate:** UI for the programmatic checklist (tech + strategy checks) for symbol promotion.
+- **3.2 Strategy CRUD:** Full visual forms for strategy management and parameter tuning.
+- **3.3 Config Editor:** YAML-aware editor for risk, symbols, and environment.
+- **Verification:** Can promote symbols PAPER → LIVE via UI; strategy changes persist to backend.
+
+### Phase 4: Stability & Production Readiness
+**Focus:** Reliability, observability, and performance.
+- **4.1 Observability:** "Stale Data" alerts for polling failures; enhanced error toast logic.
+- **4.2 Performance:** Lazy-loading routes and OnPush change detection throughout.
+- **4.3 Verification:** Production build served by Spring Boot; < 1s page load; critical flows (Emergency Flatten) verified.
+
+---
+
+## 16. Success Metrics
 
 | Metric | Target |
 |--------|--------|

@@ -68,9 +68,11 @@ export class SidebarComponent {
     { path: '/positions', icon: 'account_balance_wallet', label: 'Positions' },
     { path: '/strategies', icon: 'tune', label: 'Strategies' },
     { path: '/symbols', icon: 'token', label: 'Symbols' },
-    { path: '/market', icon: 'public', label: 'Market' },
+    { path: '/market', icon: 'store', label: 'Market' },
     { path: '/backtest', icon: 'science', label: 'Backtest' },
+    { path: '/go-live', icon: 'rocket_launch', label: 'Go-Live' },
     { path: '/config', icon: 'settings', label: 'Config' },
+
     { path: '/knowledge', icon: 'menu_book', label: 'Knowledge' },
     { path: '/controls', icon: 'security', label: 'Controls' },
   ];

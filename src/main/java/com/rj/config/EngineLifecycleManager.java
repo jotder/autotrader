@@ -1,20 +1,15 @@
 package com.rj.config;
 
 import com.rj.engine.TradingEngine;
+import com.rj.fyers.FyersSocketListener;
+import com.tts.in.websocket.FyersSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
 /**
- * Starts the trading engine after the Spring context (and embedded Tomcat) is fully ready,
- * and stops it cleanly before the context closes.
- *
- * <p>Phase {@code Integer.MAX_VALUE} means: start last, stop first — so the REST API is
- * available before the engine starts, and the engine stops before Tomcat unbinds.</p>
- *
- * <p>The engine's own JVM shutdown hook is harmless: its {@code AtomicBoolean} guard
- * makes double-stop a no-op.</p>
+ * Starts the trading engine and socket listener after the Spring context is ready.
  */
 @Component
 public class EngineLifecycleManager implements SmartLifecycle {
@@ -22,15 +17,29 @@ public class EngineLifecycleManager implements SmartLifecycle {
     private static final Logger log = LoggerFactory.getLogger(EngineLifecycleManager.class);
 
     private final TradingEngine engine;
+    private final FyersSocketListener socketListener;
+    private final ConfigManager config;
     private volatile boolean running = false;
 
-    public EngineLifecycleManager(TradingEngine engine) {
+    public EngineLifecycleManager(TradingEngine engine, 
+                                  FyersSocketListener socketListener,
+                                  ConfigManager config) {
         this.engine = engine;
+        this.socketListener = socketListener;
+        this.config = config;
     }
 
     @Override
     public void start() {
-        log.info("Starting TradingEngine via Spring lifecycle...");
+        log.info("Starting PTA Backend via Spring lifecycle...");
+        
+        // Ensure socket is initialized (legacy Fyers SDK pattern)
+        if (socketListener.socket == null) {
+            socketListener.socket = new FyersSocket(30); // 30s timeout
+            socketListener.fyersClass.clientId = config.getProperty("FYERS_APP_ID");
+            socketListener.fyersClass.accessToken = config.getProperty("ACCESS_TOKEN");
+        }
+
         engine.start();
         running = true;
     }

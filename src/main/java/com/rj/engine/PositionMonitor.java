@@ -1,8 +1,11 @@
 package com.rj.engine;
 
+import com.lmax.disruptor.EventHandler;
+import com.rj.engine.disruptor.TickEvent;
 import com.rj.config.RiskConfig;
 import com.rj.model.OpenPosition;
 import com.rj.model.Signal;
+import com.rj.model.Tick;
 import com.rj.model.TickBuffer;
 import com.rj.model.TickStore;
 import org.slf4j.Logger;
@@ -19,23 +22,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 /**
- * Thread 4 — Position Monitor.
+ * Thread 4 — Position Monitor & Risk Tick Processor.
  *
- * <p>Runs every 1 second on a virtual-thread-backed scheduled executor.
- * For each open position it:</p>
+ * <p>Operates in two modes:</p>
  * <ol>
- *   <li>Reads the latest LTP from {@link TickStore}.</li>
- *   <li>Checks if stop-loss has been hit → triggers exit order.</li>
- *   <li>Checks if take-profit has been hit → triggers exit order.</li>
- *   <li>Updates the trailing stop (monotonic, activation-threshold guarded).</li>
- *   <li>Checks intraday square-off time → force-closes all positions at 15:15 IST.</li>
+ *   <li><b>Real-time (Disruptor):</b> Processes every tick against open positions for sub-ms SL/TP exit.</li>
+ *   <li><b>Scheduled (1s):</b> Handles time-based force square-off at market close.</li>
  * </ol>
- *
- * <p>Exit orders are dispatched via the {@code exitHandler} callback, which is
- * expected to call the broker OMS (live) or simulate a fill (paper).
- * The callback receives (position, exitReason).</p>
  */
-public class PositionMonitor {
+public class PositionMonitor implements EventHandler<TickEvent> {
 
     private static final Logger log = LoggerFactory.getLogger(PositionMonitor.class);
     private final TickStore tickStore;
@@ -48,8 +43,9 @@ public class PositionMonitor {
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     // ── State ─────────────────────────────────────────────────────────────────
-    private volatile StrategyEvaluator strategyEvaluator; // notified on close; settable post-construction
+    private volatile StrategyEvaluator strategyEvaluator; 
     private ScheduledExecutorService scheduler;
+
     public PositionMonitor(TickStore tickStore,
                            RiskConfig riskConfig,
                            BiConsumer<OpenPosition, ExitReason> exitHandler,
@@ -60,40 +56,62 @@ public class PositionMonitor {
         this.strategyEvaluator = strategyEvaluator;
     }
 
+    /**
+     * HOT PATH: Called by Disruptor for every tick.
+     */
+    @Override
+    public void onEvent(TickEvent event, long sequence, boolean endOfBatch) {
+        if (positions.isEmpty()) return;
+        
+        Tick tick = event.getTick();
+        if (tick == null) return;
+
+        String symbol = tick.getSymbol();
+        double currentPrice = tick.getLtp();
+
+        for (OpenPosition pos : positions.values()) {
+            if (pos.getSymbol().equals(symbol)) {
+                checkRisk(pos, currentPrice);
+            }
+        }
+    }
+
+    private void checkRisk(OpenPosition pos, double price) {
+        if (pos.isStopLossHit(price)) {
+            log.info("[{}] Real-time SL hit: price={} sl={}", pos.getSymbol(), price, pos.getCurrentStopLoss());
+            closePosition(pos, ExitReason.STOP_LOSS);
+            return;
+        }
+        if (pos.isTakeProfitHit(price)) {
+            log.info("[{}] Real-time TP hit: price={} tp={}", pos.getSymbol(), price, pos.getTakeProfit());
+            closePosition(pos, ExitReason.TAKE_PROFIT);
+            return;
+        }
+        updateTrailingStop(pos, price);
+    }
+
     public void start() {
         if (!running.compareAndSet(false, true)) {
             log.warn("PositionMonitor already running");
             return;
         }
         scheduler = Executors.newSingleThreadScheduledExecutor(
-                Thread.ofVirtual().name("position-monitor").factory());
-        scheduler.scheduleAtFixedRate(this::monitorAll, 0, 1, TimeUnit.SECONDS);
-        log.info("PositionMonitor started (1 s interval)");
+                Thread.ofVirtual().name("position-time-monitor").factory());
+        scheduler.scheduleAtFixedRate(this::checkTimeExits, 1, 1, TimeUnit.SECONDS);
+        log.info("PositionMonitor started (Real-time Disruptor + 1s Time monitor)");
     }
-
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     public void stop() {
         if (!running.compareAndSet(true, false)) return;
         if (scheduler != null) scheduler.shutdownNow();
-        log.info("PositionMonitor stopped. {} positions still open at shutdown", positions.size());
+        log.info("PositionMonitor stopped. {} positions still open", positions.size());
     }
 
-    /**
-     * Registers a new open position for monitoring.
-     * Called by the OMS layer after a successful order fill.
-     */
     public void addPosition(OpenPosition position) {
         positions.put(position.getCorrelationId(), position);
         log.info("[{}] Position added to monitor: {}", position.getSymbol(), position);
     }
 
-    // ── Position registry ─────────────────────────────────────────────────────
-
-    /**
-     * Removes a position by correlationId (used by reconciliation to clear stale positions).
-     * @return the removed position, or null if not found
-     */
     public OpenPosition removePosition(String correlationId) {
         OpenPosition removed = positions.remove(correlationId);
         if (removed != null) {
@@ -102,17 +120,14 @@ public class PositionMonitor {
         return removed;
     }
 
-    /** Returns true if there is at least one open position for the given symbol. */
     public boolean hasOpenPosition(String symbol) {
         return positions.values().stream().anyMatch(p -> p.getSymbol().equals(symbol));
     }
 
-    /** Snapshot of all currently monitored positions (unmodifiable). */
     public Collection<OpenPosition> openPositions() {
         return Collections.unmodifiableCollection(positions.values());
     }
 
-    /** Wire in StrategyEvaluator after construction to avoid circular dependency. */
     public void setStrategyEvaluator(StrategyEvaluator se) {
         this.strategyEvaluator = se;
     }
@@ -125,79 +140,21 @@ public class PositionMonitor {
         return running.get();
     }
 
-    /**
-     * Triggers a manual exit for the position with the given correlationId.
-     *
-     * @throws IllegalArgumentException if no open position matches the correlationId
-     */
     public void requestManualExit(String correlationId) {
         OpenPosition pos = positions.get(correlationId);
         if (pos == null) {
             throw new IllegalArgumentException("No open position with correlationId: " + correlationId);
         }
-        log.info("[{}] Manual exit requested for {}", pos.getSymbol(), correlationId);
         closePosition(pos, ExitReason.MANUAL);
     }
 
-    private void monitorAll() {
+    private void checkTimeExits() {
         if (positions.isEmpty()) return;
-
         ZonedDateTime now = ZonedDateTime.now(riskConfig.getExchangeZone());
-
-        for (OpenPosition pos : positions.values()) {
-            try {
-                monitorPosition(pos, now);
-            } catch (Exception e) {
-                log.error("[{}] Error monitoring position {}: {}",
-                        pos.getSymbol(), pos.getCorrelationId(), e.getMessage(), e);
-            }
-        }
-    }
-
-    // ── Monitoring loop ───────────────────────────────────────────────────────
-
-    private void monitorPosition(OpenPosition pos, ZonedDateTime now) {
-        // ── Time-based force square-off ───────────────────────────────────────
         if (now.toLocalTime().compareTo(riskConfig.getMarketCloseTime()) >= 0) {
-            log.warn("[{}] Force square-off at market close", pos.getSymbol());
-            closePosition(pos, ExitReason.FORCE_SQUAREOFF);
-            return;
+            log.warn("Market close reached — forcing square-off of {} positions", positions.size());
+            closeAllPositions(ExitReason.FORCE_SQUAREOFF);
         }
-
-        // ── Get latest price ──────────────────────────────────────────────────
-        double currentPrice = latestPrice(pos.getSymbol());
-        if (currentPrice <= 0) {
-            log.debug("[{}] No tick available yet — skipping monitor cycle", pos.getSymbol());
-            return;
-        }
-
-        // ── Stop loss check ───────────────────────────────────────────────────
-        if (pos.isStopLossHit(currentPrice)) {
-            log.info("[{}] Stop loss hit: price={} sl={}", pos.getSymbol(),
-                    String.format("%.2f", currentPrice),
-                    String.format("%.2f", pos.getCurrentStopLoss()));
-            closePosition(pos, ExitReason.STOP_LOSS);
-            return;
-        }
-
-        // ── Take profit check ─────────────────────────────────────────────────
-        if (pos.isTakeProfitHit(currentPrice)) {
-            log.info("[{}] Take profit hit: price={} tp={}", pos.getSymbol(),
-                    String.format("%.2f", currentPrice),
-                    String.format("%.2f", pos.getTakeProfit()));
-            closePosition(pos, ExitReason.TAKE_PROFIT);
-            return;
-        }
-
-        // ── Trailing stop update ──────────────────────────────────────────────
-        updateTrailingStop(pos, currentPrice);
-
-        log.trace("[{}] Monitoring: price={} sl={} tp={} pnl={}",
-                pos.getSymbol(),
-                String.format("%.2f", currentPrice),
-                String.format("%.2f", pos.getCurrentStopLoss()),
-                String.format("%.2f", pos.getTakeProfit()),
-                String.format("%.2f", pos.unrealizedPnl(currentPrice)));
     }
 
     private void updateTrailingStop(OpenPosition pos, double price) {
@@ -205,35 +162,26 @@ public class PositionMonitor {
                 ? (price - pos.getEntryPrice()) / pos.getEntryPrice()
                 : (pos.getEntryPrice() - price) / pos.getEntryPrice();
 
-        // Activation: requires unrealized gain >= activation threshold
-        if (!pos.isTrailingActivated()
-                && pnlPct >= riskConfig.getTrailingActivationPercent()) {
+        if (!pos.isTrailingActivated() && pnlPct >= riskConfig.getTrailingActivationPercent()) {
             pos.setTrailingActivated(true);
-            log.info("[{}] Trailing stop activated at price={}", pos.getSymbol(),
-                    String.format("%.2f", price));
+            log.info("[{}] Trailing stop activated at price={}", pos.getSymbol(), price);
         }
 
         if (!pos.isTrailingActivated()) return;
 
         pos.updateHighWaterMark(price);
-        double hwm = pos.getHighWaterMark();
         double stepPct = riskConfig.getTrailingStepPercent();
-
         double newStop = pos.getDirection() == Signal.BUY
-                ? hwm * (1.0 - stepPct)
-                : hwm * (1.0 + stepPct);
+                ? pos.getHighWaterMark() * (1.0 - stepPct)
+                : pos.getHighWaterMark() * (1.0 + stepPct);
 
         if (pos.stepTrailingStop(newStop)) {
-            log.info("[{}] Trailing stop moved to {}", pos.getSymbol(),
-                    String.format("%.2f", pos.getCurrentStopLoss()));
-            // Re-check: newly moved stop may already be hit
+            log.info("[{}] Trailing stop moved to {}", pos.getSymbol(), pos.getCurrentStopLoss());
             if (pos.isStopLossHit(price)) {
                 closePosition(pos, ExitReason.TRAILING_STOP);
             }
         }
     }
-
-    // ── Trailing stop logic ───────────────────────────────────────────────────
 
     private void closePosition(OpenPosition pos, ExitReason reason) {
         positions.remove(pos.getCorrelationId());
@@ -241,43 +189,22 @@ public class PositionMonitor {
         try {
             exitHandler.accept(pos, reason);
         } catch (Exception e) {
-            log.error("[{}] Exit handler failed for {}: {}", pos.getSymbol(),
-                    pos.getCorrelationId(), e.getMessage(), e);
+            log.error("[{}] Exit handler failed: {}", pos.getSymbol(), e.getMessage());
         }
         if (strategyEvaluator != null) {
             strategyEvaluator.onPositionClosed(pos.getSymbol());
         }
     }
 
-    // ── Position close ────────────────────────────────────────────────────────
-
-    private double latestPrice(String symbol) {
-        TickBuffer buf = tickStore.bufferFor(symbol);
-        if (buf == null || buf.isEmpty()) return 0;
-        // Snapshot the latest tick — we only need the last element
-        var snapshot = buf.snapshot();
-        return snapshot.isEmpty() ? 0 : snapshot.get(snapshot.size() - 1).getLtp();
-    }
-
-    // ── Tick data ─────────────────────────────────────────────────────────────
-
-    /**
-     * Close all open positions immediately (anomaly flatten / emergency).
-     *
-     * @param reason the exit reason to record (typically {@link ExitReason#ANOMALY_FLATTEN})
-     * @return number of positions closed
-     */
     public int closeAllPositions(ExitReason reason) {
         int count = 0;
         for (OpenPosition pos : positions.values()) {
-            log.warn("[{}] Emergency close: reason={}", pos.getSymbol(), reason);
             closePosition(pos, reason);
             count++;
         }
         return count;
     }
 
-    /** Reasons an exit can be triggered. */
     public enum ExitReason {
         STOP_LOSS, TAKE_PROFIT, TRAILING_STOP, FORCE_SQUAREOFF, MANUAL, ANOMALY_FLATTEN
     }

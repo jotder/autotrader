@@ -1,5 +1,5 @@
 import { Injectable, OnDestroy } from '@angular/core';
-import { Observable, interval, switchMap, shareReplay, Subject, takeUntil, EMPTY, BehaviorSubject } from 'rxjs';
+import { Observable, timer, switchMap, shareReplay, Subject, takeUntil, EMPTY, BehaviorSubject } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 /**
@@ -23,6 +23,7 @@ export class PollingService implements OnDestroy {
   /**
    * Create a polling observable that emits at the configured interval.
    * Automatically pauses when the tab is not visible.
+   * Starts immediately on subscription.
    *
    * @param fetcher Function that returns an Observable of data
    * @param intervalMs Override polling interval (default from environment)
@@ -33,7 +34,8 @@ export class PollingService implements OnDestroy {
     return this.visible$.pipe(
       switchMap(visible => {
         if (!visible) return EMPTY;
-        return interval(ms).pipe(
+        // Use timer(0, ms) to emit the first value immediately
+        return timer(0, ms).pipe(
           switchMap(() => fetcher()),
         );
       }),

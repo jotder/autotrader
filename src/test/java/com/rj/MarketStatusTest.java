@@ -1,5 +1,5 @@
 import com.rj.model.MarketStatus;
-import fyers.FyersBrokerConfig;
+import com.rj.fyers.FyersBrokerConfig;
 
 void main() {
     FyersBrokerConfig app = new FyersBrokerConfig();

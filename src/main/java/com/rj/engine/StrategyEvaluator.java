@@ -289,6 +289,7 @@ public class StrategyEvaluator {
                 .vote(Timeframe.M5, m5Signal)
                 .vote(Timeframe.M15, m15.getSignal())
                 .vote(Timeframe.H1, h1Signal)
+                .instrumentInfo(m5.getInstrumentInfo()) // Propagate F&O info
                 .build();
 
         log.info("[{}] {} confidence={} R={} correlationId={}",

@@ -1,5 +1,6 @@
 package com.rj.engine;
 
+import com.rj.config.ConfigManager;
 import com.rj.config.StrategyYamlConfig;
 import com.rj.model.*;
 import org.slf4j.Logger;
@@ -18,19 +19,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Thread Group 2 — Candle Workers.
- *
- * <p>Starts one virtual thread per (symbol × timeframe).
- * Each thread sleeps until the next candle boundary, builds an OHLCV candle
- * from tick snapshots, runs {@link CandleAnalyzer}, and publishes a
- * {@link CandleRecommendation} to the shared output queue.</p>
- *
- * <h3>Thread naming</h3>
- * Threads are named {@code candle-<SYMBOL_SAFE>-<TF>}, e.g.
- * {@code candle-NSE_SBIN-EQ-5m}.
  */
 public class CandleService {
 
-    // Default timeframes analyzed for every symbol
     static final Timeframe[] DEFAULT_TIMEFRAMES = {
             Timeframe.M5,
             Timeframe.M15,
@@ -40,47 +31,35 @@ public class CandleService {
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
     private final TickStore tickStore;
     private final BlockingQueue<CandleRecommendation> outQueue;
+    private final ConfigManager configManager;
     private final Timeframe[] timeframes;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final ConcurrentHashMap<String, Thread> workers = new ConcurrentHashMap<>();
     private final AtomicInteger workerCount = new AtomicInteger(0);
 
-    // YAML strategy configs — used to resolve indicator periods per symbol
     private volatile Map<String, StrategyYamlConfig> strategyConfigs = Map.of();
 
     public CandleService(TickStore tickStore,
-                         BlockingQueue<CandleRecommendation> outQueue) {
-        this(tickStore, outQueue, DEFAULT_TIMEFRAMES);
+                         BlockingQueue<CandleRecommendation> outQueue,
+                         ConfigManager configManager) {
+        this(tickStore, outQueue, configManager, DEFAULT_TIMEFRAMES);
     }
 
     public CandleService(TickStore tickStore,
                          BlockingQueue<CandleRecommendation> outQueue,
+                         ConfigManager configManager,
                          Timeframe[] timeframes) {
         this.tickStore = tickStore;
         this.outQueue = outQueue;
+        this.configManager = configManager;
         this.timeframes = Arrays.copyOf(timeframes, timeframes.length);
     }
 
-    /**
-     * Sets the per-strategy YAML configs so CandleAnalyzer instances can
-     * read indicator periods from config. Call before {@link #start}.
-     */
     public void setStrategyConfigs(Map<String, StrategyYamlConfig> configs) {
         this.strategyConfigs = configs != null ? Map.copyOf(configs) : Map.of();
         log.info("CandleService strategy configs updated: {} strategies", this.strategyConfigs.size());
     }
 
-    /**
-     * Aggregates a list of ticks (already filtered to a time window) into one OHLCV candle.
-     *
-     * <ul>
-     *   <li>Open  = first tick LTP</li>
-     *   <li>High  = max LTP</li>
-     *   <li>Low   = min LTP</li>
-     *   <li>Close = last tick LTP</li>
-     *   <li>Volume = sum of {@code lastTradedQty} across all ticks in the window</li>
-     * </ul>
-     */
     static Candle buildCandle(List<Tick> ticks, Instant windowStart) {
         double open = ticks.get(0).getLtp();
         double close = ticks.get(ticks.size() - 1).getLtp();
@@ -90,10 +69,6 @@ public class CandleService {
         return Candle.of(windowStart.getEpochSecond(), open, high, low, close, volume);
     }
 
-    /**
-     * Starts one virtual thread per (symbol × timeframe).
-     * Call this after the WebSocket feed has been started and symbols are known.
-     */
     public void start(String[] symbols) {
         if (!running.compareAndSet(false, true)) {
             log.warn("CandleService already running — ignoring start()");
@@ -109,7 +84,6 @@ public class CandleService {
         }
     }
 
-    /** Stops all candle workers by interrupting their threads. */
     public void stop() {
         if (!running.compareAndSet(true, false)) return;
         log.info("CandleService stopping {} workers", workers.size());
@@ -121,13 +95,9 @@ public class CandleService {
         return running.get();
     }
 
-    // ── Worker lifecycle ──────────────────────────────────────────────────────
-
     public int workerCount() {
         return workerCount.get();
     }
-
-    // ── Per-worker loop ───────────────────────────────────────────────────────
 
     private void startWorker(String symbol, Timeframe tf) {
         String threadName = "candle-" + symbol.replace(":", "_") + "-" + tf.getLabel();
@@ -139,12 +109,9 @@ public class CandleService {
         log.debug("Started candle worker: {}", threadName);
     }
 
-    // ── Candle construction from ticks ────────────────────────────────────────
-
     private void runCandleLoop(String symbol, Timeframe tf) {
         log.info("[{}][{}] Candle worker started", symbol, tf);
 
-        // Resolve indicator config: find any strategy that has this symbol in its symbols list
         StrategyYamlConfig.Indicators indicators = resolveIndicatorsForSymbol(symbol);
         StrategyYamlConfig.Entry entryConfig = resolveEntryForSymbol(symbol);
         CandleAnalyzer analyzer = new CandleAnalyzer(symbol, tf, indicators, entryConfig);
@@ -152,14 +119,11 @@ public class CandleService {
 
         while (!Thread.currentThread().isInterrupted() && running.get()) {
             try {
-                // Sleep until just after the next candle boundary
                 ZonedDateTime now = ZonedDateTime.now(IST);
                 long sleepMs = tf.millisUntilNextBoundaryWithBuffer(now);
-                sleepMs = Math.max(sleepMs, 200L); // guard against negative/tiny values
+                sleepMs = Math.max(sleepMs, 200L); 
                 Thread.sleep(sleepMs);
 
-                // After sleep we should be in the new candle window;
-                // the *previous* window is now fully closed.
                 ZonedDateTime afterSleep = ZonedDateTime.now(IST);
                 ZonedDateTime currentWinStart = tf.truncate(afterSleep);
                 ZonedDateTime prevWinStart = currentWinStart.minus(tf.getDuration());
@@ -167,7 +131,7 @@ public class CandleService {
                 Instant winStart = prevWinStart.toInstant();
                 Instant winEnd = currentWinStart.toInstant();
 
-                if (winStart.equals(lastEmittedWin)) continue; // already processed
+                if (winStart.equals(lastEmittedWin)) continue;
 
                 TickBuffer buffer = tickStore.bufferFor(symbol);
                 if (buffer == null || buffer.isEmpty()) {
@@ -183,12 +147,13 @@ public class CandleService {
 
                 if (windowTicks.isEmpty()) {
                     log.debug("[{}][{}] No ticks for window {}", symbol, tf, winStart);
-                    lastEmittedWin = winStart; // mark as processed even if empty
+                    lastEmittedWin = winStart; 
                     continue;
                 }
 
                 Candle candle = buildCandle(windowTicks, winStart);
-                CandleRecommendation rec = analyzer.addAndAnalyze(candle, winStart, winEnd);
+                InstrumentInfo info = configManager.getSymbolRegistry().getInstrumentInfo(symbol);
+                CandleRecommendation rec = analyzer.addAndAnalyze(candle, winStart, winEnd, info);
 
                 boolean offered = outQueue.offer(rec);
                 if (!offered) {
@@ -196,8 +161,6 @@ public class CandleService {
                 }
 
                 lastEmittedWin = winStart;
-
-                // Prune ticks older than one full candle period before the window we just processed
                 buffer.pruneBefore(winStart.minus(tf.getDuration()));
 
                 log.info("[{}][{}] Candle emitted: {} ticks → {} conf={} src={}",
@@ -216,31 +179,21 @@ public class CandleService {
         log.info("[{}][{}] Candle worker stopped", symbol, tf);
     }
 
-    // ── YAML config resolution helpers ─────────────────────────────────────────
-
-    /**
-     * Finds the first strategy config whose symbols list contains the given symbol.
-     * Returns default Indicators if no match found.
-     */
     private StrategyYamlConfig.Indicators resolveIndicatorsForSymbol(String symbol) {
         for (StrategyYamlConfig cfg : strategyConfigs.values()) {
             if (cfg.getSymbols().contains(symbol)) {
                 return cfg.getIndicators();
             }
         }
-        return new StrategyYamlConfig.Indicators(); // defaults
+        return new StrategyYamlConfig.Indicators();
     }
 
-    /**
-     * Finds the first strategy config whose symbols list contains the given symbol.
-     * Returns default Entry if no match found.
-     */
     private StrategyYamlConfig.Entry resolveEntryForSymbol(String symbol) {
         for (StrategyYamlConfig cfg : strategyConfigs.values()) {
             if (cfg.getSymbols().contains(symbol)) {
                 return cfg.getEntry();
             }
         }
-        return new StrategyYamlConfig.Entry(); // defaults
+        return new StrategyYamlConfig.Entry();
     }
 }

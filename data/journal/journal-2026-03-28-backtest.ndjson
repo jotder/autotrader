@@ -1,0 +1,31 @@
+{"ts":"2026-03-28T05:09:33.586963400Z","type":"ANOMALY_TRIGGERED","mode":"BACKTEST","dailyPnl":"0.00","reason":"Broker error cascade: 3 consecutive errors (threshold: 3)","timestamp":"2026-03-28T05:09:33.586963400Z","positionsClosed":0}
+{"ts":"2026-03-28T05:09:33.610999200Z","type":"ANOMALY_TRIGGERED","mode":"BACKTEST","dailyPnl":"0.00","reason":"Broker error cascade: 3 consecutive errors (threshold: 3)","timestamp":"2026-03-28T05:09:33.610999200Z","positionsClosed":0}
+{"ts":"2026-03-28T05:09:33.613012800Z","type":"ANOMALY_TRIGGERED","mode":"BACKTEST","dailyPnl":"0.00","reason":"Broker error cascade: 3 consecutive errors (threshold: 3)","timestamp":"2026-03-28T05:09:33.613012800Z","positionsClosed":0}
+{"ts":"2026-03-28T05:09:33.626755400Z","type":"ANOMALY_TRIGGERED","mode":"BACKTEST","dailyPnl":"-6000.00","reason":"Rapid drawdown: 6.0% of capital (threshold: 5.0%)","timestamp":"2026-03-28T05:09:33.626755400Z","positionsClosed":0}
+{"ts":"2026-03-28T05:28:05.922988900Z","type":"ANOMALY_TRIGGERED","mode":"BACKTEST","timestamp":"2026-03-28T05:28:05.921971900Z","positionsClosed":0,"dailyPnl":"0.00","reason":"Broker error cascade: 3 consecutive errors (threshold: 3)"}
+{"ts":"2026-03-28T05:28:05.963258100Z","type":"ANOMALY_TRIGGERED","mode":"BACKTEST","timestamp":"2026-03-28T05:28:05.963258100Z","positionsClosed":0,"dailyPnl":"0.00","reason":"Broker error cascade: 3 consecutive errors (threshold: 3)"}
+{"ts":"2026-03-28T05:28:05.968322Z","type":"ANOMALY_TRIGGERED","mode":"BACKTEST","timestamp":"2026-03-28T05:28:05.968322Z","positionsClosed":0,"dailyPnl":"0.00","reason":"Broker error cascade: 3 consecutive errors (threshold: 3)"}
+{"ts":"2026-03-28T05:28:05.990916600Z","type":"ANOMALY_TRIGGERED","mode":"BACKTEST","timestamp":"2026-03-28T05:28:05.990916600Z","positionsClosed":0,"dailyPnl":"-6000.00","reason":"Rapid drawdown: 6.0% of capital (threshold: 5.0%)"}
+{"ts":"2026-03-28T05:31:38.003751700Z","type":"ANOMALY_TRIGGERED","mode":"BACKTEST","reason":"Broker error cascade: 3 consecutive errors (threshold: 3)","dailyPnl":"0.00","positionsClosed":0,"timestamp":"2026-03-28T05:31:38.002232900Z"}
+{"ts":"2026-03-28T05:31:38.058588800Z","type":"ANOMALY_TRIGGERED","mode":"BACKTEST","reason":"Broker error cascade: 3 consecutive errors (threshold: 3)","dailyPnl":"0.00","positionsClosed":0,"timestamp":"2026-03-28T05:31:38.058588800Z"}
+{"ts":"2026-03-28T05:31:38.067652600Z","type":"ANOMALY_TRIGGERED","mode":"BACKTEST","reason":"Broker error cascade: 3 consecutive errors (threshold: 3)","dailyPnl":"0.00","positionsClosed":0,"timestamp":"2026-03-28T05:31:38.067652600Z"}
+{"ts":"2026-03-28T05:31:38.092896Z","type":"ANOMALY_TRIGGERED","mode":"BACKTEST","reason":"Rapid drawdown: 6.0% of capital (threshold: 5.0%)","dailyPnl":"-6000.00","positionsClosed":0,"timestamp":"2026-03-28T05:31:38.092896Z"}
+{"ts":"2026-03-28T08:02:53.276454900Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","pnlAtTrigger":0.0,"reason":"BROKER ERROR CASCADE: 10 consecutive failures","closedCount":0}
+{"ts":"2026-03-28T08:02:53.284987600Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","pnlAtTrigger":0.0,"reason":"BROKER ERROR CASCADE: 10 consecutive failures","closedCount":0}
+{"ts":"2026-03-28T08:04:06.012Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","reason":"BROKER ERROR CASCADE: 10 consecutive failures","closedCount":0,"pnlAtTrigger":0.0}
+{"ts":"2026-03-28T08:04:06.016275100Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","reason":"BROKER ERROR CASCADE: 10 consecutive failures","closedCount":0,"pnlAtTrigger":0.0}
+{"ts":"2026-03-28T08:05:28.189861200Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","closedCount":3,"pnlAtTrigger":-6000.0,"reason":"CRITICAL DRAWDOWN: 6.0% of capital"}
+{"ts":"2026-03-28T08:05:28.199293100Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","closedCount":0,"pnlAtTrigger":0.0,"reason":"BROKER ERROR CASCADE: 10 consecutive failures"}
+{"ts":"2026-03-28T08:05:28.193911700Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","closedCount":0,"pnlAtTrigger":0.0,"reason":"BROKER ERROR CASCADE: 10 consecutive failures"}
+{"ts":"2026-03-28T08:57:08.887321Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","pnlAtTrigger":-6000.0,"closedCount":3,"reason":"CRITICAL DRAWDOWN: 6.0% of capital"}
+{"ts":"2026-03-28T08:57:08.891322800Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","pnlAtTrigger":0.0,"closedCount":0,"reason":"BROKER ERROR CASCADE: 10 consecutive failures"}
+{"ts":"2026-03-28T08:57:08.905413700Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","pnlAtTrigger":0.0,"closedCount":0,"reason":"BROKER ERROR CASCADE: 10 consecutive failures"}
+{"ts":"2026-03-28T09:02:58.671752800Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","reason":"BROKER ERROR CASCADE: 10 consecutive failures","closedCount":0,"pnlAtTrigger":0.0}
+{"ts":"2026-03-28T09:02:58.684758800Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","reason":"BROKER ERROR CASCADE: 10 consecutive failures","closedCount":0,"pnlAtTrigger":0.0}
+{"ts":"2026-03-28T09:02:58.660756200Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","reason":"CRITICAL DRAWDOWN: 6.0% of capital","closedCount":3,"pnlAtTrigger":-6000.0}
+{"ts":"2026-03-28T09:47:57.660453100Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","pnlAtTrigger":-6000.0,"closedCount":3,"reason":"CRITICAL DRAWDOWN: 6.0% of capital"}
+{"ts":"2026-03-28T09:47:57.665455900Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","pnlAtTrigger":0.0,"closedCount":0,"reason":"BROKER ERROR CASCADE: 10 consecutive failures"}
+{"ts":"2026-03-28T09:47:57.662459200Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","pnlAtTrigger":0.0,"closedCount":0,"reason":"BROKER ERROR CASCADE: 10 consecutive failures"}
+{"ts":"2026-03-28T10:09:03.341261400Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","reason":"CRITICAL DRAWDOWN: 6.0% of capital","closedCount":3,"pnlAtTrigger":-6000.0}
+{"ts":"2026-03-28T10:09:03.348258400Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","reason":"BROKER ERROR CASCADE: 10 consecutive failures","closedCount":0,"pnlAtTrigger":0.0}
+{"ts":"2026-03-28T10:09:03.344261600Z","type":"ANOMALY_FLATTEN","mode":"BACKTEST","reason":"BROKER ERROR CASCADE: 10 consecutive failures","closedCount":0,"pnlAtTrigger":0.0}

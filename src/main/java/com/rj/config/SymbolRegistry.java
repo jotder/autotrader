@@ -1,5 +1,7 @@
 package com.rj.config;
 
+import com.rj.fyers.SymbolParser;
+import com.rj.model.InstrumentInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
@@ -23,11 +25,14 @@ public final class SymbolRegistry {
     private static final Logger log = LoggerFactory.getLogger(SymbolRegistry.class);
 
     private final Map<MarketCategory, List<String>> categoryMap;
+    private final Map<String, InstrumentInfo> instrumentMap;
     private final Set<String> allSymbolSet;
     private final String[] allSymbolArray;
 
-    private SymbolRegistry(Map<MarketCategory, List<String>> categoryMap) {
+    private SymbolRegistry(Map<MarketCategory, List<String>> categoryMap, 
+                           Map<String, InstrumentInfo> instrumentMap) {
         this.categoryMap = Collections.unmodifiableMap(categoryMap);
+        this.instrumentMap = Collections.unmodifiableMap(instrumentMap);
 
         // Pre-compute flat set and array for fast lookups
         Set<String> flat = new LinkedHashSet<>();
@@ -42,10 +47,6 @@ public final class SymbolRegistry {
 
     /**
      * Load and parse a symbols YAML file.
-     *
-     * @param symbolsYamlPath path to the YAML file (e.g. {@code config/symbols.yaml})
-     * @return an immutable {@code SymbolRegistry}
-     * @throws IllegalArgumentException if the file is missing, empty, malformed, or contains unknown category keys
      */
     @SuppressWarnings("unchecked")
     public static SymbolRegistry load(Path symbolsYamlPath) {
@@ -74,34 +75,34 @@ public final class SymbolRegistry {
         Map<String, Object> symbolsMap = (Map<String, Object>) symbolsObj;
         Set<String> seen = new HashSet<>();
         Map<MarketCategory, List<String>> categoryMap = new EnumMap<>(MarketCategory.class);
+        Map<String, InstrumentInfo> instrumentMap = new HashMap<>();
 
         for (Map.Entry<String, Object> entry : symbolsMap.entrySet()) {
             String key = entry.getKey();
-            MarketCategory cat = MarketCategory.fromYamlKey(key); // throws if unknown
+            MarketCategory cat = MarketCategory.fromYamlKey(key);
 
             List<String> rawSymbols = parseSymbolList(entry.getValue(), key);
 
-            // Deduplicate: skip symbols already seen in an earlier category
             List<String> deduped = new ArrayList<>();
             for (String symbol : rawSymbols) {
                 if (seen.add(symbol)) {
                     deduped.add(symbol);
-                } else {
-                    log.warn("Duplicate symbol '{}' in category '{}' — already registered in another category, skipping",
-                            symbol, cat.displayName());
+                    
+                    // Derive metadata
+                    var meta = SymbolParser.parse(symbol);
+                    int lotSize = SymbolParser.getLotSize(meta.baseSymbol());
+                    instrumentMap.put(symbol, InstrumentInfo.fromType(meta.type(), lotSize));
                 }
             }
-
             categoryMap.put(cat, Collections.unmodifiableList(deduped));
         }
 
-        // Ensure empty lists for categories not present in YAML
         for (MarketCategory cat : MarketCategory.values()) {
             categoryMap.putIfAbsent(cat, List.of());
         }
 
-        SymbolRegistry registry = new SymbolRegistry(categoryMap);
-        log.info("SymbolRegistry loaded: {} total symbols [CM={}, FO={}, COM={}]",
+        SymbolRegistry registry = new SymbolRegistry(categoryMap, instrumentMap);
+        log.info("SymbolRegistry loaded: {} symbols [CM={}, FO={}, COM={}]",
                 registry.size(),
                 registry.symbolsFor(MarketCategory.CM).size(),
                 registry.symbolsFor(MarketCategory.FO).size(),
@@ -112,29 +113,15 @@ public final class SymbolRegistry {
 
     // ── Query API ───────────────────────────────────────────────────────────────
 
-    /** All symbols across all categories as a flat array. */
-    public String[] allSymbols() {
-        return allSymbolArray.clone();
-    }
-
-    /** All symbols as an unmodifiable set — O(1) contains checks. */
-    public Set<String> allSymbolSet() {
-        return allSymbolSet;
-    }
-
-    /** Symbols in a specific market category. Never null, may be empty. */
-    public List<String> symbolsFor(MarketCategory category) {
-        return categoryMap.getOrDefault(category, List.of());
-    }
-
-    /** Check if a symbol exists in the global registry. */
-    public boolean contains(String symbol) {
-        return symbol != null && allSymbolSet.contains(symbol);
-    }
-
-    /** Total number of unique symbols across all categories. */
-    public int size() {
-        return allSymbolSet.size();
+    public String[] allSymbols() { return allSymbolArray.clone(); }
+    public Set<String> allSymbolSet() { return allSymbolSet; }
+    public List<String> symbolsFor(MarketCategory category) { return categoryMap.getOrDefault(category, List.of()); }
+    public boolean contains(String symbol) { return symbol != null && allSymbolSet.contains(symbol); }
+    public int size() { return allSymbolSet.size(); }
+    
+    /** Retrieve instrument metadata. Returns EQUITY_DEFAULT if unknown. */
+    public InstrumentInfo getInstrumentInfo(String symbol) {
+        return instrumentMap.getOrDefault(symbol, InstrumentInfo.EQUITY_DEFAULT);
     }
 
     /** The category map (unmodifiable). */

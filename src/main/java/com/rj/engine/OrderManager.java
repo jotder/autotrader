@@ -1,6 +1,7 @@
 package com.rj.engine;
 
 import com.rj.model.*;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -8,14 +9,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * OMS facade — wraps {@link IOrderExecutor} with state tracking,
- * symbol-level locking, and idempotent order IDs.
- * <p>
- * Entry orders acquire a per-symbol lock to prevent concurrent entries.
- * Exit orders always go through (capital protection).
- * <p>
- * All three executor implementations (Paper, Backtest, Live) work
- * unchanged — this layer wraps them transparently.
+ * OMS orchestrator — handles idempotent order placement, state tracking,
+ * and asynchronous broker updates.
  */
 public final class OrderManager {
 
@@ -37,127 +32,124 @@ public final class OrderManager {
                 tracker::expireTimedOutOrders, 10, 10, TimeUnit.SECONDS);
     }
 
-    // ── Entry order (with symbol lock + dedup) ──────────────────────────────
-
     /**
-     * Submit an entry order with idempotency and symbol-level exclusion.
-     *
-     * @param signal   the trade signal (carries correlationId)
-     * @param quantity pre-computed from risk/sizing layer
-     * @return fill result — same type as raw executor for backward compat
+     * Submit an order with idempotency.
      */
-    public OrderFill submitEntry(TradeSignal signal, int quantity) {
-        String clientOrderId = generateClientOrderId(
-                signal.getCorrelationId(), OrderSideType.ENTRY, 1);
-
-        // Idempotency check
-        if (tracker.isDuplicate(clientOrderId)) {
-            log.warn("[OMS][{}] Duplicate entry order blocked: {}", signal.getSymbol(), clientOrderId);
-            return OrderFill.rejected("Duplicate order: " + clientOrderId);
+    public OrderFill submit(TradeSignal signal, int quantity, OrderSideType sideType) {
+        // Use correlationId for the main duplicate check for entries
+        if (sideType == OrderSideType.ENTRY && tracker.hasOrderForCorrelationId(signal.getCorrelationId(), sideType)) {
+            log.warn("[OMS][{}] Duplicate entry blocked for correlationId: {}", signal.getSymbol(), signal.getCorrelationId());
+            return OrderFill.rejected("Duplicate correlationId: " + signal.getCorrelationId());
         }
 
-        // Symbol-level lock (non-blocking — reject on contention)
+        int attempt = tracker.getNextAttempt(signal.getCorrelationId(), sideType);
+        String clientOrderId = generateClientOrderId(signal.getCorrelationId(), sideType, attempt);
+
         ReentrantLock symbolLock = tracker.lockForSymbol(signal.getSymbol());
-        if (!symbolLock.tryLock()) {
-            log.warn("[OMS][{}] Symbol lock contention — entry in progress", signal.getSymbol());
-            return OrderFill.rejected("Symbol locked: concurrent entry in progress");
+        if (sideType == OrderSideType.ENTRY && !symbolLock.tryLock()) {
+            log.warn("[OMS][{}] Symbol lock contention", signal.getSymbol());
+            return OrderFill.rejected("Symbol locked");
         }
 
         try {
-            // Check for existing active entry order on this symbol
-            boolean hasActiveEntry = tracker.activeOrdersForSymbol(signal.getSymbol()).stream()
-                    .anyMatch(o -> o.getSide() == OrderSideType.ENTRY);
-            if (hasActiveEntry) {
-                log.warn("[OMS][{}] Active entry already exists", signal.getSymbol());
-                return OrderFill.rejected("Active entry order exists for " + signal.getSymbol());
+            if (sideType == OrderSideType.ENTRY && !tracker.activeOrdersForSymbol(signal.getSymbol()).isEmpty()) {
+                return OrderFill.rejected("Existing active order for " + signal.getSymbol());
             }
 
-            // Create and track the order
             ManagedOrder order = tracker.createOrder(clientOrderId, signal.getCorrelationId(),
-                    signal.getSymbol(), OrderSideType.ENTRY,
-                    signal.getDirection(), quantity, signal.getStrategyId());
+                    signal.getSymbol(), sideType, signal.getDirection(), quantity, signal.getStrategyId());
 
-            order.transitionTo(OrderState.SUBMITTED, null, 0, 0, null);
-            tracker.markSubmitted(clientOrderId);
+            log.info("[OMS][{}] Submitting {}: {}", signal.getSymbol(), sideType, clientOrderId);
+            
+            OrderFill fill;
+            if (sideType == OrderSideType.ENTRY) {
+                fill = executor.placeEntry(signal, quantity);
+            } else {
+                fill = OrderFill.rejected("Generic exit not supported via TradeSignal");
+            }
 
-            // Delegate to underlying executor
-            OrderFill fill = executor.placeEntry(signal, quantity);
-
-            // Record state transitions based on result
-            applyFillResult(order, fill);
-
-            // Move to completed
-            tracker.onOrderTerminal(order);
-
-            log.info("[OMS][{}] Entry order {}: {} → fill={}",
-                    signal.getSymbol(), clientOrderId, order.getState(), fill);
-
+            processPlacementResult(order, fill);
             return fill;
 
         } finally {
-            symbolLock.unlock();
+            if (sideType == OrderSideType.ENTRY) symbolLock.unlock();
         }
     }
 
-    // ── Exit order (no symbol lock — exits always go through) ───────────────
+    public OrderFill submitEntry(TradeSignal signal, int quantity) {
+        return submit(signal, quantity, OrderSideType.ENTRY);
+    }
 
-    /**
-     * Submit an exit order. No symbol lock — capital protection takes priority.
-     */
-    public OrderFill submitExit(OpenPosition position,
-                                PositionMonitor.ExitReason reason,
-                                double exitPrice) {
-        String clientOrderId = generateClientOrderId(
-                position.getCorrelationId(), OrderSideType.EXIT, 1);
+    public OrderFill submitExit(OpenPosition position, PositionMonitor.ExitReason reason, double exitPrice) {
+        if (tracker.hasOrderForCorrelationId(position.getCorrelationId(), OrderSideType.EXIT)) {
+            log.warn("[OMS][{}] Duplicate exit blocked for correlationId: {}", position.getSymbol(), position.getCorrelationId());
+            return OrderFill.rejected("Duplicate exit for correlationId: " + position.getCorrelationId());
+        }
+
+        int attempt = tracker.getNextAttempt(position.getCorrelationId(), OrderSideType.EXIT);
+        String clientOrderId = generateClientOrderId(position.getCorrelationId(), OrderSideType.EXIT, attempt);
 
         ManagedOrder order = tracker.createOrder(clientOrderId, position.getCorrelationId(),
-                position.getSymbol(), OrderSideType.EXIT,
-                position.getDirection(), position.getQuantity(),
-                position.getStrategyId());
+                position.getSymbol(), OrderSideType.EXIT, position.getDirection(), 
+                position.getQuantity(), position.getStrategyId());
 
-        order.transitionTo(OrderState.SUBMITTED, null, 0, 0, "reason=" + reason);
-
+        log.info("[OMS][{}] Submitting EXIT: {} reason={}", position.getSymbol(), clientOrderId, reason);
         OrderFill fill = executor.placeExit(position, reason, exitPrice);
-
-        applyFillResult(order, fill);
-        tracker.onOrderTerminal(order);
-
-        log.info("[OMS][{}] Exit order {}: {} → fill={}",
-                position.getSymbol(), clientOrderId, order.getState(), fill);
-
+        processPlacementResult(order, fill);
         return fill;
     }
 
-    // ── Shutdown ─────────────────────────────────────────────────────────────
+    /**
+     * Entry point for asynchronous broker updates (WebSocket).
+     */
+    public void processBrokerUpdate(JSONObject update) {
+        if (update == null) return;
+        
+        String brokerOrderId = update.optString("id");
+        String clientOrderId = update.optString("remarks");
+        int status = update.optInt("status");
+        double fillPrice = update.optDouble("last_traded_price", 0);
+        int filledQty = update.optInt("filled_qty", 0);
+        String message = update.optString("message");
+
+        var orderOpt = tracker.getByClientOrderId(clientOrderId)
+                .or(() -> tracker.getByBrokerOrderId(brokerOrderId));
+
+        orderOpt.ifPresent(order -> {
+            boolean changed = order.updateFromBroker(status, brokerOrderId, fillPrice, filledQty, message);
+            if (changed) {
+                log.info("[OMS][{}] Async update: {} -> {}", order.getSymbol(), order.getClientOrderId(), order.getState());
+                if (order.isTerminal()) {
+                    tracker.onOrderTerminal(order);
+                }
+            }
+        });
+    }
+
+    private void processPlacementResult(ManagedOrder order, OrderFill fill) {
+        if (fill.isSuccess()) {
+            order.transitionTo(OrderState.SUBMITTED, fill.getOrderId(), 0, 0, null);
+            tracker.linkBrokerId(order.getClientOrderId(), fill.getOrderId());
+            
+            if (fill.getFillQuantity() > 0) {
+                order.transitionTo(OrderState.FILLED, fill.getOrderId(), 
+                        fill.getFillPrice(), fill.getFillQuantity(), null);
+                tracker.onOrderTerminal(order);
+            }
+        } else {
+            order.transitionTo(OrderState.REJECTED, null, 0, 0, fill.getRejectReason());
+            tracker.onOrderTerminal(order);
+        }
+    }
 
     public void shutdown() {
         timeoutScheduler.shutdownNow();
-        log.info("[OMS] OrderManager shut down. Active orders: {}", tracker.activeCount());
+        log.info("[OMS] OrderManager shut down.");
     }
 
-    // ── Accessors ────────────────────────────────────────────────────────────
+    public static String generateClientOrderId(String correlationId, OrderSideType side, int attempt) {
+        return String.format("%s_%s_%d", correlationId, side == OrderSideType.ENTRY ? "ENTRY" : "EXIT", attempt);
+    }
 
     public OrderTracker getTracker() { return tracker; }
-
-    // ── ClientOrderId generation ────────────────────────────────────────────
-
-    /**
-     * Generate a deterministic, idempotent client order ID.
-     * Format: {@code {correlationId}_{ENTRY|EXIT}_{attempt}}
-     */
-    static String generateClientOrderId(String correlationId, OrderSideType side, int attempt) {
-        return correlationId + "_" + side.name() + "_" + attempt;
-    }
-
-    // ── Internal ─────────────────────────────────────────────────────────────
-
-    private void applyFillResult(ManagedOrder order, OrderFill fill) {
-        if (fill.isSuccess()) {
-            order.transitionTo(OrderState.ACCEPTED, fill.getOrderId(), 0, 0, null);
-            order.transitionTo(OrderState.FILLED, fill.getOrderId(),
-                    fill.getFillPrice(), fill.getFillQuantity(), null);
-        } else {
-            order.transitionTo(OrderState.REJECTED, null, 0, 0, fill.getRejectReason());
-        }
-    }
 }

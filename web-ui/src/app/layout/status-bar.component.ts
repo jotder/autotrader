@@ -1,53 +1,53 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, computed, signal, ChangeDetectionStrategy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Subject, takeUntil, forkJoin, interval, switchMap, startWith, catchError, of } from 'rxjs';
-import { ApiService } from '../core/services/api.service';
-import { StatusResponse, RiskResponse, AnomalyStatus, CircuitBreakerStatus } from '../core/models/api.models';
+import { GlobalStateService } from '../core/services/global-state.service';
 import { environment } from '../../environments/environment';
 
 @Component({
   selector: 'at-status-bar',
   standalone: true,
   imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="status-bar" [class.alert]="anomaly?.anomalyMode || anomaly?.killSwitchActive">
+
+    <div class="status-bar" [class.alert]="state.isAnomalyMode() || state.isKillSwitchActive()">
       <div class="status-item">
         <span class="label">Mode</span>
-        <span class="value">{{ status?.mode || '—' }}</span>
+        <span class="value">{{ state.executionMode() }}</span>
       </div>
       <div class="status-item">
         <span class="label">Running</span>
-        <span class="dot" [class.green]="status?.running" [class.red]="!status?.running"></span>
-        <span class="value">{{ status?.running ? 'Yes' : 'No' }}</span>
+        <span class="dot" [class.green]="state.isRunning()" [class.red]="!state.isRunning()"></span>
+        <span class="value">{{ state.isRunning() ? 'Yes' : 'No' }}</span>
       </div>
       <div class="status-item">
         <span class="label">Daily PnL</span>
-        <span class="value mono" [class.profit]="(risk?.dailyPnl ?? 0) >= 0"
-              [class.loss]="(risk?.dailyPnl ?? 0) < 0">
-          {{ formatPnl(risk?.dailyPnl) }}
+        <span class="value mono" [class.profit]="state.dailyPnl() >= 0"
+              [class.loss]="state.dailyPnl() < 0">
+          {{ formatPnl(state.dailyPnl()) }}
         </span>
       </div>
       <div class="status-item">
         <span class="label">Kill Switch</span>
-        <span class="dot" [class.red]="anomaly?.killSwitchActive" [class.green]="!anomaly?.killSwitchActive"></span>
-        <span class="value">{{ anomaly?.killSwitchActive ? 'ON' : 'OFF' }}</span>
+        <span class="dot" [class.red]="state.isKillSwitchActive()" [class.green]="!state.isKillSwitchActive()"></span>
+        <span class="value">{{ state.isKillSwitchActive() ? 'ON' : 'OFF' }}</span>
       </div>
       <div class="status-item">
         <span class="label">Anomaly</span>
-        <span class="dot" [class.red]="anomaly?.anomalyMode" [class.green]="!anomaly?.anomalyMode"></span>
-        <span class="value">{{ anomaly?.anomalyMode ? 'ACTIVE' : 'CLEAR' }}</span>
+        <span class="dot" [class.red]="state.isAnomalyMode()" [class.green]="!state.isAnomalyMode()"></span>
+        <span class="value">{{ state.isAnomalyMode() ? 'ACTIVE' : 'CLEAR' }}</span>
       </div>
       <div class="status-item">
         <span class="label">Circuit</span>
         <span class="dot"
-              [class.green]="cb?.state === 'CLOSED'"
-              [class.amber]="cb?.state === 'HALF_OPEN'"
-              [class.red]="cb?.state === 'OPEN'"></span>
-        <span class="value">{{ cb?.state || '—' }}</span>
+              [class.green]="state.circuitBreaker()?.state === 'CLOSED'"
+              [class.amber]="state.circuitBreaker()?.state === 'HALF_OPEN'"
+              [class.red]="state.circuitBreaker()?.state === 'OPEN'"></span>
+        <span class="value">{{ state.circuitBreaker()?.state || '—' }}</span>
       </div>
       <div class="status-item last-updated">
         <span class="label">Updated</span>
-        <span class="value mono" [class.warning]="isStale">{{ lastUpdated || '—' }}</span>
+        <span class="value mono" [class.warning]="isStale()">{{ lastUpdatedText() }}</span>
       </div>
     </div>
   `,
@@ -89,55 +89,33 @@ import { environment } from '../../environments/environment';
     }
   `],
 })
-export class StatusBarComponent implements OnInit, OnDestroy {
-  status: StatusResponse | null = null;
-  risk: RiskResponse | null = null;
-  anomaly: AnomalyStatus | null = null;
-  cb: CircuitBreakerStatus | null = null;
-  lastUpdated: string | null = null;
-  isStale = false;
+export class StatusBarComponent {
+  public state = inject(GlobalStateService);
 
-  private destroy$ = new Subject<void>();
-  private lastUpdateTime: number = 0;
+  readonly lastUpdatedText = computed(() => {
+    return this.state.lastUpdated().toLocaleTimeString('en-IN', { hour12: false });
+  });
 
-  constructor(private api: ApiService) {}
+  readonly isStale = signalInterval(1000, () => {
+    const lastUpdate = this.state.lastUpdated().getTime();
+    return (Date.now() - lastUpdate) > environment.staleThresholdMs;
+  });
 
-  ngOnInit(): void {
-    interval(environment.pollingIntervalMs).pipe(
-      startWith(0),
-      switchMap(() => forkJoin({
-        status: this.api.getStatus().pipe(catchError(() => of(null))),
-        risk: this.api.getRisk().pipe(catchError(() => of(null))),
-        anomaly: this.api.getAnomalyStatus().pipe(catchError(() => of(null))),
-        cb: this.api.getCircuitBreakerStatus().pipe(catchError(() => of(null))),
-      })),
-      takeUntil(this.destroy$),
-    ).subscribe(data => {
-      if (data.status) this.status = data.status;
-      if (data.risk) this.risk = data.risk;
-      if (data.anomaly) this.anomaly = data.anomaly;
-      if (data.cb) this.cb = data.cb;
-      this.lastUpdateTime = Date.now();
-      this.lastUpdated = new Date().toLocaleTimeString('en-IN', { hour12: false });
-      this.isStale = false;
-    });
-
-    // Staleness check
-    interval(1000).pipe(takeUntil(this.destroy$)).subscribe(() => {
-      if (this.lastUpdateTime > 0) {
-        this.isStale = (Date.now() - this.lastUpdateTime) > environment.staleThresholdMs;
-      }
-    });
-  }
+  constructor() {}
 
   formatPnl(value: number | undefined | null): string {
     if (value == null) return '—';
     const sign = value >= 0 ? '+' : '';
     return `${sign}₹${value.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   }
+}
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
+/**
+ * Helper to create a signal that updates on an interval.
+ * In a real app, this might be a utility.
+ */
+function signalInterval<T>(ms: number, factory: () => T) {
+  const s = signal<T>(factory());
+  setInterval(() => s.set(factory()), ms);
+  return s;
 }

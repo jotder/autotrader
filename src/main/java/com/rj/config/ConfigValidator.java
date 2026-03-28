@@ -88,6 +88,10 @@ public class ConfigValidator {
         }
     }
 
+    public ValidationResult validate(StrategyYamlConfig cfg) {
+        return validate("unnamed", cfg);
+    }
+
     /**
      * Validates a single strategy config.
      *
