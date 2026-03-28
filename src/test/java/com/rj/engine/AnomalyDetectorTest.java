@@ -31,8 +31,7 @@ class AnomalyDetectorTest {
         riskConfig = RiskConfig.fromEnvironment(env::get);
 
         riskManager = new RiskManager(riskConfig);
-        
-        positionMonitor = new PositionMonitor(null, riskConfig, (p, r) -> {}, null) {
+        positionMonitor = new PositionMonitor(null, riskConfig, riskManager, (p, r) -> {}, null) {
             @Override
             public int closeAllPositions(ExitReason reason) {
                 return closedCount.get();

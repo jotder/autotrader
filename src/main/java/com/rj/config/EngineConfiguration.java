@@ -71,7 +71,7 @@ public class EngineConfiguration {
 
     @Bean
     public CandleDatabase candleDatabase() {
-        return new CandleDatabase(Path.of("data/db"));
+        return new CandleDatabase(Path.of("data/history"));
     }
 
     @Bean

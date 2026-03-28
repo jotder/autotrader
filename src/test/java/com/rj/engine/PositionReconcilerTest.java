@@ -35,7 +35,8 @@ class PositionReconcilerTest {
     void setUp() {
         mockPositions = new MockFyersPositions();
         riskConfig = RiskConfig.defaults();
-        positionMonitor = new PositionMonitor(TickStore.getInstance(), riskConfig, (p, r) -> {}, null);
+        RiskManager riskManager = new RiskManager(riskConfig);
+        positionMonitor = new PositionMonitor(TickStore.getInstance(), riskConfig, riskManager, (p, r) -> {}, null);
         openRecords = new ConcurrentHashMap<>();
         journal = new TradeJournal(ExecutionMode.LIVE, tempDir);
         reconciler = new PositionReconciler(mockPositions, positionMonitor, openRecords, journal, riskConfig);

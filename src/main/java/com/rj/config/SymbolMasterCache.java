@@ -53,13 +53,14 @@ public final class SymbolMasterCache {
     // ── Factory ─────────────────────────────────────────────────────────────
 
     /**
-     * Load all symbol master CSVs from the given directory.
+     * Load specified symbol master CSVs from the given directory.
      *
      * @param symbolMasterDir path (e.g. {@code data/symbol_master})
+     * @param allowedSegments set of segments to load (e.g. {"NSE_CM", "NSE_FO", "MCX_COM"})
      * @return an immutable cache
      */
-    public static SymbolMasterCache load(Path symbolMasterDir) {
-        log.info("Loading symbol master data from {}", symbolMasterDir);
+    public static SymbolMasterCache load(Path symbolMasterDir, Set<String> allowedSegments) {
+        log.info("Loading symbol master data from {} (Segments: {})", symbolMasterDir, allowedSegments);
 
         if (!Files.isDirectory(symbolMasterDir)) {
             log.warn("Symbol master directory not found: {}", symbolMasterDir);
@@ -69,6 +70,12 @@ public final class SymbolMasterCache {
         var allEntries = new ArrayList<SymbolMasterEntry>();
         try (DirectoryStream<Path> ds = Files.newDirectoryStream(symbolMasterDir, "*.csv")) {
             for (Path csvFile : ds) {
+                String fileName = csvFile.getFileName().toString().replace(".csv", "");
+                if (allowedSegments != null && !allowedSegments.isEmpty() && !allowedSegments.contains(fileName)) {
+                    log.debug("Skipping segment: {}", fileName);
+                    continue;
+                }
+
                 List<SymbolMasterEntry> entries = loadOneFile(csvFile);
                 allEntries.addAll(entries);
                 log.info("  {} → {} symbols", csvFile.getFileName(), entries.size());
@@ -83,6 +90,16 @@ public final class SymbolMasterCache {
                 cache.byUnderlying.size(),
                 cache.byExchangeSegment.size());
         return cache;
+    }
+
+    /**
+     * Load all symbol master CSVs from the given directory.
+     *
+     * @param symbolMasterDir path (e.g. {@code data/symbol_master})
+     * @return an immutable cache
+     */
+    public static SymbolMasterCache load(Path symbolMasterDir) {
+        return load(symbolMasterDir, Set.of());
     }
 
     // ── Query API ───────────────────────────────────────────────────────────
@@ -137,12 +154,21 @@ public final class SymbolMasterCache {
                          mapper.readerFor(Map.class).with(schema).readValues(csvFile.toFile())) {
                 while (it.hasNext()) {
                     Map<String, String> rawRow = it.next();
+                    // Strict column count check (Fyers master has 21 columns, 
+                    // but Jackson deduplicates 'Reserved column' headers into one key)
+                    if (rawRow.size() < 19) {
+                        log.error("Malformed row in {}: expected >= 19 unique columns (from 21 raw), got {}", csvFile.getFileName(), rawRow.size());
+                        continue;
+                    }
+
                     // Normalize: trim header keys (CSV headers may have leading spaces)
                     var row = normalizeKeys(rawRow);
                     try {
-                        results.add(parseRow(row));
+                        SymbolMasterEntry entry = parseRow(row);
+                        validateEntry(entry, csvFile.getFileName().toString());
+                        results.add(entry);
                     } catch (Exception e) {
-                        log.debug("Skipping malformed row in {}: {}", csvFile.getFileName(), e.getMessage());
+                        log.warn("Validation failed for row in {}: {}", csvFile.getFileName(), e.getMessage());
                     }
                 }
             }
@@ -150,6 +176,18 @@ public final class SymbolMasterCache {
             log.error("Failed to load {}: {}", csvFile.getFileName(), e.getMessage());
         }
         return results;
+    }
+
+    private static void validateEntry(SymbolMasterEntry entry, String fileName) {
+        if (entry.fyToken() == null || entry.fyToken().isBlank()) {
+            throw new IllegalArgumentException("Missing Fytoken");
+        }
+        if (entry.symbolTicker() == null || entry.symbolTicker().isBlank()) {
+            throw new IllegalArgumentException("Missing Symbol ticker");
+        }
+        if (SymbolFormatParser.parse(entry.symbolTicker()) == null) {
+            throw new IllegalArgumentException("Invalid Symbol ticker format: " + entry.symbolTicker());
+        }
     }
 
     /**
@@ -207,7 +245,7 @@ public final class SymbolMasterCache {
             }
             return Integer.parseInt(v);
         } catch (NumberFormatException e) {
-            return 0;
+            throw new IllegalArgumentException("Invalid integer for " + key + ": " + v);
         }
     }
 
@@ -217,7 +255,7 @@ public final class SymbolMasterCache {
         try {
             return Double.parseDouble(v);
         } catch (NumberFormatException e) {
-            return 0.0;
+            throw new IllegalArgumentException("Invalid double for " + key + ": " + v);
         }
     }
 

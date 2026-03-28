@@ -2,6 +2,7 @@ package com.rj.config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -24,6 +25,7 @@ public class StrategyService {
     private final StrategyMetadataManager metadataManager;
     private final ConfigValidator validator;
 
+    @Autowired
     public StrategyService(StrategyMetadataManager metadataManager, SymbolRegistry symbolRegistry) {
         this(metadataManager, symbolRegistry, Path.of("config/strategies/intraday.yaml"), Path.of("config/defaults.yaml"));
     }

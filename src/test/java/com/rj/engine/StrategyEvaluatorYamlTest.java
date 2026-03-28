@@ -42,8 +42,9 @@ class StrategyEvaluatorYamlTest {
         riskConfig = RiskConfig.defaults();
 
         // PositionMonitor with no open positions (stub)
+        RiskManager riskManager = new RiskManager(riskConfig);
         positionMonitor = new PositionMonitor(
-                TickStore.getInstance(), riskConfig, (pos, reason) -> {}, null);
+                TickStore.getInstance(), riskConfig, riskManager, (pos, reason) -> {}, null);
 
         evaluator = new StrategyEvaluator(
                 queue, sig -> capturedSignal.set(sig), riskConfig, positionMonitor);

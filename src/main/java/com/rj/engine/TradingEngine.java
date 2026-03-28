@@ -104,7 +104,7 @@ public class TradingEngine implements OrderStateListener {
 
         // Position Monitor — Disruptor Handler 2
         PositionMonitor pm = new PositionMonitor(
-                tickStore, riskCfg, engineFinal::handleExit, null);
+                tickStore, riskCfg, riskMgr, engineFinal::handleExit, null);
         engineFinal.positionMonitor = pm;
 
         // Register Disruptor Handlers

@@ -9,6 +9,7 @@ public class RiskConfig {
     private final double maxRiskPerTradePercent;
     private final double maxDailyLossInr;
     private final double maxDailyProfitInr;
+    private final double maxDrawdownPercent;
     private final double initialCapitalInr;
     private final double maxExposurePerSymbolPercent;
     private final int maxQuantityPerOrder;
@@ -26,6 +27,7 @@ public class RiskConfig {
             double maxRiskPerTradePercent,
             double maxDailyLossInr,
             double maxDailyProfitInr,
+            double maxDrawdownPercent,
             double initialCapitalInr,
             double maxExposurePerSymbolPercent,
             int maxQuantityPerOrder,
@@ -41,6 +43,7 @@ public class RiskConfig {
         this.maxRiskPerTradePercent = maxRiskPerTradePercent;
         this.maxDailyLossInr = maxDailyLossInr;
         this.maxDailyProfitInr = maxDailyProfitInr;
+        this.maxDrawdownPercent = maxDrawdownPercent;
         this.initialCapitalInr = initialCapitalInr;
         this.maxExposurePerSymbolPercent = maxExposurePerSymbolPercent;
         this.maxQuantityPerOrder = maxQuantityPerOrder;
@@ -60,6 +63,7 @@ public class RiskConfig {
                 0.02,
                 5000.0,
                 15000.0,
+                3.0,
                 500000.0,
                 0.20,
                 1000,
@@ -80,6 +84,7 @@ public class RiskConfig {
                 parseDouble(envReader.apply("RISK_MAX_PER_TRADE_PCT"), d.maxRiskPerTradePercent),
                 parseDouble(envReader.apply("RISK_MAX_DAILY_LOSS_INR"), d.maxDailyLossInr),
                 parseDouble(envReader.apply("RISK_MAX_DAILY_PROFIT_INR"), d.maxDailyProfitInr),
+                parseDouble(envReader.apply("RISK_MAX_DRAWDOWN_PCT"), d.maxDrawdownPercent),
                 parseDouble(envReader.apply("RISK_INITIAL_CAPITAL_INR"), d.initialCapitalInr),
                 parseDouble(envReader.apply("RISK_MAX_EXPOSURE_PER_SYMBOL_PCT"), d.maxExposurePerSymbolPercent),
                 parseInt(envReader.apply("RISK_MAX_QTY_PER_ORDER"), d.maxQuantityPerOrder),
@@ -148,6 +153,10 @@ public class RiskConfig {
 
     public double getMaxDailyProfitInr() {
         return maxDailyProfitInr;
+    }
+
+    public double getMaxDrawdownPercent() {
+        return maxDrawdownPercent;
     }
 
     public double getInitialCapitalInr() {

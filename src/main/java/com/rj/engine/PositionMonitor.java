@@ -37,6 +37,7 @@ public class PositionMonitor implements EventHandler<TickEvent> {
 
     // ── Dependencies ──────────────────────────────────────────────────────────
     private final RiskConfig riskConfig;
+    private final RiskManager riskManager;
     private final BiConsumer<OpenPosition, ExitReason> exitHandler;
     /** Active positions keyed by correlationId. */
     private final ConcurrentHashMap<String, OpenPosition> positions = new ConcurrentHashMap<>();
@@ -48,10 +49,12 @@ public class PositionMonitor implements EventHandler<TickEvent> {
 
     public PositionMonitor(TickStore tickStore,
                            RiskConfig riskConfig,
+                           RiskManager riskManager,
                            BiConsumer<OpenPosition, ExitReason> exitHandler,
                            StrategyEvaluator strategyEvaluator) {
         this.tickStore = tickStore;
         this.riskConfig = riskConfig;
+        this.riskManager = riskManager;
         this.exitHandler = exitHandler;
         this.strategyEvaluator = strategyEvaluator;
     }
@@ -63,6 +66,9 @@ public class PositionMonitor implements EventHandler<TickEvent> {
     public void onEvent(TickEvent event, long sequence, boolean endOfBatch) {
         if (positions.isEmpty()) return;
         
+        // If kill switch active, don't process new ticks for exits (they should be closing anyway)
+        if (riskManager.isKillSwitchActive() && !riskManager.isAnomalyMode()) return;
+
         Tick tick = event.getTick();
         if (tick == null) return;
 
@@ -97,7 +103,7 @@ public class PositionMonitor implements EventHandler<TickEvent> {
         }
         scheduler = Executors.newSingleThreadScheduledExecutor(
                 Thread.ofVirtual().name("position-time-monitor").factory());
-        scheduler.scheduleAtFixedRate(this::checkTimeExits, 1, 1, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(this::scheduledRiskMaintenance, 1, 1, TimeUnit.SECONDS);
         log.info("PositionMonitor started (Real-time Disruptor + 1s Time monitor)");
     }
 
@@ -148,8 +154,30 @@ public class PositionMonitor implements EventHandler<TickEvent> {
         closePosition(pos, ExitReason.MANUAL);
     }
 
-    private void checkTimeExits() {
-        if (positions.isEmpty()) return;
+    private void scheduledRiskMaintenance() {
+        if (positions.isEmpty()) {
+            riskManager.updateCurrentEquity(0);
+            return;
+        }
+
+        // 1. Update Open PnL & Check Drawdown
+        double totalOpenPnL = 0;
+        for (OpenPosition pos : positions.values()) {
+            Tick lastTick = tickStore.getLastTick(pos.getSymbol());
+            if (lastTick != null) {
+                totalOpenPnL += pos.unrealizedPnl(lastTick.getLtp());
+            }
+        }
+        riskManager.updateCurrentEquity(totalOpenPnL);
+
+        // 2. Check for Anomaly Flatten (e.g. Drawdown breach triggered kill switch)
+        if (riskManager.isAnomalyMode() && !positions.isEmpty()) {
+            log.warn("Anomaly detected — Auto-flattening {} positions", positions.size());
+            closeAllPositions(ExitReason.ANOMALY_FLATTEN);
+            return;
+        }
+
+        // 3. Time-based exits
         ZonedDateTime now = ZonedDateTime.now(riskConfig.getExchangeZone());
         if (now.toLocalTime().compareTo(riskConfig.getMarketCloseTime()) >= 0) {
             log.warn("Market close reached — forcing square-off of {} positions", positions.size());

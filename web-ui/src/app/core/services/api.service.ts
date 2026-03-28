@@ -185,13 +185,6 @@ export class ApiService {
     );
   }
 
-  getCandleDbSymbols(): Observable<string[]> {
-    return this.dispatch(
-      () => this.mock.getCandleDbSymbols(),
-      () => this.http.get<string[]>(`${this.base}/candle-db/symbols`)
-    );
-  }
-
   // ── Strategy version endpoints ──────────────────────────────
   getStrategies(): Observable<StrategyVersionInfo[]> {
     return this.dispatch(
@@ -249,10 +242,23 @@ export class ApiService {
     );
   }
 
-  getAvailableSymbols(): Observable<string[]> {
+  // ── Candle Database endpoints ───────────────────────────────
+  getCandleDbSymbols(): Observable<string[]> {
     return this.dispatch(
-      () => this.mock.getAvailableSymbols(),
-      () => this.http.get<string[]>(`${this.base}/config/symbols`)
+      () => this.mock.getCandleDbSymbols(),
+      () => this.http.get<string[]>(`${this.base}/candle-db/symbols`)
+    );
+  }
+
+  /** Alias for backward compatibility with strategies component */
+  getAvailableSymbols(): Observable<string[]> {
+    return this.getCandleDbSymbols();
+  }
+
+  getCandleDbSummary(): Observable<any[]> {
+    return this.dispatch(
+      () => this.mock.getCandleDbSummary(),
+      () => this.http.get<any[]>(`${this.base}/candle-db/summary`)
     );
   }
 
@@ -260,6 +266,13 @@ export class ApiService {
     return this.dispatch(
       () => this.mock.getCandleDbDates(symbol),
       () => this.http.get<string[]>(`${this.base}/candle-db/${symbol}/dates`)
+    );
+  }
+
+  searchSymbols(q: string): Observable<any[]> {
+    return this.dispatch(
+      () => this.mock.searchSymbols(q),
+      () => this.http.get<any[]>(`${this.base}/symbol-master`, { params: { q } })
     );
   }
 
@@ -287,7 +300,7 @@ export class ApiService {
   runBacktest(symbol: string, from: string, to: string): Observable<any> {
     return this.dispatch(
       () => this.mock.runBacktest(symbol, from, to),
-      () => this.http.get<any>(`${this.base}/backtest`, { params: { symbol, from, to } })
+      () => this.http.post<any>(`${this.base}/backtest`, { symbol, from, to })
     );
   }
 }
