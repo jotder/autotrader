@@ -12,14 +12,10 @@ export const routes: Routes = [
     path: 'paper-trade',
     loadComponent: () => import('./pages/paper-trade/paper-trade.component').then(m => m.PaperTradeComponent)
   },
-  {
-    path: 'positions',
-    loadComponent: () => import('./pages/positions/positions.component').then(m => m.PositionsComponent)
-  },
-  {
-    path: 'strategies',
-    loadComponent: () => import('./pages/strategies/strategies.component').then(m => m.StrategiesComponent)
-  },
+  { path: 'positions', loadComponent: () => import('./pages/positions/positions.component').then(m => m.PositionsComponent) },
+  { path: 'signals', loadComponent: () => import('./pages/signals/signals.component').then(m => m.SignalsComponent) },
+  { path: 'strategies', loadComponent: () => import('./pages/strategies/strategies.component').then(m => m.StrategiesComponent) },
+
   {
     path: 'symbols',
     loadComponent: () => import('./pages/symbols/symbols.component').then(m => m.SymbolsComponent)
@@ -35,6 +31,10 @@ export const routes: Routes = [
   {
     path: 'backtest',
     loadComponent: () => import('./pages/backtest/backtest.component').then(m => m.BacktestComponent)
+  },
+  {
+    path: 'backtest/iterative',
+    loadComponent: () => import('./pages/backtest/iterative/iterative-backtest.component').then(m => m.IterativeBacktestComponent)
   },
   {
     path: 'go-live',

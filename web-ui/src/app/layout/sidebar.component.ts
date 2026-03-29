@@ -85,6 +85,7 @@ export class SidebarComponent {
     { path: '/transactions', icon: 'receipt_long', label: 'Transactions' },
     { path: '/paper-trade', icon: 'show_chart', label: 'Paper Trade' },
     { path: '/positions', icon: 'account_balance_wallet', label: 'Positions' },
+    { path: '/signals', icon: 'notifications', label: 'Alpha Signals' },
     { path: '/strategies', icon: 'tune', label: 'Strategies' },
     { path: '/symbols', icon: 'token', label: 'Symbols' },
     { path: '/market', icon: 'store', label: 'Market' },

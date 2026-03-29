@@ -2,6 +2,7 @@ package com.rj.engine;
 
 import com.rj.config.RiskConfig;
 import com.rj.model.*;
+import com.rj.strategy.ITradeStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,24 +12,7 @@ import java.time.ZonedDateTime;
 import java.util.*;
 
 /**
- * Synchronous backtesting engine.
- *
- * <p>Replays a list of M5 candles through the exact same analysis and strategy
- * logic used in live/paper modes — same {@link CandleAnalyzer}, same compound
- * rules. Multi-timeframe (M15, H1) candles are derived by aggregating M5 bars.</p>
- *
- * <h3>Fill model</h3>
- * Entry fills at next candle's open + slippage.
- * SL/TP fills at the trigger price (intra-candle hit detected against candle high/low).
- * If both SL and TP are hit within the same candle, SL takes priority (conservative).
- *
- * <h3>Usage</h3>
- * <pre>{@code
- * List<Candle> m5history = ...;
- * BacktestEngine engine = new BacktestEngine(m5history, "NSE:SBIN-EQ", riskConfig);
- * StrategyReport report = engine.run();
- * System.out.println(report.summary());
- * }</pre>
+ * Synchronous backtesting engine (Phase-II Pluggable).
  */
 public class BacktestEngine {
 
@@ -39,10 +23,11 @@ public class BacktestEngine {
     private final String symbol;
     private final InstrumentInfo instrumentInfo;
     private final RiskConfig riskConfig;
+    private final ITradeStrategy strategy;
     private final BacktestOrderExecutor executor;
     private final TradeJournal journal;
 
-    // Per-timeframe analyzers (each owns its own ta4j BarSeries)
+    // Per-timeframe analyzers
     private final CandleAnalyzer m5Analyzer;
     private final CandleAnalyzer m15Analyzer;
     private final CandleAnalyzer h1Analyzer;
@@ -54,7 +39,7 @@ public class BacktestEngine {
     // Latest recommendation per timeframe
     private final Map<Timeframe, CandleRecommendation> latestRecs = new EnumMap<>(Timeframe.class);
 
-    // Active position (at most one per symbol in backtest)
+    // Active position
     private OpenPosition openPosition;
     private TradeRecord openRecord;
     private int consecutiveLosses = 0;
@@ -62,36 +47,19 @@ public class BacktestEngine {
     // Cooldown tracking
     private Instant lastExitTime = Instant.EPOCH;
 
-    public BacktestEngine(List<Candle> m5Candles, String symbol, RiskConfig riskConfig) {
-        this(m5Candles, symbol, InstrumentInfo.EQUITY_DEFAULT, riskConfig,
+    public BacktestEngine(List<Candle> m5Candles, String symbol, ITradeStrategy strategy, RiskConfig riskConfig) {
+        this(m5Candles, symbol, InstrumentInfo.EQUITY_DEFAULT, strategy, riskConfig,
                 new BacktestOrderExecutor(),
                 new TradeJournal(ExecutionMode.BACKTEST));
     }
 
-    public BacktestEngine(List<Candle> m5Candles, String symbol, InstrumentInfo info, RiskConfig riskConfig) {
-        this(m5Candles, symbol, info, riskConfig,
-                new BacktestOrderExecutor(),
-                new TradeJournal(ExecutionMode.BACKTEST));
-    }
-
-    /**
-     * Create a BacktestEngine from M1 candles — aggregates to M5 first.
-     */
-    public static BacktestEngine fromM1(List<Candle> m1Candles, String symbol, RiskConfig riskConfig) {
-        return fromM1(m1Candles, symbol, InstrumentInfo.EQUITY_DEFAULT, riskConfig);
-    }
-
-    public static BacktestEngine fromM1(List<Candle> m1Candles, String symbol, InstrumentInfo info, RiskConfig riskConfig) {
-        List<Candle> m5 = aggregateToHigherTimeframe(m1Candles, 5);
-        log.info("[BT][{}] Aggregated {} M1 candles → {} M5 candles", symbol, m1Candles.size(), m5.size());
-        return new BacktestEngine(m5, symbol, info, riskConfig);
-    }
-
-    BacktestEngine(List<Candle> m5Candles, String symbol, InstrumentInfo info, RiskConfig riskConfig,
+    BacktestEngine(List<Candle> m5Candles, String symbol, InstrumentInfo info, 
+                   ITradeStrategy strategy, RiskConfig riskConfig,
                    BacktestOrderExecutor executor, TradeJournal journal) {
         this.m5Candles = new ArrayList<>(m5Candles);
         this.symbol = symbol;
         this.instrumentInfo = info;
+        this.strategy = strategy;
         this.riskConfig = riskConfig;
         this.executor = executor;
         this.journal = journal;
@@ -227,33 +195,33 @@ public class BacktestEngine {
                 Instant.ofEpochSecond(currentCandle.timestamp), IST);
         if (candleTime.toLocalTime().isAfter(riskConfig.getNoNewTradesAfter())) return;
 
-        // Consecutive loss kill switch
-        if (consecutiveLosses >= riskConfig.getMaxConsecutiveLossesPerStrategy()) {
-            log.debug("[BT] Kill switch: {} consecutive losses", consecutiveLosses);
-            return;
-        }
-
         // Cooldown
         if (Instant.ofEpochSecond(currentCandle.timestamp)
                 .isBefore(lastExitTime.plus(java.time.Duration.ofMinutes(25)))) {
             return;
         }
 
-        // Compound signal
-        Optional<TradeSignal> signal = compoundSignal();
+        // ── Phase-II: Delegate to pluggable strategy ────────────────────────
+        Optional<TradeSignal> signal = strategy.evaluate(symbol, latestRecs);
         if (signal.isEmpty()) return;
 
         TradeSignal sig = signal.get();
         double entry = nextCandle.open;
-        double atr = latestRecs.get(Timeframe.M5).getAtr14();
-        double riskUnit = atr > 0 ? 2 * atr : entry * 0.01;
-        double sl = sig.getDirection() == Signal.BUY ? entry - riskUnit : entry + riskUnit;
-        double tp = sig.getDirection() == Signal.BUY ? entry + (2 * riskUnit) : entry - (2 * riskUnit);
 
-        // Position sizing: 2% risk per trade
-        double riskBudget = riskConfig.getInitialCapitalInr() * riskConfig.getMaxRiskPerTradePercent();
-        int quantity = (int) Math.floor(riskBudget / riskUnit);
+        // Position sizing logic matches RiskManager Phase-II
+        // We'll use a default 100% allocation for backtests if not specified
+        double totalCap = riskConfig.getInitialCapitalInr();
+        double riskPerUnit = Math.abs(sig.getSuggestedEntry() - sig.getSuggestedStopLoss());
+        
+        if (riskPerUnit <= 0) return;
+
+        // Default to 1% risk for backtests if no override provided
+        double monetaryRisk = totalCap * (riskConfig.getMaxRiskPerTradePercent());
+        int quantity = (int) Math.floor(monetaryRisk / riskPerUnit);
+        
+        // Cap by fat-finger guard
         quantity = Math.min(quantity, riskConfig.getMaxQuantityPerOrder());
+
         if (quantity <= 0) {
             log.debug("[BT] Quantity=0, skipping trade");
             return;
@@ -273,16 +241,18 @@ public class BacktestEngine {
         openPosition = new OpenPosition(
                 symbol, sig.getCorrelationId(), sig.getStrategyId(),
                 sig.getDirection(), fill.getFillPrice(), fill.getFillQuantity(),
-                sl, tp, fill.getFillTime());
+                sig.getSuggestedStopLoss(), sig.getSuggestedTarget(), fill.getFillTime());
 
         openRecord = new TradeRecord(
                 sig.getCorrelationId(), symbol, sig.getStrategyId(),
                 ExecutionMode.BACKTEST, sig.getDirection(),
-                fill.getFillPrice(), fill.getFillQuantity(), sl, tp,
-                fill.getFillTime(), atr, sig.getConfidence(), sig.getTimeframeVotes());
+                fill.getFillPrice(), fill.getFillQuantity(), 
+                sig.getSuggestedStopLoss(), sig.getSuggestedTarget(),
+                fill.getFillTime(), sig.getAtr(), sig.getConfidence(), sig.getTimeframeVotes());
 
         log.info("[BT][{}] Opened: {} @ {:.2f} sl={:.2f} tp={:.2f} qty={}",
-                symbol, sig.getDirection(), fill.getFillPrice(), sl, tp, quantity);
+                symbol, sig.getDirection(), fill.getFillPrice(), 
+                sig.getSuggestedStopLoss(), sig.getSuggestedTarget(), quantity);
     }
 
     private void checkPositionAgainstCandle(Candle candle) {
@@ -367,45 +337,5 @@ public class BacktestEngine {
     private void forceClose(double exitPx, Instant exitTime,
                             PositionMonitor.ExitReason reason) {
         closePosition(exitPx, exitTime, reason);
-    }
-
-    // ── Candle aggregation ────────────────────────────────────────────────────
-
-    private Optional<TradeSignal> compoundSignal() {
-        CandleRecommendation m5 = latestRecs.get(Timeframe.M5);
-        CandleRecommendation m15 = latestRecs.get(Timeframe.M15);
-        CandleRecommendation h1 = latestRecs.get(Timeframe.H1);
-
-        if (m5 == null || m15 == null) return Optional.empty();
-        if (!m5.getSignal().isDirectional()) return Optional.empty();
-        if (m5.getSignal() != m15.getSignal()) return Optional.empty();
-
-        Signal h1Signal = h1 != null ? h1.getSignal() : Signal.HOLD;
-        if (h1Signal.isDirectional() && h1Signal != m5.getSignal()) return Optional.empty();
-
-        double base = (m5.getConfidence() + m15.getConfidence()) / 2.0;
-        double boost = (h1 != null && h1Signal == m5.getSignal()) ? 0.05 : 0.0;
-        double confidence = Math.min(1.0, base + boost);
-        if (confidence < 0.70) return Optional.empty();
-
-        double entry = m5.getCandle().close;
-        double atr = m5.getAtr14() > 0 ? m5.getAtr14() : entry * 0.01;
-        double sl = m5.getSignal() == Signal.BUY ? entry - 2 * atr : entry + 2 * atr;
-        double tp = m5.getSignal() == Signal.BUY ? entry + 4 * atr : entry - 4 * atr;
-        String corrId = symbol + "_" + m5.getSignal() + "_" + m5.getWindowStart().getEpochSecond();
-
-        return Optional.of(TradeSignal.builder()
-                .symbol(symbol)
-                .correlationId(corrId)
-                .direction(m5.getSignal())
-                .confidence(confidence)
-                .suggestedEntry(entry)
-                .suggestedStopLoss(sl)
-                .suggestedTarget(tp)
-                .strategyId(m5.getStrategySource())
-                .vote(Timeframe.M5, m5.getSignal())
-                .vote(Timeframe.M15, m15.getSignal())
-                .vote(Timeframe.H1, h1Signal)
-                .build());
     }
 }

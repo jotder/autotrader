@@ -8,6 +8,8 @@ import {
   CircuitBreakerStatus, TokenStatus, ActionResponse, Position,
   TradeRecord, OrdersResponse,
   StrategyVersionInfo, StrategyConfig, ValidationResult,
+  RecommendationSignal, SizingRequest, SizingResponse,
+  BacktestJobRequest, BacktestReport
 } from '../models/api.models';
 
 /**
@@ -26,6 +28,22 @@ export class ApiService {
 
   private dispatch<T>(mockFn: () => Observable<T>, realFn: () => Observable<T>): Observable<T> {
     return this.connection.isMock() ? mockFn() : realFn();
+  }
+
+  // ── Phase-II Endpoints ────────────────────────────────────────
+
+  getSignals(symbol?: string, limit: number = 100): Observable<RecommendationSignal[]> {
+    return this.dispatch(
+      () => this.mock.getSignals(symbol, limit),
+      () => this.http.get<RecommendationSignal[]>(`${this.base}/signals`, { params: { symbol: symbol || '', limit } })
+    );
+  }
+
+  calculateSizing(request: SizingRequest): Observable<SizingResponse> {
+    return this.dispatch(
+      () => this.mock.calculateSizing(request),
+      () => this.http.post<SizingResponse>(`${this.base}/risk/calculate-sizing`, request)
+    );
   }
 
   // ── Read endpoints ────────────────────────────────────────────
@@ -301,6 +319,20 @@ export class ApiService {
     return this.dispatch(
       () => this.mock.runBacktest(symbol, from, to),
       () => this.http.post<any>(`${this.base}/backtest`, { symbol, from, to })
+    );
+  }
+
+  createBacktestJob(request: BacktestJobRequest): Observable<{jobId: string}> {
+    return this.dispatch(
+      () => this.mock.createBacktestJob(request),
+      () => this.http.post<{jobId: string}>(`${this.base}/backtest/jobs`, request)
+    );
+  }
+
+  getBacktestJobResults(jobId: string): Observable<BacktestReport[]> {
+    return this.dispatch(
+      () => this.mock.getBacktestJobResults(jobId),
+      () => this.http.get<BacktestReport[]>(`${this.base}/backtest/jobs/${jobId}/results`)
     );
   }
 }

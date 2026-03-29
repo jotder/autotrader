@@ -180,3 +180,79 @@ export interface ValidationResult {
   valid: boolean;
   errors: string[];
 }
+
+// ── Phase-II: Signal & Risk Management ───────────────────
+
+export type ConfidenceLevel = 'NORMAL' | 'HIGH' | 'VERY_HIGH';
+export type SizingType = 'FIXED_PERCENTAGE' | 'VOLATILITY_ATR' | 'FIXED_UNIT' | 'PYRAMIDING';
+
+export interface RecommendationSignal {
+  timestamp: string;
+  symbol: string;
+  strategyId: string;
+  direction: 'BUY' | 'SELL' | 'HOLD';
+  confidence: number;
+  confidenceLevel: ConfidenceLevel;
+  suggestedEntry: number;
+  suggestedStopLoss: number;
+  suggestedTarget: number;
+  atr: number;
+  reason: string;
+}
+
+export interface SizingRequest {
+  symbol: string;
+  strategyId: string;
+  entryPrice: number;
+  stopLoss: number;
+  confidence: ConfidenceLevel;
+  atr?: number;
+}
+
+export interface SizingResponse {
+  approved: boolean;
+  quantity: number;
+  stopLoss: number;
+  takeProfit: number;
+  rejectReason?: string;
+}
+
+// ── Phase-II: Backtest Results & Comparative Analysis ─────
+
+export interface BacktestMetrics {
+  total: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  totalPnl: number;
+  grossProfit: number;
+  grossLoss: number;
+  profitFactor: number;
+  expectancy: number;
+  sharpe: number;
+  maxDrawdown: number;
+  avgR: number;
+  avgWin: number;
+  avgLoss: number;
+  avgHoldMinutes: number;
+  maxConsecLosses: number;
+}
+
+export interface BacktestReport {
+  totalTrades: number;
+  overall: BacktestMetrics;
+  byStrategy: Record<string, BacktestMetrics>;
+  bySymbol: Record<string, BacktestMetrics>;
+  suggestions: string[];
+  equityCurve: number[];
+}
+
+export interface BacktestJobRequest {
+  symbol: string;
+  from: string;
+  to: string;
+  sweeps: {
+    slAtrMultiplier?: number[];
+    tpRMultiple?: number[];
+  };
+}
