@@ -1,29 +1,28 @@
 import { Component } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
-import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
 
 @Component({
   selector: 'at-sidebar',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, MatListModule, MatIconModule],
+  imports: [RouterLink, RouterLinkActive, MatIconModule],
   template: `
     <nav class="sidebar">
       <div class="logo">
         <span class="logo-text">AutoTrader</span>
         <span class="logo-sub">Control Center</span>
       </div>
-      <mat-nav-list>
+      <div class="nav-list">
         @for (item of navItems; track item.path) {
-          <a mat-list-item
+          <a class="nav-item"
              [routerLink]="item.path"
              routerLinkActive="active"
              [routerLinkActiveOptions]="{ exact: item.path === '/' }">
-            <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
-            <span matListItemTitle>{{ item.label }}</span>
+            <mat-icon>{{ item.icon }}</mat-icon>
+            <span class="nav-label">{{ item.label }}</span>
           </a>
         }
-      </mat-nav-list>
+      </div>
     </nav>
   `,
   styles: [`
@@ -40,6 +39,7 @@ import { MatIconModule } from '@angular/material/icon';
       border-bottom: 1px solid var(--border);
       display: flex;
       flex-direction: column;
+      margin-bottom: 8px;
     }
     .logo-text {
       font-size: 18px;
@@ -52,12 +52,40 @@ import { MatIconModule } from '@angular/material/icon';
       text-transform: uppercase;
       letter-spacing: 1px;
     }
-    a.active {
-      background: var(--bg-hover) !important;
-      border-left: 3px solid var(--accent);
+    .nav-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
-    mat-icon { color: var(--text-secondary); }
-    a.active mat-icon { color: var(--accent); }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      text-decoration: none;
+      color: var(--text-secondary);
+      font-size: 13px;
+      transition: all 0.2s;
+      border-left: 3px solid transparent;
+    }
+    .nav-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+    .nav-item.active {
+      background: var(--bg-hover);
+      color: var(--accent);
+      border-left-color: var(--accent);
+    }
+    .nav-item.active mat-icon {
+      color: var(--accent);
+    }
+    mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      color: var(--text-muted);
+    }
   `],
 })
 export class SidebarComponent {

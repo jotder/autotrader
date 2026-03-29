@@ -1,21 +1,18 @@
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
-import { MatButtonModule } from '@angular/material/button';
 import { AnomalyStatus, CircuitBreakerStatus, RiskResponse } from '../../core/models/api.models';
 
 export interface Alert {
   severity: 'critical' | 'warning';
   icon: string;
   message: string;
-  action?: string;
-  actionEvent?: string;
 }
 
 @Component({
   selector: 'at-alert-banner',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatButtonModule],
+  imports: [CommonModule, MatIconModule],
   template: `
     @if (alerts.length > 0) {
       <div class="alert-banner" [class.critical]="hasCritical">
@@ -57,6 +54,7 @@ export interface Alert {
     .alert-item.warning { color: var(--warning); }
     .alert-item.warning mat-icon { color: var(--warning); }
     .alert-msg { flex: 1; }
+    mat-icon { font-size: 18px; width: 18px; height: 18px; }
   `],
 })
 export class AlertBannerComponent {

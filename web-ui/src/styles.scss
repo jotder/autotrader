@@ -1,25 +1,8 @@
 // AutoTrader Control Center — Dark Theme
-@use '@angular/material' as mat;
+// Using DevExtreme v25.2 Material Dark Compact
 
-// Dark trading theme configuration
-$at-theme: mat.define-theme((
-  color: (
-    theme-type: dark,
-    primary: mat.$cyan-palette,
-    tertiary: mat.$orange-palette,
-  ),
-  typography: (
-    brand-family: 'Roboto',
-    plain-family: 'Roboto',
-  ),
-  density: (
-    scale: -1
-  ),
-));
-
-html {
-  @include mat.theme($at-theme);
-}
+@import "devextreme/dist/css/dx.light.css"; // Base (required by some components)
+@import "devextreme/dist/css/dx.material.blue.dark.compact.css";
 
 // ── CSS Custom Properties ──────────────────────────────────────
 :root {
@@ -69,26 +52,10 @@ html, body {
   &.blue { background: var(--info); }
 }
 
-// ── Material overrides for dark density ─────────────────────────
-.mat-mdc-card {
-  background: var(--bg-card) !important;
-  border: 1px solid var(--border) !important;
-}
-
-.mat-mdc-table {
-  background: var(--bg-card) !important;
-}
-
-.mat-mdc-row:hover {
-  background: var(--bg-hover) !important;
-}
-
-.mat-mdc-header-cell {
-  color: var(--text-secondary) !important;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 600;
+// ── DevExtreme Overrides ──────────────────────────────────────
+.dx-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
 }
 
 // ── Scrollbar styling ───────────────────────────────────────────

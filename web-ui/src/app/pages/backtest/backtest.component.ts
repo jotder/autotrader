@@ -6,10 +6,13 @@ import { ApiService } from '../../core/services/api.service';
 import { StatusCardComponent } from '../../shared/components/status-card.component';
 import { MetricRowComponent } from '../../shared/components/metric-row.component';
 import { MatIconModule } from '@angular/material/icon';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
+
+// DevExtreme Imports
+import { DxTagBoxModule } from 'devextreme-angular/ui/tag-box';
+import { DxDateBoxModule } from 'devextreme-angular/ui/date-box';
+import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
+import { DxButtonModule } from 'devextreme-angular/ui/button';
+import { DxSelectBoxModule } from 'devextreme-angular/ui/select-box';
 
 interface BacktestResult {
   overall: any;
@@ -41,7 +44,7 @@ interface DataSummary {
   imports: [
     CommonModule, FormsModule, ReactiveFormsModule,
     StatusCardComponent, MetricRowComponent, MatIconModule,
-    MatAutocompleteModule, MatChipsModule, MatFormFieldModule, MatInputModule
+    DxTagBoxModule, DxDateBoxModule, DxDataGridModule, DxButtonModule, DxSelectBoxModule
   ],
   template: `
     <div class="page-header">
@@ -58,47 +61,55 @@ interface DataSummary {
           
           <div class="field">
             <label>Search Symbols</label>
-            <mat-form-field appearance="outline" class="symbol-search-field">
-              <mat-chip-grid #chipGrid aria-label="Symbol selection">
-                @for (s of selectedDlSymbols; track s) {
-                  <mat-chip-row (removed)="removeSymbol(s)">
-                    {{ shortSymbol(s) }}
-                    <button matChipRemove [attr.aria-label]="'remove ' + s">
-                      <mat-icon>cancel</mat-icon>
-                    </button>
-                  </mat-chip-row>
-                }
-              </mat-chip-grid>
-              <input placeholder="Type to search (e.g. SBIN)..."
-                     [formControl]="symbolSearchCtrl"
-                     [matChipInputFor]="chipGrid"
-                     [matAutocomplete]="auto" />
-              <mat-autocomplete #auto="matAutocomplete" (optionSelected)="addSymbol($event.option.value)">
-                @for (s of filteredSymbols; track s.symbolTicker) {
-                  <mat-option [value]="s.symbolTicker">
-                    <span class="mono">{{ s.symbolTicker }}</span>
-                    <small class="text-muted" style="margin-left: 8px">{{ s.symbolDetails }}</small>
-                  </mat-option>
-                }
-              </mat-autocomplete>
-            </mat-form-field>
+            <dx-tag-box
+              [dataSource]="allSymbolsSource"
+              displayExpr="symbolTicker"
+              valueExpr="symbolTicker"
+              [(value)]="selectedDlSymbols"
+              [searchEnabled]="true"
+              placeholder="Search symbols..."
+              stylingMode="outlined"
+              [showSelectionControls]="true"
+              [maxDisplayedTags]="3"
+              [multiline]="true">
+              <div *dxTemplate="let data of 'item'">
+                <div class="symbol-item">
+                  <span class="mono">{{ data.symbolTicker }}</span>
+                  <small class="text-muted">{{ data.symbolDetails }}</small>
+                </div>
+              </div>
+            </dx-tag-box>
           </div>
 
           <div class="field-row">
             <div class="field">
               <label>From</label>
-              <input type="date" [(ngModel)]="dlFrom" />
+              <dx-date-box
+                type="date"
+                [(value)]="dlFrom"
+                displayFormat="yyyy-MM-dd"
+                stylingMode="outlined">
+              </dx-date-box>
             </div>
             <div class="field">
               <label>To</label>
-              <input type="date" [(ngModel)]="dlTo" />
+              <dx-date-box
+                type="date"
+                [(value)]="dlTo"
+                displayFormat="yyyy-MM-dd"
+                stylingMode="outlined">
+              </dx-date-box>
             </div>
           </div>
 
-          <button class="btn-primary" (click)="startDownload()" 
-                  [disabled]="dlPending || selectedDlSymbols.length === 0 || !dlFrom || !dlTo">
-            {{ dlPending ? 'Downloading…' : 'Start Download' }}
-          </button>
+          <dx-button
+            class="action-btn"
+            text="{{ dlPending ? 'Downloading…' : 'Start Download' }}"
+            type="default"
+            stylingMode="contained"
+            [disabled]="dlPending || selectedDlSymbols.length === 0 || !dlFrom || !dlTo"
+            (onClick)="startDownload()">
+          </dx-button>
 
           <!-- Active downloads -->
           @if (downloads.length > 0) {
@@ -120,19 +131,33 @@ interface DataSummary {
           <h3><mat-icon>science</mat-icon> Run Backtest</h3>
           <div class="field">
             <label>Symbol</label>
-            <select [(ngModel)]="btSymbol" (change)="onSymbolChange()">
-              <option value="">Select symbol…</option>
-              @for (s of availableSymbols; track s) { <option [value]="s">{{ s }}</option> }
-            </select>
+            <dx-select-box
+              [items]="availableSymbols"
+              [(value)]="btSymbol"
+              placeholder="Select symbol..."
+              [searchEnabled]="true"
+              stylingMode="outlined"
+              (onValueChanged)="onSymbolChange()">
+            </dx-select-box>
           </div>
           <div class="field-row">
             <div class="field">
               <label>From</label>
-              <input type="date" [(ngModel)]="btFrom" />
+              <dx-date-box
+                type="date"
+                [(value)]="btFrom"
+                displayFormat="yyyy-MM-dd"
+                stylingMode="outlined">
+              </dx-date-box>
             </div>
             <div class="field">
               <label>To</label>
-              <input type="date" [(ngModel)]="btTo" />
+              <dx-date-box
+                type="date"
+                [(value)]="btTo"
+                displayFormat="yyyy-MM-dd"
+                stylingMode="outlined">
+              </dx-date-box>
             </div>
           </div>
 
@@ -146,9 +171,15 @@ interface DataSummary {
             </div>
           }
 
-          <button class="btn-primary" (click)="runBacktest()" [disabled]="btRunning || !btSymbol || !btFrom || !btTo">
-            {{ btRunning ? 'Running…' : 'Run Backtest' }}
-          </button>
+          <dx-button
+            class="action-btn"
+            text="{{ btRunning ? 'Running…' : 'Run Backtest' }}"
+            type="default"
+            stylingMode="contained"
+            [disabled]="btRunning || !btSymbol || !btFrom || !btTo"
+            (onClick)="runBacktest()">
+          </dx-button>
+          
           @if (btError) {
             <div class="error-msg">{{ btError }}</div>
           }
@@ -174,42 +205,44 @@ interface DataSummary {
       <!-- Right: Results & Data Summary -->
       <div class="results-panel">
         
-        <!-- Data Summary Table -->
+        <!-- Data Summary DataGrid -->
         <div class="at-card section summary-card">
           <div class="card-header">
             <h3><mat-icon>storage</mat-icon> Available Data Summary</h3>
-            <button class="btn-icon" (click)="refreshSummary()" title="Refresh summary">
-              <mat-icon>refresh</mat-icon>
-            </button>
+            <dx-button
+              icon="refresh"
+              stylingMode="text"
+              (onClick)="refreshSummary()">
+            </dx-button>
           </div>
           
-          <table class="at-table summary-table">
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Start Date</th>
-                <th>End Date</th>
-                <th class="r">Days</th>
-                <th class="r">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (item of dataSummary; track item.symbol) {
-                <tr>
-                  <td class="mono font-bold">{{ item.symbol }}</td>
-                  <td class="mono text-muted">{{ item.startDate }}</td>
-                  <td class="mono text-muted">{{ item.endDate }}</td>
-                  <td class="r mono">{{ item.count }}</td>
-                  <td class="r">
-                    <button class="btn-small" (click)="prepareSync(item)">Update</button>
-                  </td>
-                </tr>
-              }
-              @if (dataSummary.length === 0) {
-                <tr><td colspan="5" class="empty">No M1 data available on server</td></tr>
-              }
-            </tbody>
-          </table>
+          <dx-data-grid
+            [dataSource]="dataSummary"
+            [showBorders]="true"
+            [rowAlternationEnabled]="true"
+            [columnAutoWidth]="true">
+            
+            <dxo-sorting mode="multiple"></dxo-sorting>
+            
+            <dxi-column dataField="symbol" caption="Symbol" [allowSorting]="true" cellTemplate="symbolTemplate"></dxi-column>
+            <dxi-column dataField="startDate" caption="Start Date" dataType="date"></dxi-column>
+            <dxi-column dataField="endDate" caption="End Date" dataType="date"></dxi-column>
+            <dxi-column dataField="count" caption="Days" alignment="right"></dxi-column>
+            <dxi-column caption="Actions" cellTemplate="actionsTemplate" alignment="center" [width]="100"></dxi-column>
+
+            <div *dxTemplate="let data of 'symbolTemplate'">
+              <span class="mono font-bold">{{ data.value }}</span>
+            </div>
+
+            <div *dxTemplate="let data of 'actionsTemplate'">
+              <dx-button
+                text="Update"
+                stylingMode="outlined"
+                type="default"
+                (onClick)="prepareSync(data.data)">
+              </dx-button>
+            </div>
+          </dx-data-grid>
         </div>
 
         @if (!result) {
@@ -352,19 +385,14 @@ interface DataSummary {
 
     .field { margin-bottom: 10px; }
     .field label { display: block; font-size: 10px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 3px; letter-spacing: 0.5px; }
-    .field input, .field select { width: 100%; padding: 6px 8px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 12px; font-family: var(--font-mono); box-sizing: border-box; }
     .field-row {display:flex;gap:8px;}
     .field-row .field {flex:1;}
 
-    .symbol-search-field { width: 100%; font-size: 12px; margin-bottom: 0; }
-    ::ng-deep .symbol-search-field .mat-mdc-form-field-subscript-wrapper { display: none; }
-    ::ng-deep .symbol-search-field .mat-mdc-text-field-wrapper { padding-top: 0; padding-bottom: 0; background: var(--bg-primary) !important; min-height: 40px; }
-    ::ng-deep .symbol-search-field .mat-mdc-chip-grid { min-height: 32px; }
-    
-    .btn-primary {width:100%;padding:8px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600;margin-top:8px;}
-    .btn-primary:hover {opacity:0.85;}
-    .btn-primary:disabled {opacity:0.4;cursor:not-allowed;}
+    .symbol-item { display: flex; flex-direction: column; }
+    .symbol-item small { font-size: 10px; }
 
+    .action-btn { width: 100%; margin-top: 8px; }
+    
     .downloads {margin-top:10px;}
     .downloads label {font-size:10px;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:4px;}
     .dl-row {display:flex;gap:8px;align-items:center;font-size:11px;padding:3px 0;}
@@ -376,12 +404,12 @@ interface DataSummary {
     .history-row:hover {background:var(--bg-hover);}
     .history-row.active {border-left:2px solid var(--accent);padding-left:6px;}
 
-    .results-panel {min-height:400px;}
+    .results-panel {min-height:400px; display: flex; flex-direction: column; gap: 16px; }
     .empty-results {display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;color:var(--text-muted);gap:12px;}
     .empty-results mat-icon {font-size:48px;opacity:0.3;}
     .empty-results p {font-size:13px;}
 
-    .tabs {display:flex;gap:2px;margin-bottom:16px;border-bottom:1px solid var(--border);}
+    .tabs {display:flex;gap:2px;border-bottom:1px solid var(--border);}
     .tab {background:transparent;border:none;color:var(--text-secondary);padding:8px 16px;cursor:pointer;font-size:13px;border-bottom:2px solid transparent;}
     .tab:hover {color:var(--text-primary);}
     .tab.active {color:var(--accent);border-bottom-color:var(--accent);}
@@ -400,16 +428,9 @@ interface DataSummary {
     .at-table tr:hover td {background:var(--bg-hover);}
     .r {text-align:right;}
 
-    .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .card-header h3 { margin: 0; }
-    .btn-icon { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 2px; border-radius: 4px; }
-    .btn-icon:hover { background: var(--bg-hover); color: var(--accent); }
-    .btn-icon mat-icon { font-size: 18px; width: 18px; height: 18px; }
 
-    .btn-small { background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-primary); padding: 2px 8px; border-radius: 3px; font-size: 10px; cursor: pointer; }
-    .btn-small:hover { border-color: var(--accent); color: var(--accent); }
-
-    .summary-table td { padding: 8px 6px; }
     .font-bold { font-weight: 600; }
 
     .suggestion-row {display:flex;gap:8px;align-items:flex-start;padding:6px 0;font-size:12px;border-bottom:1px solid var(--bg-hover);}
@@ -420,6 +441,9 @@ interface DataSummary {
     .badge.COMPLETED,.badge.completed {background:rgba(63,185,80,0.15);color:var(--profit);}
     .badge.FAILED,.badge.failed {background:rgba(248,81,73,0.15);color:var(--loss);}
     .empty {color:var(--text-muted);font-size:13px;padding:24px;text-align:center;}
+
+    ::ng-deep .dx-datagrid { background-color: transparent !important; }
+    ::ng-deep .dx-datagrid-headers { color: var(--text-secondary); font-size: 11px; text-transform: uppercase; }
   `],
 })
 export class BacktestComponent implements OnInit, OnDestroy {
@@ -429,18 +453,20 @@ export class BacktestComponent implements OnInit, OnDestroy {
   dataSummary: DataSummary[] = [];
   downloads: DownloadJob[] = [];
   
+  // DevExtreme Data Sources
+  allSymbolsSource: any[] = [];
+
   // Download Form
   symbolSearchCtrl = new FormControl('');
-  filteredSymbols: any[] = [];
   selectedDlSymbols: string[] = [];
-  dlFrom = '';
-  dlTo = '';
+  dlFrom: any = null;
+  dlTo: any = null;
   dlPending = false;
 
   // Backtest form
   btSymbol = '';
-  btFrom = '';
-  btTo = '';
+  btFrom: any = null;
+  btTo: any = null;
   btRunning = false;
   btError = '';
 
@@ -458,16 +484,8 @@ export class BacktestComponent implements OnInit, OnDestroy {
     this.refreshAvailable();
     this.refreshSummary();
 
-    // Symbol autocomplete
-    this.symbolSearchCtrl.valueChanges.pipe(
-      debounceTime(300),
-      distinctUntilChanged(),
-      switchMap(val => {
-        if (!val || typeof val !== 'string' || val.length < 2) return of([]);
-        return this.api.searchSymbols(val).pipe(catchError(() => of([])));
-      }),
-      takeUntil(this.destroy$)
-    ).subscribe(list => this.filteredSymbols = list);
+    // Load all symbols for search (simplified for this migration turn)
+    this.api.searchSymbols('').subscribe(list => this.allSymbolsSource = list);
 
     // Poll downloads
     interval(5000).pipe(
@@ -485,25 +503,12 @@ export class BacktestComponent implements OnInit, OnDestroy {
     this.api.getCandleDbSummary().pipe(catchError(() => of([]))).subscribe(s => this.dataSummary = s);
   }
 
-  // ── Symbol Search Helpers ────────────────────────────────
-  addSymbol(symbol: string): void {
-    if (symbol && !this.selectedDlSymbols.includes(symbol)) {
-      this.selectedDlSymbols.push(symbol);
-    }
-    this.symbolSearchCtrl.setValue('');
-  }
-
-  removeSymbol(symbol: string): void {
-    this.selectedDlSymbols = this.selectedDlSymbols.filter(s => s !== symbol);
-  }
-
   prepareSync(item: DataSummary): void {
     if (!this.selectedDlSymbols.includes(item.symbol)) {
-      this.selectedDlSymbols.push(item.symbol);
+      this.selectedDlSymbols = [...this.selectedDlSymbols, item.symbol];
     }
-    // Set dates to match current range or expand it
     this.dlFrom = item.startDate;
-    this.dlTo = new Date().toISOString().split('T')[0]; // To today
+    this.dlTo = new Date();
   }
 
   // ── Symbol selection → load dates ────────────────────────
@@ -525,7 +530,11 @@ export class BacktestComponent implements OnInit, OnDestroy {
   startDownload(): void {
     if (this.selectedDlSymbols.length === 0) return;
     this.dlPending = true;
-    this.api.startDownload(this.selectedDlSymbols, this.dlFrom, this.dlTo).subscribe({
+    
+    const fromStr = this.formatDate(this.dlFrom);
+    const toStr = this.formatDate(this.dlTo);
+
+    this.api.startDownload(this.selectedDlSymbols, fromStr, toStr).subscribe({
       next: () => {
         this.dlPending = false;
         this.selectedDlSymbols = [];
@@ -543,11 +552,15 @@ export class BacktestComponent implements OnInit, OnDestroy {
   runBacktest(): void {
     this.btRunning = true;
     this.btError = '';
-    this.api.runBacktest(this.btSymbol, this.btFrom, this.btTo).subscribe({
+    
+    const fromStr = this.formatDate(this.btFrom);
+    const toStr = this.formatDate(this.btTo);
+
+    this.api.runBacktest(this.btSymbol, fromStr, toStr).subscribe({
       next: (r) => {
         this.btRunning = false;
         r._symbol = this.btSymbol;
-        r._dateRange = `${this.btFrom} → ${this.btTo}`;
+        r._dateRange = `${fromStr} → ${toStr}`;
         this.result = r;
         this.resultTab = 'Overview';
         this.history.unshift(r);
@@ -558,6 +571,13 @@ export class BacktestComponent implements OnInit, OnDestroy {
         this.btError = e.error?.message || e.message || 'Backtest failed';
       },
     });
+  }
+
+  private formatDate(val: any): string {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    if (val instanceof Date) return val.toISOString().split('T')[0];
+    return '';
   }
 
   // ── Result accessors ─────────────────────────────────────
@@ -573,7 +593,6 @@ export class BacktestComponent implements OnInit, OnDestroy {
     const curve = this.result?.equityCurve;
     if (!curve || curve.length === 0) return [];
     if (curve.length <= 60) return curve;
-    // Sample down to ~60 bars
     const step = Math.ceil(curve.length / 60);
     return curve.filter((_: any, i: number) => i % step === 0);
   }
