@@ -1,14 +1,21 @@
 import { Component, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatTableModule } from '@angular/material/table';
 import { GlobalStateService } from '../../core/services/global-state.service';
 import { StatusCardComponent } from '../../shared/components/status-card.component';
 import { MetricRowComponent } from '../../shared/components/metric-row.component';
+import { MatIconModule } from '@angular/material/icon';
+
+// DevExtreme
+import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
+import { DxProgressBarModule } from 'devextreme-angular/ui/progress-bar';
 
 @Component({
   selector: 'at-paper-trade',
   standalone: true,
-  imports: [CommonModule, MatTableModule, StatusCardComponent, MetricRowComponent],
+  imports: [
+    CommonModule, StatusCardComponent, MetricRowComponent, MatIconModule,
+    DxDataGridModule, DxProgressBarModule
+  ],
   template: `
     <div class="page-header">
       <h1>Paper Trade Center</h1>
@@ -19,32 +26,27 @@ import { MetricRowComponent } from '../../shared/components/metric-row.component
       <!-- Active Positions -->
       <at-status-card title="Active Positions" icon="show_chart"
                       [iconColor]="state.positions().length > 0 ? 'var(--accent)' : 'var(--text-secondary)'">
-        <table mat-table [dataSource]="state.positions()" class="mat-elevation-z0 compact-table">
-          <ng-container matColumnDef="symbol">
-            <th mat-header-cell *matHeaderCellDef> Symbol </th>
-            <td mat-cell *matCellDef="let p" class="mono"> {{ shortSymbol(p.symbol) }} </td>
-          </ng-container>
+        <dx-data-grid
+          [dataSource]="state.positions()"
+          [showBorders]="false"
+          [rowAlternationEnabled]="true"
+          [columnAutoWidth]="true">
+          <dxi-column dataField="symbol" cellTemplate="symbolTemplate"></dxi-column>
+          <dxi-column dataField="direction" cellTemplate="dirTemplate" [width]="60"></dxi-column>
+          <dxi-column dataField="unrealizedPnl" caption="PnL" cellTemplate="pnlTemplate" alignment="right"></dxi-column>
 
-          <ng-container matColumnDef="direction">
-            <th mat-header-cell *matHeaderCellDef> Dir </th>
-            <td mat-cell *matCellDef="let p">
-              <span class="badge" [class]="p.direction === 'BUY' ? 'buy' : 'sell'">{{ p.direction }}</span>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="pnl">
-            <th mat-header-cell *matHeaderCellDef class="r"> PnL </th>
-            <td mat-cell *matCellDef="let p" class="r mono" [class]="pnlClass(p.unrealizedPnl)">
-              {{ formatPnl(p.unrealizedPnl) }}
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="positionColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: positionColumns;"></tr>
-        </table>
-        @if (state.positions().length === 0) {
-          <div class="empty-row">No open positions</div>
-        }
+          <div *dxTemplate="let data of 'symbolTemplate'">
+            <span class="mono">{{ shortSymbol(data.value) }}</span>
+          </div>
+          <div *dxTemplate="let data of 'dirTemplate'">
+            <span class="badge" [class.buy]="data.value === 'BUY'" [class.sell]="data.value === 'SELL'">{{ data.value.charAt(0) }}</span>
+          </div>
+          <div *dxTemplate="let data of 'pnlTemplate'">
+            <span class="mono font-bold" [class.profit]="data.value >= 0" [class.loss]="data.value < 0">
+              {{ formatPnl(data.value) }}
+            </span>
+          </div>
+        </dx-data-grid>
       </at-status-card>
 
       <!-- Session Stats -->
@@ -52,21 +54,27 @@ import { MetricRowComponent } from '../../shared/components/metric-row.component
         <at-metric label="Trades Today" [value]="state.recentTrades().length" />
         <at-metric label="Winners" [value]="winners()" [valueClass]="'profit'" />
         <at-metric label="Win Rate" [value]="winRate()" />
-        <at-metric label="Realized PnL" [value]="formatPnl(totalPnl())" [valueClass]="pnlClass(totalPnl())" />
+        <at-metric label="Realized PnL" [value]="formatPnl(totalPnl())" [valueClass]="totalPnl() >= 0 ? 'profit' : 'loss'" />
         <at-metric label="Best Trade" [value]="formatPnl(bestPnl())" [valueClass]="'profit'" />
       </at-status-card>
 
       <!-- Risk Utilization -->
       <at-status-card title="Risk Utilization" icon="shield" iconColor="var(--warning)">
-        <at-metric label="Daily PnL" [value]="formatPnl(state.dailyPnl())" [valueClass]="pnlClass(state.dailyPnl())" />
+        <at-metric label="Daily PnL" [value]="formatPnl(state.dailyPnl())" [valueClass]="state.dailyPnl() >= 0 ? 'profit' : 'loss'" />
         <at-metric label="Loss Limit" [value]="formatPnl(-1 * (state.risk()?.maxDailyLossInr ?? 0))" />
-        <div class="bar-section">
-          <div class="bar-label">Loss Utilization</div>
-          <div class="bar-container">
-            <div class="bar-fill" [style.width.%]="lossUtilPct()" [class]="barClass()"></div>
+        
+        <div class="dx-field">
+          <div class="dx-field-label">Loss Utilization</div>
+          <div class="dx-field-value">
+            <dx-progress-bar
+              [min]="0"
+              [max]="100"
+              [value]="lossUtilPct()"
+              [class]="barClass()">
+            </dx-progress-bar>
           </div>
-          <div class="bar-value">{{ lossUtilPct().toFixed(0) }}%</div>
         </div>
+
         <at-metric label="Kill Switch" [value]="state.isKillSwitchActive() ? 'ON' : 'OFF'"
                    [valueClass]="state.isKillSwitchActive() ? 'loss' : ''" />
       </at-status-card>
@@ -75,74 +83,54 @@ import { MetricRowComponent } from '../../shared/components/metric-row.component
     <!-- Recent Exits -->
     <at-status-card title="Recent Exits" icon="logout" iconColor="var(--text-secondary)"
                     style="margin-top: 16px">
-      <table mat-table [dataSource]="recentExits()" class="mat-elevation-z0">
-        <ng-container matColumnDef="exitTime">
-          <th mat-header-cell *matHeaderCellDef> Time </th>
-          <td mat-cell *matCellDef="let t" class="mono text-muted"> {{ formatTime(t.exitTime) }} </td>
-        </ng-container>
+      <dx-data-grid
+        [dataSource]="recentExits()"
+        [showBorders]="false"
+        [rowAlternationEnabled]="true"
+        [columnAutoWidth]="true">
+        <dxi-column dataField="exitTime" caption="Time" dataType="datetime" format="HH:mm:ss" [width]="90"></dxi-column>
+        <dxi-column dataField="symbol" cellTemplate="symbolTemplate"></dxi-column>
+        <dxi-column dataField="direction" cellTemplate="dirTemplate" [width]="60"></dxi-column>
+        <dxi-column dataField="pnl" cellTemplate="pnlTemplate" alignment="right"></dxi-column>
+        <dxi-column dataField="exitReason" caption="Reason"></dxi-column>
 
-        <ng-container matColumnDef="symbol">
-          <th mat-header-cell *matHeaderCellDef> Symbol </th>
-          <td mat-cell *matCellDef="let t" class="mono"> {{ shortSymbol(t.symbol) }} </td>
-        </ng-container>
-
-        <ng-container matColumnDef="direction">
-          <th mat-header-cell *matHeaderCellDef> Dir </th>
-          <td mat-cell *matCellDef="let t">
-            <span class="badge" [class]="t.direction === 'BUY' ? 'buy' : 'sell'">{{ t.direction }}</span>
-          </td>
-        </ng-container>
-
-        <ng-container matColumnDef="pnl">
-          <th mat-header-cell *matHeaderCellDef class="r"> PnL </th>
-          <td mat-cell *matCellDef="let t" class="r mono" [class]="pnlClass(t.pnl)">
-            {{ formatPnl(t.pnl) }}
-          </td>
-        </ng-container>
-
-        <ng-container matColumnDef="reason">
-          <th mat-header-cell *matHeaderCellDef> Reason </th>
-          <td mat-cell *matCellDef="let t" class="text-muted"> {{ t.exitReason || '—' }} </td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="exitColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: exitColumns;"></tr>
-      </table>
-      @if (recentExits().length === 0) {
-        <div class="empty-row">No exits today</div>
-      }
+        <div *dxTemplate="let data of 'symbolTemplate'">
+          <span class="mono">{{ shortSymbol(data.value) }}</span>
+        </div>
+        <div *dxTemplate="let data of 'dirTemplate'">
+          <span class="badge" [class.buy]="data.value === 'BUY'" [class.sell]="data.value === 'SELL'">{{ data.value.charAt(0) }}</span>
+        </div>
+        <div *dxTemplate="let data of 'pnlTemplate'">
+          <span class="mono font-bold" [class.profit]="data.value >= 0" [class.loss]="data.value < 0">
+            {{ formatPnl(data.value) }}
+          </span>
+        </div>
+      </dx-data-grid>
     </at-status-card>
   `,
   styles: [`
     .page-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
     h1 { margin: 0; font-size: 20px; font-weight: 500; }
-    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--profit); animation: pulse 2s infinite; }
-    .live-dot.stopped { background: var(--loss); animation: none; }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #3fb950; animation: pulse 2s infinite; }
+    .live-dot.stopped { background: #f85149; animation: none; }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
     .paper-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
-    .r { text-align: right !important; justify-content: flex-end; }
-    .badge { padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; }
-    .badge.buy { background: rgba(63, 185, 80, 0.15); color: var(--profit); }
-    .badge.sell { background: rgba(248, 81, 73, 0.15); color: var(--loss); }
-    .empty-row { text-align: center; padding: 24px !important; color: var(--text-muted); font-size: 13px; }
+    .badge { padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; background: rgba(255,255,255,0.1); }
+    .badge.buy { color: var(--profit); }
+    .badge.sell { color: var(--loss); }
 
-    .bar-section { margin: 8px 0; }
-    .bar-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
-    .bar-container { height: 6px; background: var(--bg-hover); border-radius: 3px; overflow: hidden; }
-    .bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
-    .bar-fill.safe { background: var(--profit); }
-    .bar-fill.caution { background: var(--warning); }
-    .bar-fill.danger { background: var(--loss); }
-    .bar-value { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .dx-field { margin-top: 8px; }
+    .dx-field-label { font-size: 11px; opacity: 0.7; }
 
-    .compact-table ::ng-deep .mat-mdc-cell { padding: 4px 8px !important; font-size: 12px; }
+    ::ng-deep .safe .dx-progressbar-range { background-color: #3fb950; }
+    ::ng-deep .caution .dx-progressbar-range { background-color: #d29922; }
+    ::ng-deep .danger .dx-progressbar-range { background-color: #f85149; }
+
+    ::ng-deep .dx-datagrid { background-color: transparent !important; }
   `],
 })
 export class PaperTradeComponent {
-  positionColumns = ['symbol', 'direction', 'pnl'];
-  exitColumns = ['exitTime', 'symbol', 'direction', 'pnl', 'reason'];
-
   readonly winners = computed(() => this.state.recentTrades().filter(t => t.pnl != null && t.pnl > 0).length);
   readonly losers = computed(() => this.state.recentTrades().filter(t => t.pnl != null && t.pnl <= 0).length);
   readonly winRate = computed(() => {
@@ -152,15 +140,15 @@ export class PaperTradeComponent {
   readonly totalPnl = computed(() => this.state.recentTrades().reduce((s, t) => s + (t.pnl ?? 0), 0));
   readonly bestPnl = computed(() => {
     const pnls = this.state.recentTrades().filter(t => t.pnl != null).map(t => t.pnl!);
-    return pnls.length > 0 ? Math.max(...pnls) : null;
+    return pnls.length > 0 ? Math.max(...pnls) : 0;
   });
   readonly recentExits = computed(() =>
-    this.state.recentTrades().filter(t => t.status === 'CLOSED').slice(-5).reverse()
+    this.state.recentTrades().filter(t => t.status === 'CLOSED').slice(-10).reverse()
   );
   readonly lossUtilPct = computed(() => {
     const risk = this.state.risk();
     if (!risk || !risk.maxDailyLossInr) return 0;
-    return Math.min(100, Math.abs(risk.dailyPnl) / risk.maxDailyLossInr * 100);
+    return Math.min(100, Math.abs(this.state.dailyPnl()) / risk.maxDailyLossInr * 100);
   });
   readonly barClass = computed(() => {
     const p = this.lossUtilPct();
@@ -170,13 +158,8 @@ export class PaperTradeComponent {
   constructor(public state: GlobalStateService) {}
 
   shortSymbol(s: string): string { return s.replace(/^(NSE|BSE|MCX):/, ''); }
-  pnlClass(v: number | null | undefined): string { return v == null ? '' : v >= 0 ? 'profit' : 'loss'; }
   formatPnl(v: number | null | undefined): string {
     if (v == null) return '—';
-    return `${v >= 0 ? '+' : ''}₹${v.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-  }
-  formatTime(iso: string | null): string {
-    if (!iso) return '—';
-    try { return new Date(iso).toLocaleTimeString('en-IN', { hour12: false }); } catch { return iso; }
+    return `${v >= 0 ? '+' : ''}₹${v.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
   }
 }

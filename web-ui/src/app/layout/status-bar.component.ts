@@ -1,15 +1,16 @@
 import { Component, computed, signal, ChangeDetectionStrategy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { GlobalStateService } from '../core/services/global-state.service';
+import { ThemeService } from '../core/services/theme.service';
 import { environment } from '../../environments/environment';
+import { DxButtonModule } from 'devextreme-angular/ui/button';
 
 @Component({
   selector: 'at-status-bar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, DxButtonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-
     <div class="status-bar" [class.alert]="state.isAnomalyMode() || state.isKillSwitchActive()">
       <div class="status-item">
         <span class="label">Mode</span>
@@ -27,27 +28,19 @@ import { environment } from '../../environments/environment';
           {{ formatPnl(state.dailyPnl()) }}
         </span>
       </div>
-      <div class="status-item">
-        <span class="label">Kill Switch</span>
-        <span class="dot" [class.red]="state.isKillSwitchActive()" [class.green]="!state.isKillSwitchActive()"></span>
-        <span class="value">{{ state.isKillSwitchActive() ? 'ON' : 'OFF' }}</span>
-      </div>
-      <div class="status-item">
-        <span class="label">Anomaly</span>
-        <span class="dot" [class.red]="state.isAnomalyMode()" [class.green]="!state.isAnomalyMode()"></span>
-        <span class="value">{{ state.isAnomalyMode() ? 'ACTIVE' : 'CLEAR' }}</span>
-      </div>
-      <div class="status-item">
-        <span class="label">Circuit</span>
-        <span class="dot"
-              [class.green]="state.circuitBreaker()?.state === 'CLOSED'"
-              [class.amber]="state.circuitBreaker()?.state === 'HALF_OPEN'"
-              [class.red]="state.circuitBreaker()?.state === 'OPEN'"></span>
-        <span class="value">{{ state.circuitBreaker()?.state || '—' }}</span>
-      </div>
+      
       <div class="status-item last-updated">
         <span class="label">Updated</span>
         <span class="value mono" [class.warning]="isStale()">{{ lastUpdatedText() }}</span>
+      </div>
+
+      <div class="theme-toggle">
+        <dx-button
+          [icon]="theme.theme() === 'dark' ? 'sun' : 'moon'"
+          stylingMode="text"
+          (onClick)="theme.toggleTheme()"
+          [hint]="'Switch to ' + (theme.theme() === 'dark' ? 'light' : 'dark') + ' theme'">
+        </dx-button>
       </div>
     </div>
   `,
@@ -56,19 +49,12 @@ import { environment } from '../../environments/environment';
       display: flex;
       align-items: center;
       gap: 20px;
-      padding: 8px 16px;
-      background: var(--bg-secondary);
-      border-bottom: 1px solid var(--border);
+      padding: 4px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
       font-size: 13px;
-      flex-wrap: wrap;
     }
     .status-bar.alert {
-      border-bottom: 2px solid var(--loss);
-      animation: pulse-border 2s infinite;
-    }
-    @keyframes pulse-border {
-      0%, 100% { border-bottom-color: var(--loss); }
-      50% { border-bottom-color: transparent; }
+      border-bottom: 2px solid #f85149;
     }
     .status-item {
       display: flex;
@@ -76,21 +62,28 @@ import { environment } from '../../environments/environment';
       gap: 4px;
     }
     .label {
-      color: var(--text-muted);
+      opacity: 0.6;
       font-size: 11px;
       text-transform: uppercase;
     }
     .value {
-      color: var(--text-primary);
       font-weight: 500;
     }
     .last-updated {
       margin-left: auto;
     }
+    .theme-toggle {
+      margin-left: 10px;
+    }
+    ::ng-deep .theme-toggle .dx-button {
+      height: 32px;
+      width: 32px;
+    }
   `],
 })
 export class StatusBarComponent {
   public state = inject(GlobalStateService);
+  public theme = inject(ThemeService);
 
   readonly lastUpdatedText = computed(() => {
     return this.state.lastUpdated().toLocaleTimeString('en-IN', { hour12: false });
@@ -110,10 +103,6 @@ export class StatusBarComponent {
   }
 }
 
-/**
- * Helper to create a signal that updates on an interval.
- * In a real app, this might be a utility.
- */
 function signalInterval<T>(ms: number, factory: () => T) {
   const s = signal<T>(factory());
   setInterval(() => s.set(factory()), ms);

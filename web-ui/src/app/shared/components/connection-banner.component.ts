@@ -1,21 +1,24 @@
 import { Component, Input, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
-import { MatButtonModule } from '@angular/material/button';
 import { ConnectionService } from '../../core/services/connection.service';
+import { DxButtonModule } from 'devextreme-angular/ui/button';
 
 @Component({
   selector: 'at-connection-banner',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatButtonModule],
+  imports: [CommonModule, MatIconModule, DxButtonModule],
   template: `
     @if (disconnected && !connection.isMock()) {
       <div class="connection-banner">
         <mat-icon>cloud_off</mat-icon>
         <span class="msg">Backend unreachable — check your connection or engine status.</span>
-        <button mat-stroked-button color="accent" class="btn-sm" (click)="switchToMock()">
-          Switch to Demo Mode
-        </button>
+        <dx-button
+          text="Switch to Demo Mode"
+          type="default"
+          stylingMode="outlined"
+          (onClick)="switchToMock()">
+        </dx-button>
       </div>
     }
   `,
@@ -31,11 +34,10 @@ import { ConnectionService } from '../../core/services/connection.service';
       color: var(--warning);
       font-size: 13px;
       margin-bottom: 12px;
-      animation: pulse-warn 4s infinite;
     }
     .msg { flex: 1; }
-    .btn-sm { height: 28px; line-height: 28px; padding: 0 12px; font-size: 11px; }
     mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    ::ng-deep .connection-banner .dx-button { height: 28px; font-size: 11px; }
   `],
 })
 export class ConnectionBannerComponent {

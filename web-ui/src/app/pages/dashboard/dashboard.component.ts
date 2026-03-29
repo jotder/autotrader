@@ -5,10 +5,17 @@ import { AlertBannerComponent } from '../../shared/components/alert-banner.compo
 import { StatusCardComponent } from '../../shared/components/status-card.component';
 import { MetricRowComponent } from '../../shared/components/metric-row.component';
 
+// DevExtreme
+import { DxProgressBarModule } from 'devextreme-angular/ui/progress-bar';
+import { DxBulletModule } from 'devextreme-angular/ui/bullet';
+
 @Component({
   selector: 'at-dashboard',
   standalone: true,
-  imports: [CommonModule, AlertBannerComponent, StatusCardComponent, MetricRowComponent],
+  imports: [
+    CommonModule, AlertBannerComponent, StatusCardComponent, MetricRowComponent,
+    DxProgressBarModule, DxBulletModule
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page-header">
@@ -32,12 +39,22 @@ import { MetricRowComponent } from '../../shared/components/metric-row.component
         <at-metric label="Daily PnL" [value]="formatPnl(state.dailyPnl())"
                    [valueClass]="pnlClass(state.dailyPnl())" />
         <at-metric label="Loss Limit" [value]="formatPnl(-1 * (state.risk()?.maxDailyLossInr ?? 0))" />
+        
+        <div class="dx-field">
+          <div class="dx-field-label">Loss Utilization</div>
+          <div class="dx-field-value">
+            <dx-progress-bar
+              [min]="0"
+              [max]="100"
+              [value]="lossUtilPct"
+              [statusFormat]="formatProgressBar"
+              [class]="lossBarClass">
+            </dx-progress-bar>
+          </div>
+        </div>
+
         <at-metric label="Profit Lock" [value]="state.risk()?.dailyProfitLocked ? 'LOCKED' : 'Open'"
                    [valueClass]="state.risk()?.dailyProfitLocked ? 'warning' : ''" />
-        <div class="loss-bar-container">
-          <div class="loss-bar" [style.width.%]="lossUtilPct" [class]="lossBarClass"></div>
-        </div>
-        <span class="text-muted" style="font-size:11px">Loss utilization: {{ lossUtilPct.toFixed(0) }}%</span>
       </at-status-card>
 
       <!-- Health -->
@@ -99,21 +116,12 @@ import { MetricRowComponent } from '../../shared/components/metric-row.component
       gap: 16px;
     }
 
-    .loss-bar-container {
-      height: 4px;
-      background: var(--bg-hover);
-      border-radius: 2px;
-      margin: 8px 0 4px;
-      overflow: hidden;
-    }
-    .loss-bar {
-      height: 100%;
-      border-radius: 2px;
-      transition: width 0.3s ease;
-    }
-    .loss-bar.safe { background: var(--profit); }
-    .loss-bar.caution { background: var(--warning); }
-    .loss-bar.danger { background: var(--loss); }
+    .dx-field { margin-top: 12px; margin-bottom: 12px; }
+    .dx-field-label { font-size: 10px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+
+    ::ng-deep .safe .dx-progressbar-range { background-color: var(--profit); }
+    ::ng-deep .caution .dx-progressbar-range { background-color: var(--warning); }
+    ::ng-deep .danger .dx-progressbar-range { background-color: var(--loss); }
 
     .health-row {
       display: flex;
@@ -146,6 +154,10 @@ export class DashboardComponent {
     if (pct < 50) return 'safe';
     if (pct < 80) return 'caution';
     return 'danger';
+  }
+
+  formatProgressBar(ratio: number): string {
+    return `Utilization: ${(ratio * 100).toFixed(0)}%`;
   }
 
   get healthEntries(): [string, any][] {
