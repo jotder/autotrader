@@ -7,7 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
   standalone: true,
   imports: [CommonModule, MatIconModule],
   template: `
-    <div class="at-card status-card">
+    <div class="dx-card status-card">
       <div class="card-header">
         <mat-icon [style.color]="iconColor">{{ icon }}</mat-icon>
         <span class="card-title">{{ title }}</span>
@@ -18,10 +18,7 @@ import { MatIconModule } from '@angular/material/icon';
     </div>
   `,
   styles: [`
-    .at-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 6px;
+    .status-card {
       padding: 16px;
       height: 100%;
       box-sizing: border-box;
@@ -35,9 +32,9 @@ import { MatIconModule } from '@angular/material/icon';
     .card-title {
       font-size: 11px;
       font-weight: 600;
-      color: var(--text-secondary);
       text-transform: uppercase;
       letter-spacing: 1px;
+      opacity: 0.7;
     }
     mat-icon {
       font-size: 20px;

@@ -56,49 +56,56 @@ interface DataSummary {
       <div class="controls-panel">
         
         <!-- M1 Data Downloader -->
-        <div class="at-card section">
+        <div class="dx-card section">
           <h3><mat-icon>cloud_download</mat-icon> Download M1 Data</h3>
           
-          <div class="field">
-            <label>Search Symbols</label>
-            <dx-tag-box
-              [dataSource]="allSymbolsSource"
-              displayExpr="symbolTicker"
-              valueExpr="symbolTicker"
-              [(value)]="selectedDlSymbols"
-              [searchEnabled]="true"
-              placeholder="Search symbols..."
-              stylingMode="outlined"
-              [showSelectionControls]="true"
-              [maxDisplayedTags]="3"
-              [multiline]="true">
-              <div *dxTemplate="let data of 'item'">
-                <div class="symbol-item">
-                  <span class="mono">{{ data.symbolTicker }}</span>
-                  <small class="text-muted">{{ data.symbolDetails }}</small>
-                </div>
+          <div class="dx-fieldset">
+            <div class="dx-field">
+              <div class="dx-field-label">Symbols</div>
+              <div class="dx-field-value">
+                <dx-tag-box
+                  [dataSource]="allSymbolsSource"
+                  displayExpr="symbolTicker"
+                  valueExpr="symbolTicker"
+                  [(value)]="selectedDlSymbols"
+                  [searchEnabled]="true"
+                  placeholder="Search symbols..."
+                  stylingMode="outlined"
+                  [showSelectionControls]="true"
+                  [maxDisplayedTags]="3"
+                  [multiline]="true">
+                  <div *dxTemplate="let data of 'item'">
+                    <div class="symbol-item">
+                      <span class="mono">{{ data.symbolTicker }}</span>
+                      <small class="text-muted">{{ data.symbolDetails }}</small>
+                    </div>
+                  </div>
+                </dx-tag-box>
               </div>
-            </dx-tag-box>
-          </div>
-
-          <div class="field-row">
-            <div class="field">
-              <label>From</label>
-              <dx-date-box
-                type="date"
-                [(value)]="dlFrom"
-                displayFormat="yyyy-MM-dd"
-                stylingMode="outlined">
-              </dx-date-box>
             </div>
-            <div class="field">
-              <label>To</label>
-              <dx-date-box
-                type="date"
-                [(value)]="dlTo"
-                displayFormat="yyyy-MM-dd"
-                stylingMode="outlined">
-              </dx-date-box>
+
+            <div class="dx-field">
+              <div class="dx-field-label">From</div>
+              <div class="dx-field-value">
+                <dx-date-box
+                  type="date"
+                  [(value)]="dlFrom"
+                  displayFormat="yyyy-MM-dd"
+                  stylingMode="outlined">
+                </dx-date-box>
+              </div>
+            </div>
+
+            <div class="dx-field">
+              <div class="dx-field-label">To</div>
+              <div class="dx-field-value">
+                <dx-date-box
+                  type="date"
+                  [(value)]="dlTo"
+                  displayFormat="yyyy-MM-dd"
+                  stylingMode="outlined">
+                </dx-date-box>
+              </div>
             </div>
           </div>
 
@@ -114,12 +121,11 @@ interface DataSummary {
           <!-- Active downloads -->
           @if (downloads.length > 0) {
             <div class="downloads">
-              <label>Active Jobs</label>
+              <div class="dx-field-label" style="margin-bottom:8px">Active Jobs</div>
               @for (d of downloads; track d.jobId) {
                 <div class="dl-row">
                   <span class="dl-status badge" [class]="dlStatusClass(d.status)">{{ d.status }}</span>
                   <span class="mono text-muted">{{ d.symbols.join(', ') }}</span>
-                  @if (d.progress) { <span class="text-muted">{{ d.progress }}</span> }
                 </div>
               }
             </div>
@@ -127,46 +133,55 @@ interface DataSummary {
         </div>
 
         <!-- Backtest Form -->
-        <div class="at-card section">
+        <div class="dx-card section">
           <h3><mat-icon>science</mat-icon> Run Backtest</h3>
-          <div class="field">
-            <label>Symbol</label>
-            <dx-select-box
-              [items]="availableSymbols"
-              [(value)]="btSymbol"
-              placeholder="Select symbol..."
-              [searchEnabled]="true"
-              stylingMode="outlined"
-              (onValueChanged)="onSymbolChange()">
-            </dx-select-box>
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <label>From</label>
-              <dx-date-box
-                type="date"
-                [(value)]="btFrom"
-                displayFormat="yyyy-MM-dd"
-                stylingMode="outlined">
-              </dx-date-box>
+          
+          <div class="dx-fieldset">
+            <div class="dx-field">
+              <div class="dx-field-label">Symbol</div>
+              <div class="dx-field-value">
+                <dx-select-box
+                  [items]="availableSymbols"
+                  [(value)]="btSymbol"
+                  placeholder="Select symbol..."
+                  [searchEnabled]="true"
+                  stylingMode="outlined"
+                  (onValueChanged)="onSymbolChange()">
+                </dx-select-box>
+              </div>
             </div>
-            <div class="field">
-              <label>To</label>
-              <dx-date-box
-                type="date"
-                [(value)]="btTo"
-                displayFormat="yyyy-MM-dd"
-                stylingMode="outlined">
-              </dx-date-box>
+
+            <div class="dx-field">
+              <div class="dx-field-label">From</div>
+              <div class="dx-field-value">
+                <dx-date-box
+                  type="date"
+                  [(value)]="btFrom"
+                  displayFormat="yyyy-MM-dd"
+                  stylingMode="outlined">
+                </dx-date-box>
+              </div>
+            </div>
+
+            <div class="dx-field">
+              <div class="dx-field-label">To</div>
+              <div class="dx-field-value">
+                <dx-date-box
+                  type="date"
+                  [(value)]="btTo"
+                  displayFormat="yyyy-MM-dd"
+                  stylingMode="outlined">
+                </dx-date-box>
+              </div>
             </div>
           </div>
 
           @if (btSymbol) {
             <div class="available-dates text-muted">
               @if (availableDates.length > 0) {
-                Available: {{ availableDates[0] }} to {{ availableDates[availableDates.length - 1] }} ({{ availableDates.length }} days)
+                Available: {{ availableDates[0] }} to {{ availableDates[availableDates.length - 1] }}
               } @else {
-                No dates available for this symbol
+                No dates available
               }
             </div>
           }
@@ -187,12 +202,11 @@ interface DataSummary {
 
         <!-- Session History -->
         @if (history.length > 0) {
-          <div class="at-card section">
+          <div class="dx-card section">
             <h3><mat-icon>history</mat-icon> History</h3>
             @for (h of history; track $index) {
               <div class="history-row" [class.active]="h === result" (click)="result = h">
                 <span class="mono">{{ shortSymbol(h._symbol) }}</span>
-                <span class="mono text-muted">{{ h._dateRange }}</span>
                 <span class="mono" [class]="(h.overall?.totalPnl ?? 0) >= 0 ? 'profit' : 'loss'">
                   {{ formatPnl(h.overall?.totalPnl) }}
                 </span>
@@ -206,7 +220,7 @@ interface DataSummary {
       <div class="results-panel">
         
         <!-- Data Summary DataGrid -->
-        <div class="at-card section summary-card">
+        <div class="dx-card section summary-card">
           <div class="card-header">
             <h3><mat-icon>storage</mat-icon> Available Data Summary</h3>
             <dx-button

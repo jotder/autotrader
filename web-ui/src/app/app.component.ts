@@ -51,16 +51,16 @@ import { GlobalStateService } from './core/services/global-state.service';
       width: 200px;
       flex-shrink: 0;
       z-index: 10;
+      border-right: 1px solid rgba(255,255,255,0.1);
     }
     .app-content {
       flex: 1;
-      background: var(--bg-primary);
       display: flex;
       flex-direction: column;
       overflow: hidden;
     }
     .main-outlet {
-      padding: 24px;
+      padding: 20px;
       flex: 1;
       overflow-y: auto;
     }
