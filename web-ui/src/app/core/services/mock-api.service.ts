@@ -5,6 +5,8 @@ import {
   CircuitBreakerStatus, TokenStatus, ActionResponse, Position,
   TradeRecord, OrdersResponse,
   StrategyVersionInfo, StrategyConfig, ValidationResult,
+  RecommendationSignal, SizingRequest, SizingResponse,
+  BacktestJobRequest, BacktestReport
 } from '../models/api.models';
 import {
   mockStatus, mockRisk, mockHealth, mockAnomaly, mockCircuitBreaker,
@@ -23,6 +25,53 @@ function mockDelay(): number { return 200 + Math.random() * 600; }
  */
 @Injectable({ providedIn: 'root' })
 export class MockApiService {
+
+  // ── Phase-II Endpoints ────────────────────────────────────────
+
+  getSignals(symbol?: string, limit: number = 100): Observable<RecommendationSignal[]> {
+    const signals: RecommendationSignal[] = [
+      {
+        timestamp: new Date().toISOString(),
+        symbol: symbol || 'NSE:SBIN-EQ',
+        strategyId: 'trend_following',
+        direction: 'BUY',
+        confidence: 0.85,
+        confidenceLevel: 'HIGH',
+        suggestedEntry: 600.50,
+        suggestedStopLoss: 590.00,
+        suggestedTarget: 625.00,
+        atr: 10.5,
+        reason: 'M5/M15/H1 aligned voting'
+      },
+      {
+        timestamp: new Date().toISOString(),
+        symbol: symbol || 'NSE:RELIANCE-EQ',
+        strategyId: 'mean_reversion',
+        direction: 'SELL',
+        confidence: 0.72,
+        confidenceLevel: 'NORMAL',
+        suggestedEntry: 2950.00,
+        suggestedStopLoss: 2980.00,
+        suggestedTarget: 2890.00,
+        atr: 45.0,
+        reason: 'RSI Overbought on M15'
+      }
+    ];
+    return of(signals.slice(0, limit)).pipe(delay(mockDelay()));
+  }
+
+  calculateSizing(request: SizingRequest): Observable<SizingResponse> {
+    const riskPerUnit = Math.abs(request.entryPrice - request.stopLoss);
+    const qty = riskPerUnit > 0 ? Math.floor(5000 / riskPerUnit) : 0;
+    
+    return of({
+      approved: qty > 0,
+      quantity: qty,
+      stopLoss: request.stopLoss,
+      takeProfit: request.entryPrice + (riskPerUnit * 2),
+      rejectReason: qty > 0 ? undefined : 'Stop loss too tight or risk too high'
+    }).pipe(delay(mockDelay()));
+  }
 
   // ── Read endpoints ────────────────────────────────────────
   getStatus(): Observable<StatusResponse> {
@@ -158,6 +207,20 @@ export class MockApiService {
       return throwError(() => ({ error: { message: 'No M1 data found for the selected date range' } })).pipe(delay(800));
     }
     return of(mockBacktestResult()).pipe(delay(1500 + Math.random() * 1500));
+  }
+
+  createBacktestJob(_request: BacktestJobRequest): Observable<{jobId: string}> {
+    return of({ jobId: 'job-' + Date.now() }).pipe(delay(mockDelay()));
+  }
+
+  getBacktestJobResults(_jobId: string): Observable<BacktestReport[]> {
+    const base = mockBacktestResult() as BacktestReport;
+    const reports: BacktestReport[] = [
+      { ...base, overall: { ...base.overall, totalPnl: 12500, profitFactor: 1.8 } },
+      { ...base, overall: { ...base.overall, totalPnl: 8400, profitFactor: 1.4 } },
+      { ...base, overall: { ...base.overall, totalPnl: 15200, profitFactor: 2.1 } }
+    ];
+    return of(reports).pipe(delay(mockDelay()));
   }
 
   // ── Strategy version endpoints ────────────────────────────

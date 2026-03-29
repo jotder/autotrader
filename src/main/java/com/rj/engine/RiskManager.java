@@ -2,33 +2,22 @@ package com.rj.engine;
 
 import com.rj.config.RiskConfig;
 import com.rj.config.StrategyRiskConfig;
+import com.rj.config.TradeStrategyConfig;
 import com.rj.model.OpenPosition;
 import com.rj.model.TradeRecord;
 import com.rj.model.TradeSignal;
+import com.rj.risk.sizing.ISizingModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.ZonedDateTime;
 import java.util.Collection;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Pre-trade risk gate and daily state manager.
- *
- * <h3>Checks performed in {@link #preTradeCheck}</h3>
- * <ol>
- *   <li>Kill switch active (manually set or triggered by loss limit)</li>
- *   <li>Daily profit lock</li>
- *   <li>Daily loss limit</li>
- *   <li>No-new-trades time cutoff</li>
- *   <li>Max capital exposure per symbol</li>
- *   <li>Position sizing: qty = floor(risk_budget / risk_per_unit), lot-aligned, capped</li>
- *   <li>Fat-finger guard: qty ≤ maxQtyPerOrder</li>
- * </ol>
- *
- * <p>Call {@link #recordClosedTrade} after every exit so daily PnL stays current.
- * Call {@link #resetDay} at the start of each trading session.</p>
+ * Pre-trade risk gate and daily state manager (Phase-II Pluggable).
  */
 public class RiskManager {
 
@@ -36,6 +25,9 @@ public class RiskManager {
 
     private final RiskConfig riskConfig;
     private final java.util.function.Supplier<ZonedDateTime> clock;
+
+    // Phase-II: Pluggable strategy configurations
+    private final ConcurrentHashMap<String, TradeStrategyConfig> strategyConfigs = new ConcurrentHashMap<>();
 
     // Kill switches
     private final AtomicBoolean killSwitchActive = new AtomicBoolean(false);
@@ -63,6 +55,12 @@ public class RiskManager {
         this.riskConfig = riskConfig;
         this.clock = clock;
         this.peakSessionEquity = riskConfig.getInitialCapitalInr();
+    }
+
+    public void updateStrategyConfig(TradeStrategyConfig config) {
+        this.strategyConfigs.put(config.getStrategyId(), config);
+        log.info("Updated RiskManager config for strategy: {} [{}% capital]",
+                config.getStrategyId(), config.getAllocationPercentage());
     }
 
     // ── Pre-trade check ───────────────────────────────────────────────────────
@@ -140,61 +138,57 @@ public class RiskManager {
                     currentExposure, maxExposure));
         }
 
-        // ── Gate 7: position sizing ───────────────────────────────────────────
-        double entry = signal.getSuggestedEntry();
-        double sl = signal.getSuggestedStopLoss();
-        double tp = signal.getSuggestedTarget();
-        double riskPerUnit = Math.abs(entry - sl);
-
-        if (riskPerUnit <= 0) {
-            return reject("Stop loss is at or beyond entry price — risk per unit = 0");
+        // ── Gate 7: strategy-level capital & sizing ───────────────────────────
+        TradeStrategyConfig stratCfg = strategyConfigs.get(signal.getStrategyId());
+        if (stratCfg == null) {
+            return reject("Strategy config not found for: " + signal.getStrategyId());
         }
 
-        double riskFraction = stratOverride != null
-                ? stratOverride.riskPerTradePct() / 100.0
-                : riskConfig.getMaxRiskPerTradePercent();
-        double riskBudget = totalCapital * riskFraction;
-        int rawQty = (int) Math.floor(riskBudget / riskPerUnit);
-        
-        // Use per-instrument lot size from signal (critical for F&O)
+        double strategyCapital = totalCapital * (stratCfg.getAllocationPercentage() / 100.0);
+        ISizingModel sizingModel = stratCfg.createSizingModel();
+
+        double rawQty = sizingModel.calculateQuantity(signal, strategyCapital);
         int lotSize = signal.getLotSize();
-        
-        // Calculate lot-aligned quantity
-        int lotAlignedQty = (rawQty / lotSize) * lotSize;
-        
+        int lotAlignedQty = (int) (Math.floor(rawQty / lotSize) * lotSize);
+
         // Ensure at least 1 lot if it's a derivative and we have some budget
         if (lotAlignedQty == 0 && lotSize > 1 && rawQty > 0) {
             lotAlignedQty = lotSize;
         }
 
-        int maxQtyPerOrder = stratOverride != null
-                ? stratOverride.maxQty()
+        if (lotAlignedQty <= 0) {
+            return reject(String.format("Insufficient strategy capital for [%s] (needed=%.2f qty, lot=%d)",
+                    stratCfg.getName(), rawQty, lotSize));
+        }
+
+        // ── Gate 8: execution caps ───────────────────────────────────────────
+        int maxQtyPerOrder = strategyRiskOverrides.containsKey(signal.getStrategyId())
+                ? strategyRiskOverrides.get(signal.getStrategyId()).maxQty()
                 : riskConfig.getMaxQuantityPerOrder();
-        
-        double symbolMaxExposureFraction = stratOverride != null
-                ? stratOverride.maxExposurePct() / 100.0
+
+        double symbolMaxExposureFraction = strategyRiskOverrides.containsKey(signal.getStrategyId())
+                ? strategyRiskOverrides.get(signal.getStrategyId()).maxExposurePct() / 100.0
                 : riskConfig.getMaxExposurePerSymbolPercent();
         double symbolMaxExposure = totalCapital * symbolMaxExposureFraction;
-        int exposureCapQty = (int) Math.floor((symbolMaxExposure - currentExposure) / entry);
-        
+        int exposureCapQty = (int) Math.floor((symbolMaxExposure - currentExposure) / signal.getSuggestedEntry());
+
         int finalQty = Math.min(lotAlignedQty, Math.min(maxQtyPerOrder, exposureCapQty));
-        
+
         // Final lot alignment check after all caps
         if (lotSize > 1) {
             finalQty = (finalQty / lotSize) * lotSize;
         }
 
         if (finalQty <= 0) {
-            return reject(String.format("Quantity 0 (budget=%d, lot=%d, cap=%d)", (int)riskBudget, lotSize, exposureCapQty));
+            return reject(String.format("Quantity 0 after caps (lotAligned=%d, maxPerOrder=%d, exposureCap=%d)",
+                    lotAlignedQty, maxQtyPerOrder, exposureCapQty));
         }
 
-        log.info("[{}] Pre-trade OK: qty={} riskPerUnit={} riskBudget={} dailyPnl={}",
-                signal.getSymbol(), finalQty,
-                String.format("%.2f", riskPerUnit),
-                String.format("%.2f", riskBudget),
-                String.format("%.2f", dailyRealizedPnl));
+        log.info("[{}] Pre-trade OK: qty={} sizingModel={} strategyCap={} reason={}",
+                signal.getSymbol(), finalQty, sizingModel.getName(),
+                String.format("%.2f", strategyCapital), signal.getReason());
 
-        return new PreTradeResult(true, finalQty, sl, tp, null);
+        return new PreTradeResult(true, finalQty, signal.getSuggestedStopLoss(), signal.getSuggestedTarget(), null);
     }
 
     // ── Manual kill switch ────────────────────────────────────────────────────

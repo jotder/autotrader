@@ -15,7 +15,10 @@ public final class TradeSignal {
     private final String symbol;
     private final String correlationId;    // stable fingerprint; used for idempotency
     private final Signal direction;
-    private final double confidence;       // 0.0 – 1.0 combined across timeframes
+    private final double confidence;       // numeric score 0.0-1.0
+    private final Confidence confidenceLevel; // Phase-II Enum
+    private final String reason;           // Logical justification
+    private final double atr;              // Volatility at time of signal
     private final double suggestedEntry;
     private final double suggestedStopLoss;
     private final double suggestedTarget;
@@ -29,6 +32,9 @@ public final class TradeSignal {
         this.correlationId = b.correlationId;
         this.direction = b.direction;
         this.confidence = b.confidence;
+        this.confidenceLevel = b.confidenceLevel != null ? b.confidenceLevel : Confidence.NORMAL;
+        this.reason = b.reason != null ? b.reason : "No reason provided";
+        this.atr = b.atr;
         this.suggestedEntry = b.suggestedEntry;
         this.suggestedStopLoss = b.suggestedStopLoss;
         this.suggestedTarget = b.suggestedTarget;
@@ -56,6 +62,18 @@ public final class TradeSignal {
 
     public double getConfidence() {
         return confidence;
+    }
+
+    public Confidence getConfidenceLevel() {
+        return confidenceLevel;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public double getAtr() {
+        return atr;
     }
 
     public double getSuggestedEntry() {
@@ -119,6 +137,9 @@ public final class TradeSignal {
         private double suggestedStopLoss;
         private double suggestedTarget;
         private String strategyId;
+        private Confidence confidenceLevel = Confidence.NORMAL;
+        private String reason = "No reason provided";
+        private double atr;
         private Map<Timeframe, Signal> timeframeVotes = new EnumMap<>(Timeframe.class);
         private Instant generatedAt = Instant.now();
         private InstrumentInfo instrumentInfo;
@@ -140,6 +161,21 @@ public final class TradeSignal {
 
         public Builder confidence(double v) {
             confidence = v;
+            return this;
+        }
+
+        public Builder confidenceLevel(Confidence v) {
+            confidenceLevel = v;
+            return this;
+        }
+
+        public Builder reason(String v) {
+            reason = v;
+            return this;
+        }
+
+        public Builder atr(double v) {
+            this.atr = v;
             return this;
         }
 

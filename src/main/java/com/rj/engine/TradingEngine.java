@@ -150,10 +150,36 @@ public class TradingEngine implements OrderStateListener {
 
         // Load YAML strategies...
         engineFinal.loadYamlStrategies(cs, se, riskMgr);
+        engineFinal.initializePluggableStrategies(se, riskMgr);
 
         log.info("TradingEngine created — mode={} symbols={}",
                 mode, String.join(",", config.getActiveSymbols()));
         return engineFinal;
+    }
+
+    private void initializePluggableStrategies(StrategyEvaluator se, RiskManager riskMgr) {
+        // Phase-II: Register the default voting strategy
+        // In a real scenario, this would be loaded from a plugin directory or DB
+        var defaultStrategy = new com.rj.strategy.MultiTimeframeVotingStrategy(
+                "trend_following",
+                "Trend Following (Phase-I Port)",
+                0.70, // minConfidence
+                2.0,  // slAtrMultiplier
+                2.0   // tpRMultiple
+        );
+        se.addStrategy(defaultStrategy);
+
+        // Register configuration for this strategy in RiskManager
+        TradeStrategyConfig stratCfg = new TradeStrategyConfig();
+        stratCfg.setStrategyId(defaultStrategy.getId());
+        stratCfg.setName(defaultStrategy.getName());
+        stratCfg.setActive(true);
+        stratCfg.setAllocationPercentage(100.0); // Use 100% of capital for this one by default
+        stratCfg.setSizingType(com.rj.model.SizingType.VOLATILITY_ATR);
+        stratCfg.setRiskPercentage(1.0);
+        stratCfg.setAtrMultiplier(2.0);
+        
+        riskMgr.updateStrategyConfig(stratCfg);
     }
 
     private void loadYamlStrategies(CandleService cs, StrategyEvaluator se, RiskManager riskMgr) {
