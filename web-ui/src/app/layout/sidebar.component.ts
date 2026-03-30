@@ -69,7 +69,7 @@ import { MatIconModule } from '@angular/material/icon';
     }
     .nav-item.active {
       background: rgba(255,255,255,0.1);
-      border-left-color: #00bcd4;
+      border-left-color: var(--accent);
     }
     mat-icon {
       font-size: 20px;

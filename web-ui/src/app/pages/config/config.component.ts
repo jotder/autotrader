@@ -244,8 +244,8 @@ import { DxScrollViewModule } from 'devextreme-angular/ui/scroll-view';
     .env-list { max-width: 700px; }
     .font-bold { font-weight: 600; }
 
-    ::ng-deep .dx-tab-selected { color: var(--accent) !important; }
-    ::ng-deep .dx-datagrid { background-color: transparent !important; }
+    
+    
   `],
 })
 export class ConfigComponent implements OnInit {

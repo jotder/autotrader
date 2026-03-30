@@ -116,10 +116,10 @@ import { DxDateBoxModule } from 'devextreme-angular/ui/date-box';
     .link { color: var(--accent); cursor: pointer; text-decoration: none; }
     .link:hover { text-decoration: underline; }
 
-    ::ng-deep .dx-datagrid { background-color: var(--bg-card) !important; color: var(--text-primary) !important; border: none !important; }
-    ::ng-deep .dx-datagrid-headers { color: var(--text-secondary); font-size: 11px; text-transform: uppercase; }
-    ::ng-deep .dx-datagrid-rowsview .dx-row-focused.dx-data-row > td { background-color: var(--bg-hover); }
-    ::ng-deep .dx-datagrid-summary-item { font-family: var(--font-mono); font-weight: 600; color: var(--text-primary); }
+    
+    
+    
+    
   `],
 })
 export class TransactionsComponent implements OnDestroy {

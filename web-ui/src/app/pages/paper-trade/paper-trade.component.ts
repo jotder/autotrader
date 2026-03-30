@@ -127,7 +127,7 @@ import { DxProgressBarModule } from 'devextreme-angular/ui/progress-bar';
     ::ng-deep .caution .dx-progressbar-range { background-color: #d29922; }
     ::ng-deep .danger .dx-progressbar-range { background-color: #f85149; }
 
-    ::ng-deep .dx-datagrid { background-color: transparent !important; }
+    
   `],
 })
 export class PaperTradeComponent {

@@ -8,6 +8,7 @@ import com.rj.config.SymbolMasterCache;
 import com.rj.config.SymbolRegistry;
 import com.rj.engine.*;
 import com.rj.model.*;
+import com.rj.strategy.MultiTimeframeVotingStrategy;
 import com.rj.model.dim.SymbolMasterEntry;
 import com.rj.web.dto.ActionResponse;
 import com.rj.web.dto.RiskResponse;
@@ -369,7 +370,15 @@ public class EngineController {
                     "hint", "Download data first via POST /api/candle-db/download"));
         }
 
-        BacktestEngine bt = BacktestEngine.fromM1(m1Candles, symbol, configManager.getRiskConfig());
+        List<Candle> m5Candles = BacktestEngine.aggregateToHigherTimeframe(m1Candles, 5);
+        if (m5Candles.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Could not aggregate M1 data into M5 candles"));
+        }
+
+        var strategy = new MultiTimeframeVotingStrategy(
+                "MTF-VOTE", "Multi-TF Voting", 0.6, 1.5, 2.0);
+        BacktestEngine bt = new BacktestEngine(m5Candles, symbol, strategy, configManager.getRiskConfig());
         StrategyAnalyzer.Report report = bt.run();
         return ResponseEntity.ok(report);
     }
