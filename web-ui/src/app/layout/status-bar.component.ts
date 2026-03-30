@@ -1,14 +1,12 @@
 import { Component, computed, signal, ChangeDetectionStrategy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { GlobalStateService } from '../core/services/global-state.service';
-import { ThemeService } from '../core/services/theme.service';
 import { environment } from '../../environments/environment';
-import { DxButtonModule } from 'devextreme-angular/ui/button';
 
 @Component({
   selector: 'at-status-bar',
   standalone: true,
-  imports: [CommonModule, DxButtonModule],
+  imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="status-bar" [class.alert]="state.isAnomalyMode() || state.isKillSwitchActive()">
@@ -28,19 +26,9 @@ import { DxButtonModule } from 'devextreme-angular/ui/button';
           {{ formatPnl(state.dailyPnl()) }}
         </span>
       </div>
-      
       <div class="status-item last-updated">
         <span class="label">Updated</span>
         <span class="value mono" [class.warning]="isStale()">{{ lastUpdatedText() }}</span>
-      </div>
-
-      <div class="theme-toggle">
-        <dx-button
-          [icon]="theme.theme() === 'dark' ? 'sun' : 'moon'"
-          stylingMode="text"
-          (onClick)="theme.toggleTheme()"
-          [hint]="'Switch to ' + (theme.theme() === 'dark' ? 'light' : 'dark') + ' theme'">
-        </dx-button>
       </div>
     </div>
   `,
@@ -66,24 +54,12 @@ import { DxButtonModule } from 'devextreme-angular/ui/button';
       font-size: 11px;
       text-transform: uppercase;
     }
-    .value {
-      font-weight: 500;
-    }
-    .last-updated {
-      margin-left: auto;
-    }
-    .theme-toggle {
-      margin-left: 10px;
-    }
-    ::ng-deep .theme-toggle .dx-button {
-      height: 32px;
-      width: 32px;
-    }
+    .value { font-weight: 500; }
+    .last-updated { margin-left: auto; }
   `],
 })
 export class StatusBarComponent {
   public state = inject(GlobalStateService);
-  public theme = inject(ThemeService);
 
   readonly lastUpdatedText = computed(() => {
     return this.state.lastUpdated().toLocaleTimeString('en-IN', { hour12: false });
@@ -93,8 +69,6 @@ export class StatusBarComponent {
     const lastUpdate = this.state.lastUpdated().getTime();
     return (Date.now() - lastUpdate) > environment.staleThresholdMs;
   });
-
-  constructor() {}
 
   formatPnl(value: number | undefined | null): string {
     if (value == null) return '—';

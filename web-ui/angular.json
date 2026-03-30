@@ -58,12 +58,7 @@
               {
                 "input": "node_modules/devextreme/dist/css/dx.material.blue.dark.compact.css",
                 "bundleName": "theme-dark",
-                "inject": false
-              },
-              {
-                "input": "node_modules/devextreme/dist/css/dx.material.blue.light.compact.css",
-                "bundleName": "theme-light",
-                "inject": false
+                "inject": true
               }
             ],
             "scripts": []
@@ -83,7 +78,8 @@
                 }
               ],
               "outputHashing": "all"
-            },            "development": {
+            },
+            "development": {
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true

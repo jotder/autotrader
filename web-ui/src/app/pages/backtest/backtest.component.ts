@@ -456,8 +456,8 @@ interface DataSummary {
     .badge.FAILED,.badge.failed {background:rgba(248,81,73,0.15);color:var(--loss);}
     .empty {color:var(--text-muted);font-size:13px;padding:24px;text-align:center;}
 
-    ::ng-deep .dx-datagrid { background-color: transparent !important; }
-    ::ng-deep .dx-datagrid-headers { color: var(--text-secondary); font-size: 11px; text-transform: uppercase; }
+    
+    
   `],
 })
 export class BacktestComponent implements OnInit, OnDestroy {

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Spring Boot API",
+      "runtimeExecutable": "mvn",
+      "runtimeArgs": ["spring-boot:run", "-Dskip.npm"],
+      "port": 7777
+    },
+    {
+      "name": "Angular Dev Server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "web-ui", "start"],
+      "port": 4200
+    }
+  ]
+}

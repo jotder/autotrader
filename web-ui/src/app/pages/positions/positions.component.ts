@@ -156,7 +156,7 @@ import { DxTextBoxModule } from 'devextreme-angular/ui/text-box';
     .confirm-msg { margin-bottom: 16px; color: var(--text-secondary); }
     .popup-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
 
-    ::ng-deep .dx-datagrid { background-color: transparent !important; }
+    
   `],
 })
 export class PositionsComponent {

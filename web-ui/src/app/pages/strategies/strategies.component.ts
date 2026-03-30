@@ -260,8 +260,8 @@ import { DxDateBoxModule } from 'devextreme-angular/ui/date-box';
     .empty-editor, .empty-state { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); padding: 40px; text-align: center; }
     .empty-editor mat-icon, .empty-state mat-icon { font-size: 48px; width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5; }
 
-    ::ng-deep .dx-form-group-caption { font-size: 11px !important; text-transform: uppercase; color: var(--text-muted) !important; font-weight: 600; }
-    ::ng-deep .dx-tab-selected { color: var(--accent) !important; }
+    
+    
   `],
 })
 export class StrategiesComponent implements OnInit, OnDestroy {
