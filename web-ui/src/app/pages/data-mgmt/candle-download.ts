@@ -9,7 +9,7 @@ import {
   DxLoadIndicatorModule,
   DxButtonModule,
 } from 'devextreme-angular';
-import { TickDataService } from '../../shared/services/tick-data.service';
+import { TickDataService, DownloadJobStatus } from '../../shared/services/tick-data.service';
 import notify from 'devextreme/ui/notify';
 
 interface DownloadTask {
@@ -284,7 +284,7 @@ export class CandleDownload implements OnInit, OnDestroy {
   isDownloading = false;
   downloadDone = false;
 
-  private intervals: ReturnType<typeof setInterval>[] = [];
+  private pollInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private tickDataService: TickDataService,
@@ -296,7 +296,7 @@ export class CandleDownload implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    this.intervals.forEach(clearInterval);
+    this.stopPoll();
   }
 
   onSymbolChange(e: any) {
@@ -337,60 +337,114 @@ export class CandleDownload implements OnInit, OnDestroy {
 
     this.downloadTasks = this.newDates.map(ds => ({
       date: ds, symbol: this.selectedSymbol,
-      status: 'pending' as const, progress: 0,
+      status: 'downloading' as const, progress: 10,
     }));
     this.isDownloading = true;
     this.downloadDone = false;
 
-    this.downloadTasks.forEach((task, i) => setTimeout(() => this.runTask(task), i * 700));
+    const sorted = [...this.newDates].sort();
+    const from = sorted[0];
+    const to = sorted[sorted.length - 1];
+
+    this.tickDataService.startDownloadJob(this.selectedSymbol, from, to).subscribe({
+      next: (jobId: string) => {
+        this.startPoll(jobId);
+      },
+      error: () => {
+        this.downloadTasks.forEach(t => {
+          t.status = 'error';
+          t.errorMsg = 'Failed to start download job';
+          t.progress = 0;
+        });
+        this.isDownloading = false;
+        notify('Failed to start download job', 'error', 4000);
+        this.cdr.detectChanges();
+      },
+    });
   }
 
-  private runTask(task: DownloadTask) {
-    task.status = 'downloading';
-    const totalSteps = 18 + Math.floor(Math.random() * 10);
-    let step = 0;
+  private startPoll(jobId: string) {
+    this.pollInterval = setInterval(() => {
+      this.tickDataService.pollJob(jobId).subscribe({
+        next: (job: DownloadJobStatus) => this.handleJobStatus(job),
+        error: () => {
+          // transient poll error — keep polling
+        },
+      });
+    }, 1000);
+  }
 
-    const id = setInterval(() => {
-      step++;
-      task.progress = Math.min(Math.round((step / totalSteps) * 100), 100);
+  private handleJobStatus(job: DownloadJobStatus) {
+    const parts = job.progress.split('/');
+    const done = parseInt(parts[0], 10) || 0;
+    const total = parseInt(parts[1], 10) || 1;
+    const pct = Math.round((done / total) * 80) + 10;
 
-      if (step >= totalSteps) {
-        clearInterval(id);
-        task.progress = 100;
-
-        if (Math.random() > 0.1) {
-          task.status = 'success';
-          task.candleCount = Math.floor(Math.random() * 50) + 370;
-          this.tickDataService.addLocalData(task.symbol, task.date, task.candleCount!);
-          this.availableDatesStr = [...this.availableDatesStr, task.date];
-        } else {
-          task.status = 'error';
-          task.errorMsg = 'Timeout — server unreachable';
-        }
-
-        if (this.doneCount === this.downloadTasks.length) {
-          this.isDownloading = false;
-          this.downloadDone = true;
-          const ok = this.downloadTasks.filter(t => t.status === 'success').length;
-          notify(`Download complete: ${ok}/${this.downloadTasks.length} succeeded`,
-            ok === this.downloadTasks.length ? 'success' : 'warning', 4000);
-        }
-        this.cdr.detectChanges();
+    this.downloadTasks.forEach(t => {
+      if (t.status === 'downloading') {
+        t.progress = pct;
       }
-      this.cdr.detectChanges();
-    }, 200);
+    });
+    this.cdr.detectChanges();
 
-    this.intervals.push(id);
+    if (job.status === 'COMPLETED' || job.status === 'FAILED') {
+      this.stopPoll();
+      this.finalizeTasksFromJob(job);
+    }
+  }
+
+  private finalizeTasksFromJob(job: DownloadJobStatus) {
+    this.tickDataService.getAvailableDates(this.selectedSymbol).subscribe(freshDates => {
+      this.availableDatesStr = freshDates;
+
+      if (job.status === 'FAILED') {
+        this.downloadTasks.forEach(t => {
+          t.status = 'error';
+          t.errorMsg = job.error ?? 'Download job failed';
+          t.progress = 0;
+        });
+      } else {
+        this.downloadTasks.forEach(t => {
+          if (freshDates.includes(t.date)) {
+            t.status = 'success';
+            t.progress = 100;
+            t.candleCount = 0;
+          } else {
+            t.status = 'error';
+            t.progress = 0;
+            t.errorMsg = 'Date not downloaded (weekend/holiday or API error)';
+          }
+        });
+      }
+
+      this.isDownloading = false;
+      this.downloadDone = true;
+
+      const ok = this.downloadTasks.filter(t => t.status === 'success').length;
+      notify(
+        `Download complete: ${ok}/${this.downloadTasks.length} succeeded`,
+        ok === this.downloadTasks.length ? 'success' : 'warning',
+        4000
+      );
+      this.cdr.detectChanges();
+    });
+  }
+
+  private stopPoll() {
+    if (this.pollInterval !== null) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
   }
 
   reset() {
+    this.stopPoll();
     this.clearTasks();
     this.selectedDates = [];
   }
 
   private clearTasks() {
-    this.intervals.forEach(clearInterval);
-    this.intervals = [];
+    this.stopPoll();
     this.downloadTasks = [];
     this.isDownloading = false;
     this.downloadDone = false;
