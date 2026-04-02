@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Subject, takeUntil } from 'rxjs';
 import {
   DxSelectBoxModule,
   DxCalendarModule,
@@ -285,6 +286,7 @@ export class CandleDownload implements OnInit, OnDestroy {
   downloadDone = false;
 
   private pollInterval: ReturnType<typeof setInterval> | null = null;
+  private destroy$ = new Subject<void>();
 
   constructor(
     private tickDataService: TickDataService,
@@ -297,6 +299,8 @@ export class CandleDownload implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.stopPoll();
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   onSymbolChange(e: any) {
@@ -365,7 +369,9 @@ export class CandleDownload implements OnInit, OnDestroy {
 
   private startPoll(jobId: string) {
     this.pollInterval = setInterval(() => {
-      this.tickDataService.pollJob(jobId).subscribe({
+      this.tickDataService.pollJob(jobId).pipe(
+        takeUntil(this.destroy$)
+      ).subscribe({
         next: (job: DownloadJobStatus) => this.handleJobStatus(job),
         error: () => {
           // transient poll error — keep polling
@@ -394,7 +400,9 @@ export class CandleDownload implements OnInit, OnDestroy {
   }
 
   private finalizeTasksFromJob(job: DownloadJobStatus) {
-    this.tickDataService.getAvailableDates(this.selectedSymbol).subscribe(freshDates => {
+    this.tickDataService.getAvailableDates(this.selectedSymbol).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(freshDates => {
       this.availableDatesStr = freshDates;
 
       if (job.status === 'FAILED') {
