@@ -179,10 +179,15 @@ interface SymbolSummary {
               <dxo-sorting mode="single"></dxo-sorting>
 
               <dxi-column dataField="date"        caption="Date"       [width]="120" sortOrder="desc"></dxi-column>
-              <dxi-column dataField="candleCount" caption="Candles"    [width]="100" dataType="number"></dxi-column>
+              <dxi-column dataField="candleCount" caption="Candles"    [width]="100" cellTemplate="candleTpl"></dxi-column>
               <dxi-column dataField="timeframe"   caption="Timeframe"  [width]="100" cellTemplate="tfTpl"></dxi-column>
               <dxi-column dataField="fileSize"    caption="File Size"  [width]="100"></dxi-column>
               <dxi-column dataField="downloadedAt" caption="Downloaded At"></dxi-column>
+
+              <div *dxTemplate="let c of 'candleTpl'">
+                <span *ngIf="c.value > 0">{{ c.value | number }}</span>
+                <span *ngIf="c.value === 0" style="color:#aaa">—</span>
+              </div>
 
               <div *dxTemplate="let c of 'tfTpl'">
                 <span class="tf-badge">{{ c.value }}</span>
