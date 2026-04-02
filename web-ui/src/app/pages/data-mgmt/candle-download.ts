@@ -369,6 +369,7 @@ export class CandleDownload implements OnInit, OnDestroy {
 
   private startPoll(jobId: string) {
     this.pollInterval = setInterval(() => {
+      if (this.pollInterval === null) return;
       this.tickDataService.pollJob(jobId).pipe(
         takeUntil(this.destroy$)
       ).subscribe({

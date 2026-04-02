@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, forkJoin, map, of, switchMap, catchError, throwError } from 'rxjs';
+import { Observable, forkJoin, map, of, switchMap, catchError } from 'rxjs';
 
 export interface LocalCandleData {
   id: string;
@@ -99,16 +99,11 @@ export class TickDataService {
     return this.http.post<{jobId: string}>('/api/candle-db/download', {
       symbols: [symbol], from, to
     }).pipe(
-      map(r => r.jobId),
-      catchError(err => throwError(() => err))
+      map(r => r.jobId)
     );
   }
 
   pollJob(jobId: string): Observable<DownloadJobStatus> {
-    return this.http.get<DownloadJobStatus>(`/api/candle-db/download/${jobId}`).pipe(
-      catchError(err => throwError(() => err))
-    );
+    return this.http.get<DownloadJobStatus>(`/api/candle-db/download/${jobId}`);
   }
-
-  addLocalData(_symbol: string, _date: string, _candleCount: number): void {}
 }
