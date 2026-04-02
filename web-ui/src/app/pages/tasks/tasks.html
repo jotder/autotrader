@@ -1,0 +1,56 @@
+<h2>Tasks</h2>
+
+<dx-data-grid
+  class="dx-card content-block"
+  [dataSource]="dataSource"
+  [showBorders]="false"
+  [focusedRowEnabled]="true"
+  [focusedRowIndex]="0"
+  [columnAutoWidth]="true"
+  [columnHidingEnabled]="true">
+
+  <dxo-data-grid-paging [pageSize]="10"></dxo-data-grid-paging>
+  <dxo-data-grid-pager [showPageSizeSelector]="true" [showInfo]="true"></dxo-data-grid-pager>
+  <dxo-data-grid-filter-row [visible]="true"></dxo-data-grid-filter-row>
+
+  <dxi-data-grid-column
+    dataField="id"
+    [width]="90"
+    [hidingPriority]="1">
+  </dxi-data-grid-column>
+  <dxi-data-grid-column
+    dataField="text"
+    [width]="190"
+    caption="Subject"
+    [hidingPriority]="6">
+  </dxi-data-grid-column>
+  <dxi-data-grid-column
+    dataField="status"
+    caption="Status"
+    [hidingPriority]="4">
+  </dxi-data-grid-column>
+  <dxi-data-grid-column
+    dataField="owner"
+    caption="Assigned To"
+    [allowSorting]="false"
+    [hidingPriority]="5">
+  </dxi-data-grid-column>
+  <dxi-data-grid-column
+    dataField="startDate"
+    caption="Start Date"
+    dataType="date"
+    [hidingPriority]="2">
+  </dxi-data-grid-column>
+  <dxi-data-grid-column
+    dataField="dueDate"
+    caption="Due Date"
+    dataType="date"
+    [hidingPriority]="3">
+  </dxi-data-grid-column>
+  <dxi-data-grid-column
+    dataField="priority"
+    caption="Priority"
+    name="Priority"
+    [hidingPriority]="0">
+  </dxi-data-grid-column>
+</dx-data-grid>
