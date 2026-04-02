@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, forkJoin, map, of, switchMap } from 'rxjs';
+import { Observable, forkJoin, map, of, switchMap, catchError, throwError } from 'rxjs';
 
 export interface LocalCandleData {
   id: string;
@@ -45,14 +45,17 @@ export class TickDataService {
           if (Array.isArray(arr)) flat.push(...arr as string[]);
         }
         return flat.sort();
-      })
+      }),
+      catchError(() => of([]))
     );
   }
 
   /** ISO date strings already downloaded for a symbol. */
   getAvailableDates(symbol: string): Observable<string[]> {
     const encoded = encodeURIComponent(symbol);
-    return this.http.get<string[]>(`/api/candle-db/${encoded}/dates`);
+    return this.http.get<string[]>(`/api/candle-db/${encoded}/dates`).pipe(
+      catchError(() => of([]))
+    );
   }
 
   /**
@@ -65,6 +68,7 @@ export class TickDataService {
         if (summaries.length === 0) return of([] as LocalCandleData[]);
         const calls = summaries.map(s =>
           this.getAvailableDates(s.symbol).pipe(
+            catchError(() => of([] as string[])),
             map(dates => dates.map(date => ({
               id: `${s.symbol}-${date}`,
               symbol: s.symbol,
@@ -94,15 +98,17 @@ export class TickDataService {
   startDownloadJob(symbol: string, from: string, to: string): Observable<string> {
     return this.http.post<{jobId: string}>('/api/candle-db/download', {
       symbols: [symbol], from, to
-    }).pipe(map(r => r.jobId));
+    }).pipe(
+      map(r => r.jobId),
+      catchError(err => throwError(() => err))
+    );
   }
 
   pollJob(jobId: string): Observable<DownloadJobStatus> {
-    return this.http.get<DownloadJobStatus>(`/api/candle-db/download/${jobId}`);
+    return this.http.get<DownloadJobStatus>(`/api/candle-db/download/${jobId}`).pipe(
+      catchError(err => throwError(() => err))
+    );
   }
 
   addLocalData(_symbol: string, _date: string, _candleCount: number): void {}
-
-  hasData(_symbol: string, _date: string): boolean { return false; }
-  downloadData(_symbol: string, _dates: Date[]): Observable<boolean> { return of(true); }
 }
