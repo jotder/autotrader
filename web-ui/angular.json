@@ -93,7 +93,8 @@
               "buildTarget": "DevExtreme-app:build:production"
             },
             "development": {
-              "buildTarget": "DevExtreme-app:build:development"
+              "buildTarget": "DevExtreme-app:build:development",
+              "proxyConfig": "proxy.conf.json"
             }
           },
           "defaultConfiguration": "development"
