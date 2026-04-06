@@ -77,8 +77,7 @@ public class TradingEngine implements OrderStateListener {
     /**
      * Creates a fully wired TradingEngine.
      */
-    public static TradingEngine create() {
-        ConfigManager config = ConfigManager.getInstance();
+    public static TradingEngine create(ConfigManager config) {
         RiskConfig riskCfg = config.getRiskConfig();
         TickStore tickStore = TickStore.getInstance();
 

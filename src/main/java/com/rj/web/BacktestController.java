@@ -17,10 +17,13 @@ public class BacktestController {
 
     private final BacktestService backtestService;
     private final CandleDatabase candleDatabase;
+    private final ConfigManager configManager;
 
-    public BacktestController(BacktestService backtestService, CandleDatabase candleDatabase) {
+    public BacktestController(BacktestService backtestService, CandleDatabase candleDatabase,
+                              ConfigManager configManager) {
         this.backtestService = backtestService;
         this.candleDatabase = candleDatabase;
+        this.configManager = configManager;
     }
 
     @PostMapping("/jobs")
@@ -46,7 +49,7 @@ public class BacktestController {
         List<Candle> m5history = com.rj.engine.BacktestEngine.aggregateToHigherTimeframe(history, 5);
 
         String jobId = backtestService.runIterativeBacktest(
-                symbol, m5history, ConfigManager.getInstance().getRiskConfig(), sweeps);
+                symbol, m5history, configManager.getRiskConfig(), sweeps);
 
         return Map.of("jobId", jobId);
     }

@@ -1,46 +1,37 @@
 package com.rj.config;
 
 import io.github.cdimascio.dotenv.Dotenv;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Component
 public class ConfigManager implements IConfiguration {
     private static final Logger log = LoggerFactory.getLogger(ConfigManager.class);
     private static final Path SYMBOLS_YAML_PATH = Path.of("config/symbols.yaml");
-    private static final String[] REQUIRED_KEYS = new String[]{"FYERS_APP_ID", "FYERS_SECRET_KEY", "FYERS_REDIRECT_URI",
-            "FYERS_AUTH_CODE", "APP_ENV", "LOG_LEVEL"};
-    private static volatile ConfigManager manager;
+    private static final String[] REQUIRED_KEYS = {"FYERS_APP_ID", "FYERS_SECRET_KEY",
+            "FYERS_REDIRECT_URI", "FYERS_AUTH_CODE", "APP_ENV", "LOG_LEVEL"};
+
+    @Autowired
+    private EnvConfigPersistence envConfigPersistence;
+
     private Dotenv dotenv;
-    private boolean loaded;
-    private String[] activeSymbols = new String[]{"NSE:NIFTY50-INDEX"};
+    private String[] activeSymbols = {"NSE:NIFTY50-INDEX"};
     private Set<String> activeSymbolSet = new LinkedHashSet<>(Arrays.asList(activeSymbols));
     private RiskConfig riskConfig = RiskConfig.defaults();
     private StrategyConfig strategyConfig = StrategyConfig.defaults();
     private SymbolRegistry symbolRegistry;
 
-    private ConfigManager() {
-        ensureLoaded();
-    }
-
-    public static ConfigManager getInstance() {
-        if (manager == null) {
-            synchronized (ConfigManager.class) {
-                if (manager == null)
-                    manager = new ConfigManager();
-            }
-        }
-        return manager;
-    }
-
+    @PostConstruct
     @Override
     public void loadConfiguration() {
         log.info("Loading system configuration from .env...");
@@ -48,30 +39,25 @@ public class ConfigManager implements IConfiguration {
             this.dotenv = Dotenv.configure().ignoreIfMissing().load();
             log.info("Configuration loaded. APP_ENV: {}", getProperty("APP_ENV"));
 
-            // Load global symbol registry from config/symbols.yaml (primary source)
             if (Files.exists(SYMBOLS_YAML_PATH)) {
                 symbolRegistry = SymbolRegistry.load(SYMBOLS_YAML_PATH);
                 activeSymbols = symbolRegistry.allSymbols();
                 activeSymbolSet = new LinkedHashSet<>(Arrays.asList(activeSymbols));
-                log.info("Symbol registry loaded from {}: {} symbols", SYMBOLS_YAML_PATH, symbolRegistry.size());
+                log.info("Symbol registry loaded: {} symbols", symbolRegistry.size());
             } else {
-                // Fallback to .env FYERS_SYMBOLS (deprecated)
                 log.warn("config/symbols.yaml not found — falling back to .env FYERS_SYMBOLS (deprecated)");
                 String symbolsEnv = getProperty("FYERS_SYMBOLS");
                 if (symbolsEnv != null && !symbolsEnv.isBlank()) {
-                    String[] parsedSymbols = Arrays.stream(symbolsEnv.split(","))
-                            .map(String::trim)
-                            .filter(symbol -> !symbol.isEmpty())
-                            .toArray(String[]::new);
-                    if (parsedSymbols.length > 0)
-                        activeSymbols = parsedSymbols;
+                    String[] parsed = Arrays.stream(symbolsEnv.split(","))
+                            .map(String::trim).filter(s -> !s.isEmpty()).toArray(String[]::new);
+                    if (parsed.length > 0) activeSymbols = parsed;
                 }
                 activeSymbolSet = new LinkedHashSet<>(Arrays.asList(activeSymbols));
             }
+
             riskConfig = RiskConfig.fromEnvironment(this::getProperty);
             strategyConfig = StrategyConfig.fromEnvironment(this::getProperty);
-            loaded = true;
-            log.info("Active symbols loaded: {}", String.join(", ", activeSymbols));
+            log.info("Active symbols: {}", String.join(", ", activeSymbols));
         } catch (Exception e) {
             log.error("Failed to load .env file", e);
         }
@@ -84,106 +70,44 @@ public class ConfigManager implements IConfiguration {
 
     @Override
     public boolean validateRequiredConfiguration() {
-        ensureLoaded();
-        Set<String> missingKeys = new LinkedHashSet<>();
+        Set<String> missing = new LinkedHashSet<>();
         for (String key : REQUIRED_KEYS) {
-            String value = getProperty(key);
-            if (value == null || value.isBlank()) {
-                missingKeys.add(key);
-            }
+            String v = getProperty(key);
+            if (v == null || v.isBlank()) missing.add(key);
         }
-
-        if (!missingKeys.isEmpty()) {
-            log.error("Missing required configuration keys: {}", String.join(", ", missingKeys));
-            log.error("Please update .env before starting the trading engine.");
+        if (!missing.isEmpty()) {
+            log.error("Missing required keys: {}", String.join(", ", missing));
             return false;
         }
         return true;
     }
 
-    @Override
-    public String[] getActiveSymbols() {
-        ensureLoaded();
-        return activeSymbols;
-    }
+    @Override public String[] getActiveSymbols() { return activeSymbols; }
 
     @Override
     public boolean isSymbolActive(String symbol) {
-        ensureLoaded();
         if (symbolRegistry != null) return symbolRegistry.contains(symbol);
         return symbol != null && activeSymbolSet.contains(symbol.trim());
     }
 
-    @Override
-    public SymbolRegistry getSymbolRegistry() {
-        ensureLoaded();
-        return symbolRegistry;
-    }
+    @Override public SymbolRegistry getSymbolRegistry() { return symbolRegistry; }
 
     @Override
     public String getActiveStrategy(String symbol) {
-        ensureLoaded();
-        return getProperty("STRATEGY_DEFAULT") != null ? getProperty("STRATEGY_DEFAULT") : "ORB_15M";
+        String override = getProperty("STRATEGY_DEFAULT");
+        return override != null ? override : "ORB_15M";
     }
 
-    @Override
-    public RiskConfig getRiskConfig() {
-        ensureLoaded();
-        return riskConfig;
-    }
-
-    @Override
-    public StrategyConfig getStrategyConfig() {
-        ensureLoaded();
-        return strategyConfig;
-    }
+    @Override public RiskConfig getRiskConfig() { return riskConfig; }
+    @Override public StrategyConfig getStrategyConfig() { return strategyConfig; }
 
     /**
-     * Updates a single key in the .env file and reloads the in-memory dotenv.
-     * If the key exists its value is replaced; otherwise a new line is appended.
+     * Updates a key in .env and reloads dotenv.
+     * @deprecated Prefer injecting {@link EnvConfigPersistence} directly.
      */
+    @Deprecated
     public void updateEnvProperty(String key, String value) {
-        Path envPath = Path.of(".env");
-        try {
-            List<String> lines;
-            if (Files.exists(envPath)) {
-                lines = Files.readAllLines(envPath);
-            } else {
-                lines = new java.util.ArrayList<>();
-            }
-
-            String prefix = key + "=";
-            boolean found = false;
-            List<String> updated = lines.stream().map(line -> {
-                if (line.startsWith(prefix)) {
-                    return prefix + value;
-                }
-                return line;
-            }).collect(Collectors.toCollection(java.util.ArrayList::new));
-
-            for (String line : updated) {
-                if (line.startsWith(prefix)) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                updated.add(prefix + value);
-            }
-
-            Files.write(envPath, updated);
-            log.info("Updated {} in .env", key);
-
-            // Reload dotenv so subsequent getProperty() calls see the new value
-            this.dotenv = Dotenv.configure().ignoreIfMissing().load();
-        } catch (IOException e) {
-            log.error("Failed to update {} in .env: {}", key, e.getMessage());
-        }
-    }
-
-    private void ensureLoaded() {
-        if (!loaded) {
-            loadConfiguration();
-        }
+        envConfigPersistence.update(key, value);
+        this.dotenv = Dotenv.configure().ignoreIfMissing().load();
     }
 }

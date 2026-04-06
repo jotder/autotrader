@@ -1,9 +1,13 @@
 package com.rj.config;
 
+import com.rj.engine.BrokerCircuitBreaker;
 import com.rj.engine.CandleDatabase;
+import com.rj.engine.CandleDownloader;
+import com.rj.engine.DownloadTracker;
 import com.rj.engine.SymbolProfiler;
 import com.rj.engine.TradingEngine;
 import com.rj.engine.disruptor.TickDisruptorEngine;
+import com.rj.fyers.FyersDataApi;
 import com.rj.fyers.FyersSocketListener;
 import com.rj.model.TickStore;
 import org.springframework.context.annotation.Bean;
@@ -18,11 +22,6 @@ import java.nio.file.Path;
  */
 @Configuration
 public class EngineConfiguration {
-
-    @Bean
-    public ConfigManager configManager() {
-        return ConfigManager.getInstance();
-    }
 
     @Bean
     public TickStore tickStore() {
@@ -40,13 +39,8 @@ public class EngineConfiguration {
     }
 
     @Bean
-    public SymbolRegistry symbolRegistry(ConfigManager configManager) {
-        return configManager.getSymbolRegistry();
-    }
-
-    @Bean
-    public TradingEngine tradingEngine() {
-        return TradingEngine.create();
+    public TradingEngine tradingEngine(ConfigManager configManager) {
+        return TradingEngine.create(configManager);
     }
 
     @Bean
@@ -77,5 +71,23 @@ public class EngineConfiguration {
     @Bean
     public SymbolProfiler symbolProfiler(CandleDatabase candleDatabase) {
         return new SymbolProfiler(candleDatabase);
+    }
+
+    @Bean
+    public BrokerCircuitBreaker brokerCircuitBreaker(TradingEngine tradingEngine) {
+        return tradingEngine.getCircuitBreaker();
+    }
+
+    @Bean
+    public CandleDownloader candleDownloader(
+            CandleDatabase candleDatabase,
+            BrokerCircuitBreaker circuitBreaker) {
+        return new CandleDownloader(
+                new FyersDataApi(), candleDatabase, 500, circuitBreaker);
+    }
+
+    @Bean
+    public DownloadTracker downloadTracker(CandleDownloader candleDownloader) {
+        return new DownloadTracker(candleDownloader);
     }
 }

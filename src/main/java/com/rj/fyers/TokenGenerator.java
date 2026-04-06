@@ -3,6 +3,8 @@ package com.rj.fyers;
 import com.rj.config.ConfigManager;
 import com.tts.in.model.FyersClass;
 import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -10,7 +12,16 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Scanner;
 
+@Component
 public class TokenGenerator {
+
+    /** Static reference set by Spring injection so instances created via new() can fall back to it. */
+    private static ConfigManager configManagerInstance;
+
+    @Autowired
+    public void setConfigManager(ConfigManager configManager) {
+        TokenGenerator.configManagerInstance = configManager;
+    }
 
     /**
      * Generates the access token using the provided auth code, and saves both
@@ -35,9 +46,10 @@ public class TokenGenerator {
         String refreshToken = jsonObject.getString("refresh_token");
         scanner.close();
 
-        ConfigManager config = ConfigManager.getInstance();
-        config.updateEnvProperty("ACCESS_TOKEN", accessToken);  // Update ACCESS_TOKEN in .env so it persists across restarts (call once per day)
-        config.updateEnvProperty("REFRESH_TOKEN", refreshToken);
+        if (configManagerInstance != null) {
+            configManagerInstance.updateEnvProperty("ACCESS_TOKEN", accessToken);
+            configManagerInstance.updateEnvProperty("REFRESH_TOKEN", refreshToken);
+        }
         return accessToken;
     }
 
@@ -73,7 +85,9 @@ public class TokenGenerator {
                 JSONObject jsonResponse = new JSONObject(response.body());
                 if ("ok".equals(jsonResponse.optString("s"))) {
                     String accessToken = jsonResponse.getString("access_token");
-                    ConfigManager.getInstance().updateEnvProperty("ACCESS_TOKEN", accessToken);
+                    if (configManagerInstance != null) {
+                        configManagerInstance.updateEnvProperty("ACCESS_TOKEN", accessToken);
+                    }
                     return accessToken;
                 } else {
                     System.err.println("API error: " + jsonResponse.optString("message"));
