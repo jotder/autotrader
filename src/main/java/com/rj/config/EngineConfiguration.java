@@ -78,4 +78,22 @@ public class EngineConfiguration {
     public SymbolProfiler symbolProfiler(CandleDatabase candleDatabase) {
         return new SymbolProfiler(candleDatabase);
     }
+
+    @Bean
+    public com.rj.engine.BrokerCircuitBreaker brokerCircuitBreaker(TradingEngine tradingEngine) {
+        return tradingEngine.getCircuitBreaker();
+    }
+
+    @Bean
+    public com.rj.engine.CandleDownloader candleDownloader(
+            com.rj.engine.CandleDatabase candleDatabase,
+            com.rj.engine.BrokerCircuitBreaker circuitBreaker) {
+        return new com.rj.engine.CandleDownloader(
+                new com.rj.fyers.FyersDataApi(), candleDatabase, 500, circuitBreaker);
+    }
+
+    @Bean
+    public com.rj.engine.DownloadTracker downloadTracker(com.rj.engine.CandleDownloader candleDownloader) {
+        return new com.rj.engine.DownloadTracker(candleDownloader);
+    }
 }
