@@ -6,7 +6,7 @@ import java.util.List;
 public record StatusResponse(
         boolean running,
         String mode,
-        List<String> symbols,
+        List<String> activeSymbols,
         Instant timestamp
 ) {
 }

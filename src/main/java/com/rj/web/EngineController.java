@@ -12,12 +12,10 @@ import com.rj.strategy.MultiTimeframeVotingStrategy;
 import com.rj.model.dim.SymbolMasterEntry;
 import com.rj.web.dto.ActionResponse;
 import com.rj.web.dto.RiskResponse;
-import com.rj.web.dto.StatusResponse;
 import com.rj.web.dto.TickResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -63,16 +61,6 @@ public class EngineController {
 
     // ── Read endpoints ──────────────────────────────────────────────────────
 
-    @GetMapping("/status")
-    public StatusResponse status() {
-        return new StatusResponse(
-                engine.isRunning(),
-                engine.getMode().name(),
-                List.of(configManager.getActiveSymbols()),
-                Instant.now()
-        );
-    }
-
     @GetMapping("/symbols")
     public Map<String, Object> symbols() {
         SymbolRegistry reg = configManager.getSymbolRegistry();
@@ -114,18 +102,6 @@ public class EngineController {
                 cfg.getMaxDailyLossInr(),
                 cfg.getMaxDailyProfitInr(),
                 cfg.getInitialCapitalInr()
-        );
-    }
-
-    @GetMapping("/health")
-    public Map<String, Object> health() {
-        return Map.of(
-                "engineRunning", engine.isRunning(),
-                "positionMonitorRunning", engine.getPositionMonitor().isRunning(),
-                "healthMonitorRunning", engine.getHealthMonitor().isRunning(),
-                "openPositionCount", engine.getPositionMonitor().openPositionCount(),
-                "closedTradeCount", engine.getJournal().closedTradeCount(),
-                "timestamp", Instant.now()
         );
     }
 
