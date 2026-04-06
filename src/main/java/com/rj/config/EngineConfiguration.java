@@ -1,9 +1,13 @@
 package com.rj.config;
 
+import com.rj.engine.BrokerCircuitBreaker;
 import com.rj.engine.CandleDatabase;
+import com.rj.engine.CandleDownloader;
+import com.rj.engine.DownloadTracker;
 import com.rj.engine.SymbolProfiler;
 import com.rj.engine.TradingEngine;
 import com.rj.engine.disruptor.TickDisruptorEngine;
+import com.rj.fyers.FyersDataApi;
 import com.rj.fyers.FyersSocketListener;
 import com.rj.model.TickStore;
 import org.springframework.context.annotation.Bean;
@@ -80,20 +84,20 @@ public class EngineConfiguration {
     }
 
     @Bean
-    public com.rj.engine.BrokerCircuitBreaker brokerCircuitBreaker(TradingEngine tradingEngine) {
+    public BrokerCircuitBreaker brokerCircuitBreaker(TradingEngine tradingEngine) {
         return tradingEngine.getCircuitBreaker();
     }
 
     @Bean
-    public com.rj.engine.CandleDownloader candleDownloader(
-            com.rj.engine.CandleDatabase candleDatabase,
-            com.rj.engine.BrokerCircuitBreaker circuitBreaker) {
-        return new com.rj.engine.CandleDownloader(
-                new com.rj.fyers.FyersDataApi(), candleDatabase, 500, circuitBreaker);
+    public CandleDownloader candleDownloader(
+            CandleDatabase candleDatabase,
+            BrokerCircuitBreaker circuitBreaker) {
+        return new CandleDownloader(
+                new FyersDataApi(), candleDatabase, 500, circuitBreaker);
     }
 
     @Bean
-    public com.rj.engine.DownloadTracker downloadTracker(com.rj.engine.CandleDownloader candleDownloader) {
-        return new com.rj.engine.DownloadTracker(candleDownloader);
+    public DownloadTracker downloadTracker(CandleDownloader candleDownloader) {
+        return new DownloadTracker(candleDownloader);
     }
 }
