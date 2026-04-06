@@ -4,6 +4,7 @@ import io.github.cdimascio.dotenv.Dotenv;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Files;
@@ -19,6 +20,9 @@ public class ConfigManager implements IConfiguration {
     private static final Path SYMBOLS_YAML_PATH = Path.of("config/symbols.yaml");
     private static final String[] REQUIRED_KEYS = {"FYERS_APP_ID", "FYERS_SECRET_KEY",
             "FYERS_REDIRECT_URI", "FYERS_AUTH_CODE", "APP_ENV", "LOG_LEVEL"};
+
+    @Autowired
+    private EnvConfigPersistence envConfigPersistence;
 
     private Dotenv dotenv;
     private String[] activeSymbols = {"NSE:NIFTY50-INDEX"};
@@ -99,27 +103,11 @@ public class ConfigManager implements IConfiguration {
 
     /**
      * Updates a key in .env and reloads dotenv.
-     * @deprecated Prefer injecting EnvConfigPersistence directly.
+     * @deprecated Prefer injecting {@link EnvConfigPersistence} directly.
      */
     @Deprecated
     public void updateEnvProperty(String key, String value) {
-        // Inline until EnvConfigPersistence is created in Task 7
-        try {
-            java.nio.file.Path envPath = java.nio.file.Path.of(".env");
-            java.util.List<String> lines = java.nio.file.Files.exists(envPath)
-                    ? new java.util.ArrayList<>(java.nio.file.Files.readAllLines(envPath))
-                    : new java.util.ArrayList<>();
-            String prefix = key + "=";
-            boolean found = false;
-            java.util.List<String> updated = lines.stream().map(l -> l.startsWith(prefix) ? prefix + value : l)
-                    .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
-            for (String l : updated) if (l.startsWith(prefix)) { found = true; break; }
-            if (!found) updated.add(prefix + value);
-            java.nio.file.Files.write(envPath, updated);
-            log.info("Updated {} in .env", key);
-            this.dotenv = Dotenv.configure().ignoreIfMissing().load();
-        } catch (java.io.IOException e) {
-            log.error("Failed to update {} in .env: {}", key, e.getMessage());
-        }
+        envConfigPersistence.update(key, value);
+        this.dotenv = Dotenv.configure().ignoreIfMissing().load();
     }
 }
