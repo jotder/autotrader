@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.chrono.ChronoZonedDateTime;
 import java.util.*;
 
 /**
@@ -53,7 +54,7 @@ public class BacktestEngine {
                 new TradeJournal(ExecutionMode.BACKTEST));
     }
 
-    BacktestEngine(List<Candle> m5Candles, String symbol, InstrumentInfo info, 
+    BacktestEngine(List<Candle> m5Candles, String symbol, InstrumentInfo info,
                    ITradeStrategy strategy, RiskConfig riskConfig,
                    BacktestOrderExecutor executor, TradeJournal journal) {
         this.m5Candles = new ArrayList<>(m5Candles);
@@ -72,13 +73,13 @@ public class BacktestEngine {
 
     /** Aggregates a list of lower-timeframe candles into one higher-TF candle. */
     private static Candle aggregate(List<Candle> bars, Timeframe tf) {
-        long ts = bars.get(0).timestamp;
-        double open = bars.get(0).open;
-        double close = bars.get(bars.size() - 1).close;
+        ZonedDateTime ts = bars.getFirst().timestamp;
+        double open = bars.getFirst().open;
+        double close = bars.getLast().close;
         double high = bars.stream().mapToDouble(c -> c.high).max().orElse(open);
         double low = bars.stream().mapToDouble(c -> c.low).min().orElse(open);
         long volume = bars.stream().mapToLong(c -> c.volume).sum();
-        return Candle.of(ts, open, high, low, close, volume);
+        return Candle.of(ts.getSecond(), open, high, low, close, volume);
     }
 
     /**
@@ -97,7 +98,7 @@ public class BacktestEngine {
         long currentBoundary = -1;
 
         for (Candle c : candles) {
-            long boundary = (c.timestamp / periodSeconds) * periodSeconds;
+            long boundary = (c.timestamp.getSecond() / periodSeconds) * periodSeconds;
             if (currentBoundary == -1) {
                 currentBoundary = boundary;
             }
@@ -108,16 +109,15 @@ public class BacktestEngine {
             }
             buffer.add(c);
         }
-        if (!buffer.isEmpty()) {
-            result.add(aggregateBuffer(buffer));
-        }
+        result.add(aggregateBuffer(buffer));
+
         return result;
     }
 
     private static Candle aggregateBuffer(List<Candle> bars) {
-        long ts = bars.get(0).timestamp;
-        double open = bars.get(0).open;
-        double close = bars.get(bars.size() - 1).close;
+        long ts = bars.getFirst().timestamp.getSecond();
+        double open = bars.getFirst().open;
+        double close = bars.getLast().close;
         double high = bars.stream().mapToDouble(c -> c.high).max().orElse(open);
         double low = bars.stream().mapToDouble(c -> c.low).min().orElse(open);
         long volume = bars.stream().mapToLong(c -> c.volume).sum();
@@ -137,12 +137,11 @@ public class BacktestEngine {
             Candle nextM5 = i + 1 < m5Candles.size() ? m5Candles.get(i + 1) : null;
 
             // ── Update open position against current candle ───────────────────
-            if (openPosition != null) {
+            if (openPosition != null)
                 checkPositionAgainstCandle(m5);
-            }
 
             // ── Feed M5 candle to analyzer ────────────────────────────────────
-            Instant winStart = Instant.ofEpochSecond(m5.timestamp);
+            Instant winStart = m5.timestamp.toInstant();
             Instant winEnd = winStart.plus(Timeframe.M5.getDuration());
             CandleRecommendation m5Rec = m5Analyzer.addAndAnalyze(m5, winStart, winEnd, instrumentInfo);
             latestRecs.put(Timeframe.M5, m5Rec);
@@ -151,9 +150,8 @@ public class BacktestEngine {
             m15Buffer.add(m5);
             if (m15Buffer.size() == 3) {
                 Candle m15 = aggregate(m15Buffer, Timeframe.M15);
-                Instant m15End = Instant.ofEpochSecond(m15.timestamp).plus(Timeframe.M15.getDuration());
-                CandleRecommendation m15Rec = m15Analyzer.addAndAnalyze(
-                        m15, Instant.ofEpochSecond(m15.timestamp), m15End, instrumentInfo);
+                Instant m15End = m5.timestamp.toInstant().plus(Timeframe.M15.getDuration());
+                CandleRecommendation m15Rec = m15Analyzer.addAndAnalyze(m15, m5.timestamp.toInstant(), m15End, instrumentInfo);
                 latestRecs.put(Timeframe.M15, m15Rec);
                 m15Buffer.clear();
             }
@@ -162,24 +160,21 @@ public class BacktestEngine {
             h1Buffer.add(m5);
             if (h1Buffer.size() == 12) {
                 Candle h1 = aggregate(h1Buffer, Timeframe.H1);
-                Instant h1End = Instant.ofEpochSecond(h1.timestamp).plus(Timeframe.H1.getDuration());
-                CandleRecommendation h1Rec = h1Analyzer.addAndAnalyze(
-                        h1, Instant.ofEpochSecond(h1.timestamp), h1End, instrumentInfo);
+                Instant h1End = m5.timestamp.toInstant().plus(Timeframe.H1.getDuration());
+                CandleRecommendation h1Rec = h1Analyzer.addAndAnalyze(h1, m5.timestamp.toInstant(), h1End, instrumentInfo);
                 latestRecs.put(Timeframe.H1, h1Rec);
                 h1Buffer.clear();
             }
 
             // ── Try entry on next candle if no open position ──────────────────
-            if (openPosition == null && nextM5 != null) {
+            if (openPosition == null && nextM5 != null)
                 evaluateEntry(m5, nextM5);
-            }
         }
 
         // ── Force-close any position that is still open at end of data ────────
         if (openPosition != null && !m5Candles.isEmpty()) {
-            Candle last = m5Candles.get(m5Candles.size() - 1);
-            forceClose(last.close, Instant.ofEpochSecond(last.timestamp),
-                    PositionMonitor.ExitReason.FORCE_SQUAREOFF);
+            Candle last = m5Candles.getLast();
+            forceClose(last.close, last.timestamp.toInstant());
         }
 
         List<TradeRecord> trades = journal.closedTrades();
@@ -191,15 +186,13 @@ public class BacktestEngine {
 
     private void evaluateEntry(Candle currentCandle, Candle nextCandle) {
         // Time filter
-        ZonedDateTime candleTime = ZonedDateTime.ofInstant(
-                Instant.ofEpochSecond(currentCandle.timestamp), IST);
-        if (candleTime.toLocalTime().isAfter(riskConfig.getNoNewTradesAfter())) return;
+        // ZonedDateTime candleTime = ZonedDateTime.ofInstant( // currentCandle.timestamp, IST);
+        if (currentCandle.timestamp.toLocalTime().isAfter(riskConfig.getNoNewTradesAfter())) return;
 
         // Cooldown
-        if (Instant.ofEpochSecond(currentCandle.timestamp)
-                .isBefore(lastExitTime.plus(java.time.Duration.ofMinutes(25)))) {
+        if (currentCandle.timestamp.isBefore(ChronoZonedDateTime.from(lastExitTime.plus(java.time.Duration.ofMinutes(25)))))
             return;
-        }
+
 
         // ── Phase-II: Delegate to pluggable strategy ────────────────────────
         Optional<TradeSignal> signal = strategy.evaluate(symbol, latestRecs);
@@ -212,13 +205,13 @@ public class BacktestEngine {
         // We'll use a default 100% allocation for backtests if not specified
         double totalCap = riskConfig.getInitialCapitalInr();
         double riskPerUnit = Math.abs(sig.getSuggestedEntry() - sig.getSuggestedStopLoss());
-        
+
         if (riskPerUnit <= 0) return;
 
         // Default to 1% risk for backtests if no override provided
         double monetaryRisk = totalCap * (riskConfig.getMaxRiskPerTradePercent());
         int quantity = (int) Math.floor(monetaryRisk / riskPerUnit);
-        
+
         // Cap by fat-finger guard
         quantity = Math.min(quantity, riskConfig.getMaxQuantityPerOrder());
 
@@ -227,7 +220,7 @@ public class BacktestEngine {
             return;
         }
 
-        executor.setNextBar(nextCandle.open, Instant.ofEpochSecond(nextCandle.timestamp));
+        executor.setNextBar(nextCandle.open, nextCandle.timestamp.toInstant());
         OrderFill fill = executor.placeEntry(sig, quantity);
 
         if (!fill.isSuccess()) {
@@ -238,20 +231,19 @@ public class BacktestEngine {
         journal.logSignalGenerated(sig);
         journal.logOrderEntry(sig, fill);
 
-        openPosition = new OpenPosition(
-                symbol, sig.getCorrelationId(), sig.getStrategyId(),
+        openPosition = new OpenPosition(symbol, sig.getCorrelationId(), sig.getStrategyId(),
                 sig.getDirection(), fill.getFillPrice(), fill.getFillQuantity(),
                 sig.getSuggestedStopLoss(), sig.getSuggestedTarget(), fill.getFillTime());
 
         openRecord = new TradeRecord(
                 sig.getCorrelationId(), symbol, sig.getStrategyId(),
                 ExecutionMode.BACKTEST, sig.getDirection(),
-                fill.getFillPrice(), fill.getFillQuantity(), 
+                fill.getFillPrice(), fill.getFillQuantity(),
                 sig.getSuggestedStopLoss(), sig.getSuggestedTarget(),
                 fill.getFillTime(), sig.getAtr(), sig.getConfidence(), sig.getTimeframeVotes());
 
         log.info("[BT][{}] Opened: {} @ {:.2f} sl={:.2f} tp={:.2f} qty={}",
-                symbol, sig.getDirection(), fill.getFillPrice(), 
+                symbol, sig.getDirection(), fill.getFillPrice(),
                 sig.getSuggestedStopLoss(), sig.getSuggestedTarget(), quantity);
     }
 
@@ -269,25 +261,17 @@ public class BacktestEngine {
                 || openPosition.isTakeProfitHit(candle.low); // for shorts
 
         // If both hit in same candle, SL takes priority (conservative)
-        if (slHit) {
-            closePosition(openPosition.getCurrentStopLoss(),
-                    Instant.ofEpochSecond(candle.timestamp),
-                    PositionMonitor.ExitReason.STOP_LOSS);
-        } else if (tpHit) {
-            closePosition(openPosition.getTakeProfit(),
-                    Instant.ofEpochSecond(candle.timestamp),
-                    PositionMonitor.ExitReason.TAKE_PROFIT);
-        } else {
-            // Update trailing stop
-            updateTrailingStop(candle.high, candle.low);
+        if (slHit)
+            closePosition(openPosition.getCurrentStopLoss(), candle.timestamp.toInstant(), PositionMonitor.ExitReason.STOP_LOSS);
+        else if (tpHit)
+            closePosition(openPosition.getTakeProfit(), candle.timestamp.toInstant(), PositionMonitor.ExitReason.TAKE_PROFIT);
+        else {
+            updateTrailingStop(candle.high, candle.low); // Update trailing stop
 
             // Time-based exit at 15:15
-            ZonedDateTime t = ZonedDateTime.ofInstant(
-                    Instant.ofEpochSecond(candle.timestamp), IST);
-            if (t.toLocalTime().compareTo(riskConfig.getMarketCloseTime()) >= 0) {
-                forceClose(candle.close, Instant.ofEpochSecond(candle.timestamp),
-                        PositionMonitor.ExitReason.FORCE_SQUAREOFF);
-            }
+            ZonedDateTime t = ZonedDateTime.ofInstant(candle.timestamp.toInstant(), IST);
+            if (!t.toLocalTime().isBefore(riskConfig.getMarketCloseTime()))
+                forceClose(candle.close, candle.timestamp.toInstant());
         }
     }
 
@@ -296,22 +280,18 @@ public class BacktestEngine {
         double pnlPct = (price - openPosition.getEntryPrice()) / openPosition.getEntryPrice();
         if (openPosition.getDirection() == Signal.SELL) pnlPct = -pnlPct;
 
-        if (!openPosition.isTrailingActivated()
-                && pnlPct >= riskConfig.getTrailingActivationPercent()) {
+        if (!openPosition.isTrailingActivated() && pnlPct >= riskConfig.getTrailingActivationPercent())
             openPosition.setTrailingActivated(true);
-        }
 
         if (!openPosition.isTrailingActivated()) return;
         openPosition.updateHighWaterMark(price);
         double hwm = openPosition.getHighWaterMark();
-        double newStop = openPosition.getDirection() == Signal.BUY
-                ? hwm * (1 - riskConfig.getTrailingStepPercent())
+        double newStop = openPosition.getDirection() == Signal.BUY ? hwm * (1 - riskConfig.getTrailingStepPercent())
                 : hwm * (1 + riskConfig.getTrailingStepPercent());
         openPosition.stepTrailingStop(newStop);
     }
 
-    private void closePosition(double exitPx, Instant exitTime,
-                               PositionMonitor.ExitReason reason) {
+    private void closePosition(double exitPx, Instant exitTime, PositionMonitor.ExitReason reason) {
         executor.setNextBar(exitPx, exitTime);
         OrderFill fill = executor.placeExit(openPosition, reason, exitPx);
         double actualExit = fill.isSuccess() ? fill.getFillPrice() : exitPx;
@@ -324,9 +304,8 @@ public class BacktestEngine {
         consecutiveLosses = winner ? 0 : consecutiveLosses + 1;
         lastExitTime = exitTime;
 
-        log.info("[BT][{}] Closed: {} @ {:.2f} pnl={:.2f} reason={}",
-                symbol, openPosition.getDirection(),
-                actualExit, openRecord.getPnl(), reason);
+        log.info("[BT][{}] Closed: {} @ {:.2f} pnl={:.2f} reason={}", symbol, openPosition.getDirection(), actualExit,
+                openRecord.getPnl(), reason);
 
         openPosition = null;
         openRecord = null;
@@ -334,8 +313,7 @@ public class BacktestEngine {
 
     // ── Compound signal (same logic as StrategyEvaluator) ────────────────────
 
-    private void forceClose(double exitPx, Instant exitTime,
-                            PositionMonitor.ExitReason reason) {
-        closePosition(exitPx, exitTime, reason);
+    private void forceClose(double exitPx, Instant exitTime) {
+        closePosition(exitPx, exitTime, PositionMonitor.ExitReason.FORCE_SQUAREOFF);
     }
 }

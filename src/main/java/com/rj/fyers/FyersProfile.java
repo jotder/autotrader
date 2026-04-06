@@ -13,19 +13,22 @@ public class FyersProfile {
     }
 
     public ClientProfile getProfile() {
+        fyersClass = FyersClientFactory.getConfiguredInstance();
         Tuple<JSONObject, JSONObject> profileResponseTuple = fyersClass.GetProfile();
 
         if (profileResponseTuple.Item2() != null) {
-            System.out.println("Profile Error: " + profileResponseTuple.Item2());
+            System.out.println("Profile login  Error: " + profileResponseTuple.Item2());
             return null;
         }
 
         JSONObject data = profileResponseTuple.Item1();
-        JSONObject profileJson = data.optJSONObject("data");
-        if (profileJson == null) {
-            profileJson = data;
-        }
+        if (data != null) {
+            JSONObject profileJson = data.optJSONObject("data");
+            if (profileJson == null)
+                profileJson = data;
 
-        return ClientProfile.from(profileJson);
+            return ClientProfile.from(profileJson);
+        }
+        return null;
     }
 }

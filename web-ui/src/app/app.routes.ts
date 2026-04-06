@@ -1,56 +1,68 @@
 import { Routes } from '@angular/router';
-export const routes: Routes = [
-  { 
-    path: '', 
-    loadComponent: () => import('./pages/dashboard/dashboard.component').then(m => m.DashboardComponent) 
-  },
-  {
-    path: 'transactions',
-    loadComponent: () => import('./pages/transactions/transactions.component').then(m => m.TransactionsComponent)
-  },
-  {
-    path: 'paper-trade',
-    loadComponent: () => import('./pages/paper-trade/paper-trade.component').then(m => m.PaperTradeComponent)
-  },
-  { path: 'positions', loadComponent: () => import('./pages/positions/positions.component').then(m => m.PositionsComponent) },
-  { path: 'signals', loadComponent: () => import('./pages/signals/signals.component').then(m => m.SignalsComponent) },
-  { path: 'strategies', loadComponent: () => import('./pages/strategies/strategies.component').then(m => m.StrategiesComponent) },
+import { LoginForm, ResetPasswordForm, CreateAccountForm, ChangePasswordForm } from './shared/components';
+import { AuthGuardService } from './shared/services';
+import { Home } from './pages/home/home';
+import { Profile } from './pages/profile/profile';
+import { Tasks } from './pages/tasks/tasks';
+import { CandleDownload } from './pages/data-mgmt/candle-download';
+import { LocalDataExplorer } from './pages/data-mgmt/local-data-explorer';
+import { SymbolMaster } from './pages/data-mgmt/symbol-master';
 
+export const routes: Routes = [
+  // Data Management
   {
-    path: 'symbols',
-    loadComponent: () => import('./pages/symbols/symbols.component').then(m => m.SymbolsComponent)
+    path: 'candle-download',
+    component: CandleDownload,
+    canActivate: [ AuthGuardService ]
   },
   {
-    path: 'symbols/:symbol',
-    loadComponent: () => import('./pages/symbols/symbols.component').then(m => m.SymbolsComponent)
+    path: 'local-data',
+    component: LocalDataExplorer,
+    canActivate: [ AuthGuardService ]
   },
   {
-    path: 'market',
-    loadComponent: () => import('./pages/market/market.component').then(m => m.MarketComponent)
+    path: 'symbol-master',
+    component: SymbolMaster,
+    canActivate: [ AuthGuardService ]
+  },
+  // Existing
+  {
+    path: 'tasks',
+    component: Tasks,
+    canActivate: [ AuthGuardService ]
   },
   {
-    path: 'backtest',
-    loadComponent: () => import('./pages/backtest/backtest.component').then(m => m.BacktestComponent)
+    path: 'profile',
+    component: Profile,
+    canActivate: [ AuthGuardService ]
   },
   {
-    path: 'backtest/iterative',
-    loadComponent: () => import('./pages/backtest/iterative/iterative-backtest.component').then(m => m.IterativeBacktestComponent)
+    path: 'home',
+    component: Home,
+    canActivate: [ AuthGuardService ]
   },
   {
-    path: 'go-live',
-    loadComponent: () => import('./pages/go-live/go-live.component').then(m => m.GoLiveGateComponent)
+    path: 'login-form',
+    component: LoginForm,
+    canActivate: [ AuthGuardService ]
   },
   {
-    path: 'config',
-    loadComponent: () => import('./pages/config/config.component').then(m => m.ConfigComponent)
+    path: 'reset-password',
+    component: ResetPasswordForm,
+    canActivate: [ AuthGuardService ]
   },
   {
-    path: 'knowledge',
-    loadComponent: () => import('./pages/knowledge/knowledge.component').then(m => m.KnowledgeComponent)
+    path: 'create-account',
+    component: CreateAccountForm,
+    canActivate: [ AuthGuardService ]
   },
   {
-    path: 'controls',
-    loadComponent: () => import('./pages/controls/controls.component').then(m => m.ControlsComponent)
+    path: 'change-password/:recoveryCode',
+    component: ChangePasswordForm,
+    canActivate: [ AuthGuardService ]
   },
-  { path: '**', redirectTo: '' },
+  {
+    path: '**',
+    redirectTo: 'home'
+  }
 ];

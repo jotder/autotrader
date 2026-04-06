@@ -12,13 +12,9 @@ import org.json.JSONObject;
 import java.util.List;
 
 public class FyersDataApi {
-    FyersClass fyersClass;
 
-    public FyersDataApi() {
-        fyersClass = FyersClientFactory.getConfiguredInstance();
-    }
-
-    public List<Candle> getStockHistory(StockHistoryModel model) {
+    public List<Candle> getStockHistory(StockHistoryModel model) throws Exception{
+        FyersClass fyersClass = FyersClientFactory.getConfiguredInstance();
         Tuple<JSONObject, JSONObject> tuple = fyersClass.GetStockHistory(model);
         if (tuple.Item2() != null) {
             System.out.println("StockHistory Error: " + tuple.Item2());
@@ -28,6 +24,7 @@ public class FyersDataApi {
     }
 
     public List<QuoteEntry> getStockQuotes(String symbols) {
+        FyersClass fyersClass = FyersClientFactory.getConfiguredInstance();
         Tuple<JSONObject, JSONObject> tuple = fyersClass.GetStockQuotes(symbols);
         if (tuple.Item2() != null) {
             System.out.println("StockQuotes Error: " + tuple.Item2());
@@ -38,6 +35,7 @@ public class FyersDataApi {
 
     /** @param ohlcvFlag 0 = OHLCV + market depth, 1 = only OHLCV */
     public MarketDepthResult getMarketDepth(String symbol, int ohlcvFlag) {
+        FyersClass fyersClass = FyersClientFactory.getConfiguredInstance();
         Tuple<JSONObject, JSONObject> tuple = fyersClass.GetMarketDepth(symbol, ohlcvFlag);
         if (tuple.Item2() != null) {
             System.out.println("MarketDepth Error: " + tuple.Item2());
@@ -48,6 +46,7 @@ public class FyersDataApi {
 
     /** @param timestamp expiry date as epoch string, or empty for nearest expiry */
     public OptionChainResult getOptionChain(String symbol, int strikeCount, String timestamp) {
+        FyersClass fyersClass = FyersClientFactory.getConfiguredInstance();
         Tuple<JSONObject, JSONObject> tuple = fyersClass.GetOptionChain(symbol, strikeCount, timestamp);
         if (tuple.Item2() != null) {
             System.out.println("OptionChain Error: " + tuple.Item2());

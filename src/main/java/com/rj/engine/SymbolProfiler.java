@@ -5,7 +5,9 @@ import com.rj.model.SymbolProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.*;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.*;
 
 /**
@@ -98,13 +100,12 @@ public class SymbolProfiler {
             double mHigh = dayCandles.subList(0, morningBars).stream().mapToDouble(c -> c.high).max().orElse(dayOpen);
             double mLow = dayCandles.subList(0, morningBars).stream().mapToDouble(c -> c.low).min().orElse(dayOpen);
             double dayRange = dayHigh - dayLow;
-            if (dayRange > 0) {
+            if (dayRange > 0)
                 morningRanges.add((mHigh - mLow) / dayRange * 100.0);
-            }
 
             // Volume by 5-min slot + hourly volatility
             for (Candle c : dayCandles) {
-                ZonedDateTime cTime = Instant.ofEpochSecond(c.timestamp).atZone(IST);
+                ZonedDateTime cTime = c.timestamp;   //Instant.ofEpochSecond(c.timestamp).atZone(IST);
                 int minuteOfDay = cTime.getHour() * 60 + cTime.getMinute();
                 int marketMinute = minuteOfDay - (MARKET_OPEN_HOUR * 60 + MARKET_OPEN_MIN);
                 if (marketMinute >= 0 && marketMinute < MINUTES_PER_SESSION) {
@@ -140,8 +141,14 @@ public class SymbolProfiler {
                     }
                 }
             }
-            if (currentUp > 0) { totalUpRuns += currentUp; upRunCount++; }
-            if (currentDown > 0) { totalDownRuns += currentDown; downRunCount++; }
+            if (currentUp > 0) {
+                totalUpRuns += currentUp;
+                upRunCount++;
+            }
+            if (currentDown > 0) {
+                totalDownRuns += currentDown;
+                downRunCount++;
+            }
         }
 
         // Compute averages
@@ -150,14 +157,14 @@ public class SymbolProfiler {
         double stdDev = stddev(dailyReturns, avgReturn);
 
         double[] avgVolumeBySlot = new double[SLOTS_5MIN];
-        for (int i = 0; i < SLOTS_5MIN; i++) {
+        for (int i = 0; i < SLOTS_5MIN; i++)
             avgVolumeBySlot[i] = volumeSlotCount[i] > 0 ? volumeSlotAccum[i] / volumeSlotCount[i] : 0;
-        }
+
 
         double[] hourlyVol = new double[hourlyVolSum.length];
-        for (int i = 0; i < hourlyVol.length; i++) {
+        for (int i = 0; i < hourlyVol.length; i++)
             hourlyVol[i] = hourlyVolCount[i] > 0 ? hourlyVolSum[i] / hourlyVolCount[i] : 0;
-        }
+
 
         double avgUpRun = upRunCount > 0 ? (double) totalUpRuns / upRunCount : 0;
         double avgDownRun = downRunCount > 0 ? (double) totalDownRuns / downRunCount : 0;
@@ -180,7 +187,7 @@ public class SymbolProfiler {
     private Map<LocalDate, List<Candle>> groupByDay(List<Candle> candles) {
         var map = new TreeMap<LocalDate, List<Candle>>();
         for (Candle c : candles) {
-            LocalDate date = Instant.ofEpochSecond(c.timestamp).atZone(IST).toLocalDate();
+            LocalDate date = c.timestamp.toLocalDateTime().toLocalDate(); //Instant.ofEpochSecond(c.timestamp).atZone(IST)
             map.computeIfAbsent(date, k -> new ArrayList<>()).add(c);
         }
         return map;
@@ -189,9 +196,9 @@ public class SymbolProfiler {
     private static double stddev(List<Double> values, double mean) {
         if (values.size() < 2) return 0;
         double sumSqDiff = 0;
-        for (double v : values) {
+        for (double v : values)
             sumSqDiff += (v - mean) * (v - mean);
-        }
+
         return Math.sqrt(sumSqDiff / (values.size() - 1));
     }
 }

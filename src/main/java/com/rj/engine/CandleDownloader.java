@@ -95,7 +95,7 @@ public class CandleDownloader {
 
     // ── Fyers API call ──────────────────────────────────────────────────────
 
-    private List<Candle> fetchDay(String symbol, LocalDate date) {
+    private List<Candle> fetchDay(String symbol, LocalDate date) throws Exception {
         // Convert date to epoch range (start of day to end of day IST)
         ZonedDateTime startOfDay = date.atStartOfDay(IST);
         ZonedDateTime endOfDay = date.atTime(23, 59, 59).atZone(IST);
@@ -109,7 +109,13 @@ public class CandleDownloader {
         model.ContFlag = 0;
 
         if (circuitBreaker != null) {
-            return circuitBreaker.execute(() -> dataApi.getStockHistory(model), false);
+            return circuitBreaker.execute(() -> {
+                try {
+                    return dataApi.getStockHistory(model);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }, false);
         }
         return dataApi.getStockHistory(model);
     }

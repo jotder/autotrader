@@ -3,21 +3,26 @@ package com.rj.model;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 /** A single OHLCV candle from the stock history API. */
 public class Candle {
-    public final long timestamp;
+    public final ZonedDateTime timestamp;
     public final double open;
     public final double high;
     public final double low;
     public final double close;
     public final long volume;
+    private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
     private Candle(long timestamp, double open, double high, double low, double close, long volume) {
-        this.timestamp = timestamp;
+        this.timestamp = Instant.ofEpochSecond(timestamp).atZone(IST);
         this.open = open;
         this.high = high;
         this.low = low;
@@ -43,9 +48,8 @@ public class Candle {
         List<Candle> candles = new ArrayList<>();
         JSONArray arr = json.optJSONArray("candles");
         if (arr != null) {
-            for (int i = 0; i < arr.length(); i++) {
+            for (int i = 0; i < arr.length(); i++)
                 candles.add(from(arr.getJSONArray(i)));
-            }
         }
         return Collections.unmodifiableList(candles);
     }
