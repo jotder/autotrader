@@ -104,4 +104,16 @@ public class RiskController {
         return new ActionResponse(true,
                 "Emergency flatten complete: " + closed + " positions closed. Anomaly mode active.");
     }
+
+    @PostMapping("/kill")
+    public ActionResponse kill(@RequestParam(defaultValue = "Manual kill via REST API") String reason) {
+        engine.getRiskManager().activateKillSwitch(reason);
+        return new ActionResponse(true, "Kill switch activated: " + reason);
+    }
+
+    @PostMapping("/reset")
+    public ActionResponse reset() {
+        engine.getRiskManager().resetDay();
+        return new ActionResponse(true, "Daily risk state reset");
+    }
 }

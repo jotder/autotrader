@@ -19,7 +19,7 @@ import java.util.List;
 public class EnvConfigPersistence {
 
     private static final Logger log = LoggerFactory.getLogger(EnvConfigPersistence.class);
-    private static final Path ENV_PATH = Path.of(".env");
+    static Path ENV_PATH = Path.of(".env"); // package-private for testing
 
     /**
      * Updates {@code key} in .env to {@code value}, appending a new line if not present.
