@@ -51,9 +51,9 @@ class SymbolControllerTest {
     void symbolMaster_byTicker_found() throws Exception {
         SymbolMasterEntry entry = mock(SymbolMasterEntry.class);
         when(symbolMasterCache.byTicker("NSE:SBIN-EQ")).thenReturn(Optional.of(entry));
-
         mockMvc.perform(get("/api/symbol-master").param("ticker", "NSE:SBIN-EQ"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").exists());
     }
 
     @Test

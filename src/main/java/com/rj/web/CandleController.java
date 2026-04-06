@@ -107,8 +107,8 @@ public class CandleController {
         return ResponseEntity.ok(job.toMap());
     }
 
-    @GetMapping("/candle-db/downloads")
-    public List<Map<String, Object>> candleDbDownloads() {
+    @GetMapping("/candle-db/download-jobs")
+    public List<Map<String, Object>> candleDbDownloadJobs() {
         return downloadTracker.allJobs().stream()
                 .map(DownloadTracker.DownloadJob::toMap)
                 .toList();

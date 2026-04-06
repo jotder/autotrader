@@ -33,7 +33,9 @@ class CandleControllerTest {
     void candleDbSymbols_returnsSet() throws Exception {
         when(candleDatabase.availableSymbols()).thenReturn(Set.of("NSE:SBIN-EQ"));
         mockMvc.perform(get("/api/candle-db/symbols"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(1));
     }
 
     @Test
