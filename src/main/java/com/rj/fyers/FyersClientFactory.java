@@ -3,15 +3,23 @@ package com.rj.fyers;
 import com.rj.config.ConfigManager;
 import com.rj.model.ClientProfile;
 import com.tts.in.model.FyersClass;
-import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
-import java.util.Scanner;
-
+@Component
 public class FyersClientFactory {
 
     static FyersClass fyersClass;
 
-    private FyersClientFactory() {
+    /** Static reference set by Spring injection so static methods can use it. */
+    private static ConfigManager configManagerInstance;
+
+    @Autowired
+    public void setConfigManager(ConfigManager configManager) {
+        FyersClientFactory.configManagerInstance = configManager;
+    }
+
+    public FyersClientFactory() {
     }
 
     /**
@@ -23,18 +31,20 @@ public class FyersClientFactory {
         if (fyersClass == null) {
             fyersClass = FyersClass.getInstance();
         }
-        ConfigManager conf = ConfigManager.getInstance();
-        fyersClass.clientId = conf.getProperty("FYERS_APP_ID");
-        fyersClass.accessToken = conf.getProperty("ACCESS_TOKEN");
+        ConfigManager conf = configManagerInstance;
+        if (conf != null) {
+            fyersClass.clientId = conf.getProperty("FYERS_APP_ID");
+            fyersClass.accessToken = conf.getProperty("ACCESS_TOKEN");
+        }
         return fyersClass;
     }
 
     public String generateToken(String accessToken) {
-        ConfigManager config = ConfigManager.getInstance();
-        config.updateEnvProperty("ACCESS_TOKEN", accessToken);  // Update ACCESS_TOKEN in .env so it persists across restarts (call once per day)
+        if (configManagerInstance != null) {
+            configManagerInstance.updateEnvProperty("ACCESS_TOKEN", accessToken);
+        }
         return accessToken;
     }
-
 
     static public boolean isConnected() {
         ClientProfile profile = new FyersProfile().getProfile();
@@ -42,9 +52,9 @@ public class FyersClientFactory {
     }
 
     static public boolean connect(String accessToken) {
-        ConfigManager config = ConfigManager.getInstance();
-        config.updateEnvProperty("ACCESS_TOKEN", accessToken);  // Update ACCESS_TOKEN in .env so it persists across restarts (call once per day)
-
+        if (configManagerInstance != null) {
+            configManagerInstance.updateEnvProperty("ACCESS_TOKEN", accessToken);
+        }
         ClientProfile profile = new FyersProfile().getProfile();
         return profile != null;
     }

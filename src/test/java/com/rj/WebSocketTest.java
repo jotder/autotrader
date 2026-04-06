@@ -18,7 +18,8 @@ public class WebSocketTest {
         disruptor.start();
 
         FyersSocketListener app = new FyersSocketListener(disruptor, null);
-        ConfigManager conf = ConfigManager.getInstance();
+        ConfigManager conf = new ConfigManager();
+        conf.loadConfiguration();
 
         app.fyersClass.clientId = conf.getProperty("FYERS_APP_ID");
         app.fyersClass.accessToken = conf.getProperty("ACCESS_TOKEN");

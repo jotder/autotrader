@@ -24,11 +24,6 @@ import java.nio.file.Path;
 public class EngineConfiguration {
 
     @Bean
-    public ConfigManager configManager() {
-        return ConfigManager.getInstance();
-    }
-
-    @Bean
     public TickStore tickStore() {
         return TickStore.getInstance();
     }
@@ -49,8 +44,8 @@ public class EngineConfiguration {
     }
 
     @Bean
-    public TradingEngine tradingEngine() {
-        return TradingEngine.create();
+    public TradingEngine tradingEngine(ConfigManager configManager) {
+        return TradingEngine.create(configManager);
     }
 
     @Bean
