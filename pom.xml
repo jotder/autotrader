@@ -96,6 +96,18 @@
             <artifactId>jackson-dataformat-csv</artifactId>
         </dependency>
 
+        <!-- EclipseStore — High-performance in-memory object graph storage -->
+        <dependency>
+            <groupId>org.eclipse.store</groupId>
+            <artifactId>integrations-spring-boot3</artifactId>
+            <version>1.4.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.store</groupId>
+            <artifactId>storage-embedded</artifactId>
+            <version>1.4.0</version>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -153,7 +165,7 @@
                             <goal>install-node-and-npm</goal>
                         </goals>
                         <configuration>
-                            <nodeVersion>v22.11.0</nodeVersion>
+                            <nodeVersion>v22.14.0</nodeVersion>
                         </configuration>
                     </execution>
                     <execution>

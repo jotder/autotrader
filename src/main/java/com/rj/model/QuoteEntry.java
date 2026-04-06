@@ -54,13 +54,24 @@ public class QuoteEntry {
 
     static QuoteEntry from(JSONObject v) {
         return new QuoteEntry(
-                v.optString("symbol"), v.optString("fyToken"), v.optString("description"),
-                v.optString("exchange"), v.optString("short_name"),
-                v.optDouble("lp"), v.optDouble("ch"), v.optDouble("chp"),
-                v.optDouble("open_price"), v.optDouble("high_price"), v.optDouble("low_price"),
-                v.optDouble("prev_close_price"), v.optDouble("atp"),
-                v.optDouble("bid"), v.optDouble("ask"), v.optDouble("spread"),
-                v.optLong("volume"), v.optLong("tt")
+                v.optString("symbol"),
+                v.optString("fyToken"),
+                v.optString("description"),
+                v.optString("exchange"),
+                v.optString("short_name"),
+                v.optDouble("lp"),
+                v.optDouble("ch"),
+                v.optDouble("chp"),
+                v.optDouble("open_price"),
+                v.optDouble("high_price"),
+                v.optDouble("low_price"),
+                v.optDouble("prev_close_price"),
+                v.optDouble("atp"),
+                v.optDouble("bid"),
+                v.optDouble("ask"),
+                v.optDouble("spread"),
+                v.optLong("volume"),
+                v.optLong("tt")
         );
     }
 

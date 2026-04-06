@@ -49,14 +49,9 @@ interface DownloadTask {
             <!-- Symbol -->
             <div class="form-field">
               <label class="field-label">Symbol</label>
-              <dx-select-box
-                [dataSource]="symbols"
-                [(value)]="selectedSymbol"
-                placeholder="Select symbol…"
-                [showClearButton]="true"
-                [searchEnabled]="true"
-                width="280"
-                (onValueChanged)="onSymbolChange($event)">
+              <dx-select-box [dataSource]="symbols" [(value)]="selectedSymbol" placeholder="Select symbol…"
+                             [showClearButton]="true" [searchEnabled]="true" width="280"
+                             (onValueChanged)="onSymbolChange($event)">
               </dx-select-box>
               <span *ngIf="selectedSymbol && availableDatesStr.length" class="local-badge">
                 {{ availableDatesStr.length }} dates already local
@@ -65,17 +60,13 @@ interface DownloadTask {
 
             <!-- Calendar -->
             <div class="form-field" *ngIf="selectedSymbol">
-              <label class="field-label">
-                Select Dates
+              <label class="field-label"> Select Dates
                 <span class="legend-inline">
                   <span class="dot green"></span> local &nbsp;
                   <span class="dot blue"></span> new
                 </span>
               </label>
-              <dx-calendar
-                selectionMode="multiple"
-                [(value)]="selectedDates"
-                [cellTemplate]="'cell'">
+              <dx-calendar selectionMode="multiple" [(value)]="selectedDates" [cellTemplate]="'cell'">
                 <div *dxTemplate="let c of 'cell'"
                      [class.cell-local]="isLocal(c.date)"
                      [class.cell-weekend]="isWeekend(c.date)">
@@ -110,12 +101,8 @@ interface DownloadTask {
             <!-- New dates tag box -->
             <div *ngIf="newDates.length > 0" class="tag-section">
               <label class="field-label">Dates queued for download:</label>
-              <dx-tag-box
-                [value]="newDates"
-                [items]="newDates"
-                [readOnly]="true"
-                [showDropDownButton]="false"
-                [multiline]="true">
+              <dx-tag-box [value]="newDates" [items]="newDates" [readOnly]="true" [showDropDownButton]="false"
+                          [multiline]="true">
               </dx-tag-box>
             </div>
 
@@ -127,17 +114,10 @@ interface DownloadTask {
             <div class="submit-row" *ngIf="!isDownloading">
               <dx-button
                 [text]="newDates.length ? 'Download ' + newDates.length + ' Date(s) for ' + selectedSymbol : 'Select dates to download'"
-                type="success"
-                icon="download"
-                [disabled]="newDates.length === 0"
-                (onClick)="startDownload()">
+                type="success" icon="download" [disabled]="newDates.length === 0" (onClick)="startDownload()">
               </dx-button>
-              <dx-button
-                *ngIf="selectedDates.length > 0"
-                text="Clear Selection"
-                type="normal"
-                stylingMode="outlined"
-                (onClick)="reset()">
+              <dx-button *ngIf="selectedDates.length > 0" text="Clear Selection" type="normal" stylingMode="outlined"
+                         (onClick)="reset()">
               </dx-button>
             </div>
 
@@ -157,35 +137,24 @@ interface DownloadTask {
         <div class="progress-header">
           <span class="progress-title">Download Progress — {{ selectedSymbol }}</span>
           <span class="progress-count">{{ doneCount }}/{{ downloadTasks.length }} complete</span>
-          <dx-button
-            *ngIf="downloadDone"
-            text="New Download"
-            type="normal"
-            icon="refresh"
-            stylingMode="outlined"
-            (onClick)="reset()">
+          <dx-button *ngIf="downloadDone" text="New Download" type="normal" icon="refresh" stylingMode="outlined"
+                     (onClick)="reset()">
           </dx-button>
         </div>
 
-        <dx-data-grid
-          [dataSource]="downloadTasks"
-          [showBorders]="true"
-          [columnAutoWidth]="false"
-          [rowAlternationEnabled]="true"
-          keyExpr="date">
+        <dx-data-grid [dataSource]="downloadTasks" [showBorders]="true" [columnAutoWidth]="false"
+                      [rowAlternationEnabled]="true" keyExpr="date">
           <dxo-paging [enabled]="false"></dxo-paging>
 
-          <dxi-column dataField="date"   caption="Date"   [width]="130"></dxi-column>
+          <dxi-column dataField="date" caption="Date" [width]="130"></dxi-column>
           <dxi-column dataField="symbol" caption="Symbol" [width]="100"></dxi-column>
           <dxi-column caption="Progress" [minWidth]="240" cellTemplate="progTpl"></dxi-column>
-          <dxi-column caption="Result"   [minWidth]="210" cellTemplate="resTpl"></dxi-column>
+          <dxi-column caption="Result" [minWidth]="210" cellTemplate="resTpl"></dxi-column>
 
           <div *dxTemplate="let cell of 'progTpl'" class="prog-cell">
-            <dx-progress-bar
-              [min]="0" [max]="100"
-              [value]="cell.data.progress"
-              [showStatus]="cell.data.status === 'downloading'"
-              [ngClass]="{
+            <dx-progress-bar [min]="0" [max]="100" [value]="cell.data.progress"
+                             [showStatus]="cell.data.status === 'downloading'"
+                             [ngClass]="{
                 'bar-success': cell.data.status === 'success',
                 'bar-error':   cell.data.status === 'error'
               }">
@@ -193,13 +162,12 @@ interface DownloadTask {
           </div>
 
           <div *dxTemplate="let cell of 'resTpl'" class="status-cell">
-            <dx-load-indicator
-              *ngIf="cell.data.status === 'downloading'"
-              [height]="18" [width]="18">
+            <dx-load-indicator *ngIf="cell.data.status === 'downloading'" [height]="18" [width]="18">
             </dx-load-indicator>
-            <span *ngIf="cell.data.status === 'pending'"  class="s-pending">⏳ Queued</span>
-            <span *ngIf="cell.data.status === 'success'"  class="s-ok">✓ {{ cell.data.candleCount | number }} candles</span>
-            <span *ngIf="cell.data.status === 'error'"    class="s-err">✗ {{ cell.data.errorMsg }}</span>
+            <span *ngIf="cell.data.status === 'pending'" class="s-pending">⏳ Queued</span>
+            <span *ngIf="cell.data.status === 'success'" class="s-ok">✓ {{ cell.data.candleCount | number }}
+              candles</span>
+            <span *ngIf="cell.data.status === 'error'" class="s-err">✗ {{ cell.data.errorMsg }}</span>
           </div>
 
         </dx-data-grid>

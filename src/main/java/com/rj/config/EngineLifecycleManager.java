@@ -1,7 +1,9 @@
 package com.rj.config;
 
 import com.rj.engine.TradingEngine;
+import com.rj.fyers.FyersClientFactory;
 import com.rj.fyers.FyersSocketListener;
+import com.tts.in.model.FyersClass;
 import com.tts.in.websocket.FyersSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,9 +23,7 @@ public class EngineLifecycleManager implements SmartLifecycle {
     private final ConfigManager config;
     private volatile boolean running = false;
 
-    public EngineLifecycleManager(TradingEngine engine, 
-                                  FyersSocketListener socketListener,
-                                  ConfigManager config) {
+    public EngineLifecycleManager(TradingEngine engine, FyersSocketListener socketListener, ConfigManager config) {
         this.engine = engine;
         this.socketListener = socketListener;
         this.config = config;
@@ -32,16 +32,21 @@ public class EngineLifecycleManager implements SmartLifecycle {
     @Override
     public void start() {
         log.info("Starting PTA Backend via Spring lifecycle...");
-        
-        // Ensure socket is initialized (legacy Fyers SDK pattern)
-        if (socketListener.socket == null) {
-            socketListener.socket = new FyersSocket(30); // 30s timeout
-            socketListener.fyersClass.clientId = config.getProperty("FYERS_APP_ID");
-            socketListener.fyersClass.accessToken = config.getProperty("ACCESS_TOKEN");
-        }
 
-        engine.start();
-        running = true;
+        if (FyersClientFactory.isConnected()) {
+
+            FyersClass fyersClass = FyersClientFactory.getConfiguredInstance();
+
+            // Ensure socket is initialized (legacy Fyers SDK pattern)
+            if (socketListener.socket == null) {
+                socketListener.socket = new FyersSocket(30); // 30s timeout
+                socketListener.fyersClass.clientId = fyersClass.clientId;
+                socketListener.fyersClass.accessToken = fyersClass.accessToken;
+            }
+
+            engine.start();
+            running = true;
+        }
     }
 
     @Override

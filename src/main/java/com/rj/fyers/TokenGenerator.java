@@ -41,6 +41,7 @@ public class TokenGenerator {
         return accessToken;
     }
 
+
     /**
      * Generates a new access token using a valid refresh token.
      *

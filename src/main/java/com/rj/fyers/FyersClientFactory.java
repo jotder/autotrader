@@ -1,7 +1,11 @@
 package com.rj.fyers;
 
 import com.rj.config.ConfigManager;
+import com.rj.model.ClientProfile;
 import com.tts.in.model.FyersClass;
+import org.json.JSONObject;
+
+import java.util.Scanner;
 
 public class FyersClientFactory {
 
@@ -23,6 +27,26 @@ public class FyersClientFactory {
         fyersClass.clientId = conf.getProperty("FYERS_APP_ID");
         fyersClass.accessToken = conf.getProperty("ACCESS_TOKEN");
         return fyersClass;
+    }
+
+    public String generateToken(String accessToken) {
+        ConfigManager config = ConfigManager.getInstance();
+        config.updateEnvProperty("ACCESS_TOKEN", accessToken);  // Update ACCESS_TOKEN in .env so it persists across restarts (call once per day)
+        return accessToken;
+    }
+
+
+    static public boolean isConnected() {
+        ClientProfile profile = new FyersProfile().getProfile();
+        return profile != null;
+    }
+
+    static public boolean connect(String accessToken) {
+        ConfigManager config = ConfigManager.getInstance();
+        config.updateEnvProperty("ACCESS_TOKEN", accessToken);  // Update ACCESS_TOKEN in .env so it persists across restarts (call once per day)
+
+        ClientProfile profile = new FyersProfile().getProfile();
+        return profile != null;
     }
 
     /**

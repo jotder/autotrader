@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.http.client.HttpClientAutoConfigur
 @SpringBootApplication(exclude = {HttpClientAutoConfiguration.class})
 public class TradeAssistantApplication {
 
-    public static void main(String[] args) {
+    static void main(String[] args) {
         SpringApplication.run(TradeAssistantApplication.class, args);
     }
 }
