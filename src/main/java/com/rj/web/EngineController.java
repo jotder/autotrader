@@ -3,16 +3,13 @@ package com.rj.web;
 import com.rj.config.ConfigManager;
 import com.rj.engine.*;
 import com.rj.model.*;
-import com.rj.strategy.MultiTimeframeVotingStrategy;
 import com.rj.web.dto.ActionResponse;
 import com.rj.web.dto.RiskResponse;
 import com.rj.web.dto.TickResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
@@ -21,31 +18,11 @@ public class EngineController {
     private final TradingEngine engine;
     private final TickStore tickStore;
     private final ConfigManager configManager;
-    private final CandleDatabase candleDatabase;
-    private final SymbolProfiler symbolProfiler;
-    private volatile DownloadTracker downloadTracker;
 
-    public EngineController(TradingEngine engine, TickStore tickStore, ConfigManager configManager,
-                            CandleDatabase candleDatabase, SymbolProfiler symbolProfiler) {
+    public EngineController(TradingEngine engine, TickStore tickStore, ConfigManager configManager) {
         this.engine = engine;
         this.tickStore = tickStore;
         this.configManager = configManager;
-        this.candleDatabase = candleDatabase;
-        this.symbolProfiler = symbolProfiler;
-    }
-
-    private DownloadTracker getDownloadTracker() {
-        if (downloadTracker == null) {
-            synchronized (this) {
-                if (downloadTracker == null) {
-                    var downloader = new CandleDownloader(
-                            new com.rj.fyers.FyersDataApi(), candleDatabase, 500,
-                            engine.getCircuitBreaker());
-                    downloadTracker = new DownloadTracker(downloader);
-                }
-            }
-        }
-        return downloadTracker;
     }
 
     // ── Read endpoints ──────────────────────────────────────────────────────
@@ -143,142 +120,6 @@ public class EngineController {
                 "matched", result.matched(),
                 "qtyMismatch", result.qtyMismatch(),
                 "details", result.details()));
-    }
-
-    // ── Candle Database endpoints ─────────────────────────────────────────
-
-    @GetMapping("/candle-db/symbols")
-    public Set<String> candleDbSymbols() {
-        return candleDatabase.availableSymbols();
-    }
-
-    @GetMapping("/candle-db/summary")
-    public List<Map<String, Object>> candleDbSummary() {
-        var symbols = candleDatabase.availableSymbols();
-        var result = new ArrayList<Map<String, Object>>();
-        for (String s : symbols) {
-            var dates = candleDatabase.availableDates(s);
-            if (!dates.isEmpty()) {
-                result.add(Map.of(
-                        "symbol", s,
-                        "startDate", dates.getFirst().toString(),
-                        "endDate", dates.getLast().toString(),
-                        "count", dates.size()
-                ));
-            }
-        }
-        return result;
-    }
-
-    @GetMapping("/candle-db/{symbol}/dates")
-    public List<LocalDate> candleDbDates(@PathVariable String symbol) {
-        return candleDatabase.availableDates(symbol);
-    }
-
-    @GetMapping("/candle-db/{symbol}")
-    public ResponseEntity<?> candleDbLoad(@PathVariable String symbol,
-                                          @RequestParam String date) {
-        LocalDate d = LocalDate.parse(date);
-        List<Candle> candles = candleDatabase.load(symbol, d);
-        if (candles.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(Map.of(
-                "symbol", symbol,
-                "date", date,
-                "count", candles.size(),
-                "candles", candles));
-    }
-
-    // ── Candle download endpoints ────────────────────────────────────────
-
-    @PostMapping("/candle-db/download")
-    public ResponseEntity<?> candleDbDownload(@RequestBody Map<String, Object> request) {
-        @SuppressWarnings("unchecked")
-        List<String> symbols = (List<String>) request.get("symbols");
-        String fromStr = (String) request.get("from");
-        String toStr = (String) request.get("to");
-
-        if (symbols == null || symbols.isEmpty() || fromStr == null || toStr == null) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", "Required: symbols (list), from (date), to (date)"));
-        }
-
-        LocalDate from = LocalDate.parse(fromStr);
-        LocalDate to = LocalDate.parse(toStr);
-
-        String jobId = getDownloadTracker().startJob(symbols, from, to);
-        return ResponseEntity.accepted().body(Map.of(
-                "jobId", jobId,
-                "status", "RUNNING",
-                "message", "Download started for " + symbols.size() + " symbols",
-                "checkUrl", "/api/candle-db/download/" + jobId));
-    }
-
-    @GetMapping("/candle-db/download/{jobId}")
-    public ResponseEntity<?> candleDbDownloadStatus(@PathVariable String jobId) {
-        var job = getDownloadTracker().getJob(jobId);
-        if (job == null) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(job.toMap());
-    }
-
-    @GetMapping("/candle-db/downloads")
-    public List<Map<String, Object>> candleDbDownloads() {
-        return getDownloadTracker().allJobs().stream()
-                .map(DownloadTracker.DownloadJob::toMap)
-                .toList();
-    }
-
-    // ── Backtest endpoint ─────────────────────────────────────────────────
-
-    @PostMapping("/backtest")
-    public ResponseEntity<?> backtest(@RequestBody Map<String, String> request) {
-        String symbol = request.get("symbol");
-        String fromStr = request.get("from");
-        String toStr = request.get("to");
-
-        if (symbol == null || fromStr == null || toStr == null) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", "Required fields: symbol, from, to"));
-        }
-
-        LocalDate from = LocalDate.parse(fromStr);
-        LocalDate to = LocalDate.parse(toStr);
-
-        List<Candle> m1Candles = candleDatabase.loadRange(symbol, from, to);
-        if (m1Candles.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", "No M1 data found for " + symbol + " in range " + from + " to " + to,
-                    "hint", "Download data first via POST /api/candle-db/download"));
-        }
-
-        List<Candle> m5Candles = BacktestEngine.aggregateToHigherTimeframe(m1Candles, 5);
-        if (m5Candles.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", "Could not aggregate M1 data into M5 candles"));
-        }
-
-        var strategy = new MultiTimeframeVotingStrategy(
-                "MTF-VOTE", "Multi-TF Voting", 0.6, 1.5, 2.0);
-        BacktestEngine bt = new BacktestEngine(m5Candles, symbol, strategy, configManager.getRiskConfig());
-        StrategyAnalyzer.Report report = bt.run();
-        return ResponseEntity.ok(report);
-    }
-
-    // ── Symbol Profile endpoint ───────────────────────────────────────────
-
-    @GetMapping("/profile/{symbol}")
-    public ResponseEntity<?> profile(@PathVariable String symbol,
-                                     @RequestParam String from,
-                                     @RequestParam String to) {
-        SymbolProfile profile = symbolProfiler.profile(symbol, LocalDate.parse(from), LocalDate.parse(to));
-        if (profile == null) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", "Insufficient data for profiling " + symbol));
-        }
-        return ResponseEntity.ok(profile);
     }
 
     // ── OMS Orders endpoint ───────────────────────────────────────────────
