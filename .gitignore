@@ -43,7 +43,7 @@ build/
 !.env.example
 
 # Claude worktrees
-PersonalTradeAssistant/
+.worktrees/
 
 # Python
 .venv/
