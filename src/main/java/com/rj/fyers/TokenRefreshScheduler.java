@@ -1,8 +1,10 @@
 package com.rj.fyers;
 
+import com.rj.broker.ITickFeed;
 import com.rj.config.ConfigManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -27,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>
  * Retry policy: 3 attempts with exponential backoff (30s, 60s, 120s).
  */
+@Component
 public class TokenRefreshScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(TokenRefreshScheduler.class);
@@ -36,6 +39,7 @@ public class TokenRefreshScheduler {
     private static final long[] RETRY_DELAYS_MS = {30_000, 60_000, 120_000};
 
     private final ConfigManager config;
+    private final ITickFeed tickFeed;
     private final TokenGenerator tokenGenerator;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicReference<Instant> lastRefreshTime = new AtomicReference<>();
@@ -43,8 +47,9 @@ public class TokenRefreshScheduler {
 
     private ScheduledExecutorService scheduler;
 
-    public TokenRefreshScheduler(ConfigManager config) {
+    public TokenRefreshScheduler(ConfigManager config, ITickFeed tickFeed) {
         this.config = config;
+        this.tickFeed = tickFeed;
         this.tokenGenerator = new TokenGenerator();
     }
 
@@ -116,8 +121,7 @@ public class TokenRefreshScheduler {
                 String newToken = tokenGenerator.generateTokenFromRefreshToken(appHashId, refreshToken, pin);
 
                 if (newToken != null && !newToken.isBlank()) {
-                    // Force FyersClientFactory to pick up new token
-                    FyersClientFactory.refreshToken(newToken);
+                    tickFeed.refreshToken(newToken);
 
                     lastRefreshTime.set(Instant.now());
                     lastRefreshStatus.set("success");

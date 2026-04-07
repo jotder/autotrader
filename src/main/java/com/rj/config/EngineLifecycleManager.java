@@ -3,6 +3,7 @@ package com.rj.config;
 import com.rj.engine.TradingEngine;
 import com.rj.fyers.FyersClientFactory;
 import com.rj.fyers.FyersSocketListener;
+import com.rj.fyers.TokenRefreshScheduler;
 import com.tts.in.model.FyersClass;
 import com.tts.in.websocket.FyersSocket;
 import org.slf4j.Logger;
@@ -21,12 +22,15 @@ public class EngineLifecycleManager implements SmartLifecycle {
     private final TradingEngine engine;
     private final FyersSocketListener socketListener;
     private final ConfigManager config;
+    private final TokenRefreshScheduler tokenRefreshScheduler;
     private volatile boolean running = false;
 
-    public EngineLifecycleManager(TradingEngine engine, FyersSocketListener socketListener, ConfigManager config) {
+    public EngineLifecycleManager(TradingEngine engine, FyersSocketListener socketListener,
+                                  ConfigManager config, TokenRefreshScheduler tokenRefreshScheduler) {
         this.engine = engine;
         this.socketListener = socketListener;
         this.config = config;
+        this.tokenRefreshScheduler = tokenRefreshScheduler;
     }
 
     @Override
@@ -45,6 +49,7 @@ public class EngineLifecycleManager implements SmartLifecycle {
             }
 
             engine.start();
+            tokenRefreshScheduler.start();
             running = true;
         }
     }
@@ -52,6 +57,7 @@ public class EngineLifecycleManager implements SmartLifecycle {
     @Override
     public void stop() {
         log.info("Stopping TradingEngine via Spring lifecycle...");
+        tokenRefreshScheduler.stop();
         engine.stop();
         running = false;
     }

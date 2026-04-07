@@ -51,7 +51,6 @@ public class TradingEngine implements OrderStateListener {
     private HealthMonitor healthMonitor;
     private PositionReconciler positionReconciler;
     private ConfigFileWatcher configFileWatcher;
-    private com.rj.fyers.TokenRefreshScheduler tokenRefreshScheduler;
     private AnomalyDetector anomalyDetector;
     private BrokerCircuitBreaker circuitBreaker;
 
@@ -339,8 +338,6 @@ public class TradingEngine implements OrderStateListener {
         }
 
         if (configFileWatcher != null) try { configFileWatcher.start(); } catch (IOException ignored) {}
-        tokenRefreshScheduler = new com.rj.fyers.TokenRefreshScheduler(config);
-        tokenRefreshScheduler.start();
 
         registerShutdownHook();
     }
@@ -349,7 +346,6 @@ public class TradingEngine implements OrderStateListener {
         if (!running.compareAndSet(true, false)) return;
         log.info("TradingEngine stopping...");
         if (configFileWatcher != null) configFileWatcher.stop();
-        if (tokenRefreshScheduler != null) tokenRefreshScheduler.stop();
         socketListener.close();
         orderManager.shutdown();
         healthMonitor.stop();
@@ -394,7 +390,6 @@ public class TradingEngine implements OrderStateListener {
     public CandleService getCandleService() { return candleService; }
     public StrategyEvaluator getStrategyEvaluator() { return strategyEvaluator; }
     public PositionReconciler getPositionReconciler() { return positionReconciler; }
-    public com.rj.fyers.TokenRefreshScheduler getTokenRefreshScheduler() { return tokenRefreshScheduler; }
     public AnomalyDetector getAnomalyDetector() { return anomalyDetector; }
 
     public int flattenAll(String reason) {

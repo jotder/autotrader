@@ -2,6 +2,7 @@ package com.rj.web;
 
 import com.rj.broker.ITickFeed;
 import com.rj.engine.*;
+import com.rj.fyers.TokenRefreshScheduler;
 import com.rj.model.*;
 import com.rj.web.dto.ActionResponse;
 import com.rj.web.dto.TickResponse;
@@ -17,11 +18,14 @@ public class EngineController {
     private final TradingEngine engine;
     private final TickStore tickStore;
     private final ITickFeed brokerFeed;
+    private final TokenRefreshScheduler tokenRefreshScheduler;
 
-    public EngineController(TradingEngine engine, TickStore tickStore, ITickFeed brokerFeed) {
+    public EngineController(TradingEngine engine, TickStore tickStore, ITickFeed brokerFeed,
+                            TokenRefreshScheduler tokenRefreshScheduler) {
         this.engine = engine;
         this.tickStore = tickStore;
         this.brokerFeed = brokerFeed;
+        this.tokenRefreshScheduler = tokenRefreshScheduler;
     }
 
     // ── Read endpoints ──────────────────────────────────────────────────────
@@ -110,21 +114,16 @@ public class EngineController {
 
     @GetMapping("/token/status")
     public Map<String, Object> tokenStatus() {
-        var scheduler = engine.getTokenRefreshScheduler();
         var result = new LinkedHashMap<String, Object>();
-        result.put("autoRefreshRunning", scheduler != null && scheduler.isRunning());
-        result.put("lastRefreshStatus", scheduler != null ? scheduler.getLastRefreshStatus() : "n/a");
-        result.put("lastRefreshTime", scheduler != null ? scheduler.getLastRefreshTime() : null);
+        result.put("autoRefreshRunning", tokenRefreshScheduler.isRunning());
+        result.put("lastRefreshStatus", tokenRefreshScheduler.getLastRefreshStatus());
+        result.put("lastRefreshTime", tokenRefreshScheduler.getLastRefreshTime());
         return result;
     }
 
     @PostMapping("/token/refresh")
     public ActionResponse tokenRefresh() {
-        var scheduler = engine.getTokenRefreshScheduler();
-        if (scheduler == null) {
-            return new ActionResponse(false, "Token refresh scheduler not available");
-        }
-        boolean success = scheduler.refreshNow();
+        boolean success = tokenRefreshScheduler.refreshNow();
         return new ActionResponse(success,
                 success ? "Token refreshed successfully" : "Token refresh failed — check logs");
     }
