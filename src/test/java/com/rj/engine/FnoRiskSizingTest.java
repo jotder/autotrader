@@ -1,6 +1,10 @@
 package com.rj.engine;
 
 import com.rj.config.RiskConfig;
+import com.rj.config.TradeStrategyConfig;
+import com.rj.engine.risk.PreTradeGate;
+import com.rj.engine.risk.PreTradeResult;
+import com.rj.engine.risk.RiskSessionState;
 import com.rj.model.*;
 import org.junit.jupiter.api.Test;
 
@@ -13,15 +17,28 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class FnoRiskSizingTest {
 
-    private static final Supplier<ZonedDateTime> MARKET_HOURS_CLOCK = () -> ZonedDateTime.of(2026, 3, 28, 10, 30, 0, 0,
-            ZoneId.of("Asia/Kolkata"));
+    private static final Supplier<ZonedDateTime> MARKET_HOURS_CLOCK =
+            () -> ZonedDateTime.of(2026, 3, 28, 10, 30, 0, 0, ZoneId.of("Asia/Kolkata"));
+
+    private static PreTradeGate gateFor(RiskConfig cfg) {
+        RiskSessionState state = new RiskSessionState(cfg);
+        PreTradeGate gate = new PreTradeGate(cfg, state, MARKET_HOURS_CLOCK);
+        // Register "test" strategy config so Gate 8 passes
+        TradeStrategyConfig stratCfg = new TradeStrategyConfig();
+        stratCfg.setStrategyId("test");
+        stratCfg.setName("Test Strategy");
+        stratCfg.setActive(true);
+        stratCfg.setAllocationPercentage(100.0);
+        stratCfg.setSizingType(SizingType.VOLATILITY_ATR);
+        stratCfg.setRiskPercentage(2.0);
+        stratCfg.setAtrMultiplier(2.0);
+        gate.updateStrategyConfig(stratCfg);
+        return gate;
+    }
 
     @Test
     void equitySignalSizesInShares() {
-        RiskManager rm = new RiskManager(testRiskConfig(), MARKET_HOURS_CLOCK);
-        // Capital=1000000, exposure=50%, entry=500, sl=490, risk/unit=10
-        // riskBudget = 1000000*0.02 = 20000, rawQty = 20000/10 = 2000
-        // exposureCap = 500000/500 = 1000, maxQty=1000 → min(2000,1000,1000)=1000
+        PreTradeGate gate = gateFor(testRiskConfig("1000000"));
         var signal = TradeSignal.builder()
                 .symbol("NSE:SBIN-EQ")
                 .direction(Signal.BUY)
@@ -31,20 +48,15 @@ class FnoRiskSizingTest {
                 .suggestedTarget(520)
                 .strategyId("test")
                 .vote(Timeframe.M5, Signal.BUY)
-                .build(); // no instrumentInfo → lotSize=1
-
-        var result = rm.preTradeCheck(signal, Collections.emptyList(), 1000000);
-        assertTrue(result.approved(), "Should be approved during market hours");
+                .build();
+        PreTradeResult result = gate.preTradeCheck(signal, Collections.emptyList(), 1_000_000);
+        assertTrue(result.approved(), "Should be approved during market hours: " + result.rejectReason());
         assertEquals(1000, result.quantity());
     }
 
     @Test
     void futureSignalSizesInLots() {
-        RiskManager rm = new RiskManager(testRiskConfig(), MARKET_HOURS_CLOCK);
-        // Capital=5000000, exposure=50%, entry=22000, sl=21900, risk/unit=100
-        // riskBudget = 5000000*0.02 = 100000, rawQty = 100000/100 = 1000
-        // lotSize=25 → lotAligned = (1000/25)*25 = 1000
-        // exposureCap = 2500000/22000 = 113, maxQty=1000 → min(1000,1000,113)=100 (lot-aligned: 100)
+        PreTradeGate gate = gateFor(testRiskConfig("5000000"));
         var signal = TradeSignal.builder()
                 .symbol("NSE:NIFTY26MARFUT")
                 .direction(Signal.BUY)
@@ -56,22 +68,15 @@ class FnoRiskSizingTest {
                 .vote(Timeframe.M5, Signal.BUY)
                 .instrumentInfo(InstrumentInfo.derivative(SymbolType.EQUITY_FUTURE, 25, "FO"))
                 .build();
-
-        var result = rm.preTradeCheck(signal, Collections.emptyList(), 5000000);
-        assertTrue(result.approved(), "Should be approved during market hours");
-        // Quantity should be lot-aligned (multiple of 25)
+        PreTradeResult result = gate.preTradeCheck(signal, Collections.emptyList(), 5_000_000);
+        assertTrue(result.approved(), "Should be approved during market hours: " + result.rejectReason());
         assertTrue(result.quantity() > 0);
         assertEquals(0, result.quantity() % 25, "Quantity must be multiple of lot size 25");
     }
 
     @Test
     void futureMinimumOneLot() {
-        RiskManager rm = new RiskManager(testRiskConfig(), MARKET_HOURS_CLOCK);
-        // Capital=1000000, entry=5000, sl=4900, risk/unit=100
-        // riskBudget = 1000000*0.02 = 20000, rawQty = 20000/100 = 200
-        // lotSize=75 → lotAligned = (200/75)*75 = 150
-        // exposureCap = 500000/5000 = 100 → re-aligned: (100/75)*75 = 75
-        // maxQty=1000 → min(150,1000,75) = 75 (exactly 1 lot after re-alignment)
+        PreTradeGate gate = gateFor(testRiskConfig("1000000"));
         var signal = TradeSignal.builder()
                 .symbol("NSE:NIFTY26MARFUT")
                 .direction(Signal.BUY)
@@ -83,20 +88,15 @@ class FnoRiskSizingTest {
                 .vote(Timeframe.M5, Signal.BUY)
                 .instrumentInfo(InstrumentInfo.derivative(SymbolType.EQUITY_FUTURE, 75, "FO"))
                 .build();
-
-        var result = rm.preTradeCheck(signal, Collections.emptyList(), 1000000);
-        assertTrue(result.approved(), "Should be approved during market hours");
-        assertEquals(75, result.quantity()); // 1 lot after exposure cap re-alignment
-        assertEquals(0, result.quantity() % 75, "Quantity must be multiple of lot size 75");
+        PreTradeResult result = gate.preTradeCheck(signal, Collections.emptyList(), 1_000_000);
+        assertTrue(result.approved());
+        assertEquals(75, result.quantity());
+        assertEquals(0, result.quantity() % 75);
     }
 
     @Test
     void futureSignalMultipleLots() {
-        RiskManager rm = new RiskManager(testRiskConfig(), MARKET_HOURS_CLOCK);
-        // Capital=1000000, entry=100, sl=90, risk/unit=10
-        // riskBudget = 1000000*0.02 = 20000, rawQty = 20000/10 = 2000
-        // lotSize=50 → lotAligned = (2000/50)*50 = 2000
-        // exposureCap = 500000/100 = 5000, maxQty=1000 → min(2000,1000,5000)=1000
+        PreTradeGate gate = gateFor(testRiskConfig("1000000"));
         var signal = TradeSignal.builder()
                 .symbol("NSE:BANKNIFTY26MARFUT")
                 .direction(Signal.BUY)
@@ -108,11 +108,10 @@ class FnoRiskSizingTest {
                 .vote(Timeframe.M5, Signal.BUY)
                 .instrumentInfo(InstrumentInfo.derivative(SymbolType.EQUITY_FUTURE, 50, "FO"))
                 .build();
-
-        var result = rm.preTradeCheck(signal, Collections.emptyList(), 1000000);
-        assertTrue(result.approved(), "Should be approved during market hours");
+        PreTradeResult result = gate.preTradeCheck(signal, Collections.emptyList(), 1_000_000);
+        assertTrue(result.approved());
         assertEquals(1000, result.quantity());
-        assertEquals(0, result.quantity() % 50, "Quantity must be multiple of lot size 50");
+        assertEquals(0, result.quantity() % 50);
     }
 
     @Test
@@ -127,24 +126,23 @@ class FnoRiskSizingTest {
                 .strategyId("test")
                 .instrumentInfo(InstrumentInfo.derivative(SymbolType.EQUITY_OPTION_MONTHLY, 25, "FO"))
                 .build();
-
         assertEquals("MARGIN", signal.getProductType());
         assertEquals(25, signal.getLotSize());
     }
 
-    private static RiskConfig testRiskConfig() {
+    private static RiskConfig testRiskConfig(String capital) {
         return RiskConfig.fromEnvironment(key -> switch (key) {
-            case "RISK_INITIAL_CAPITAL_INR" -> "1000000";
-            case "RISK_MAX_DAILY_LOSS_INR" -> "50000";
-            case "RISK_MAX_DAILY_PROFIT_INR" -> "100000";
-            case "RISK_MAX_PER_TRADE_PCT" -> "0.02";
+            case "RISK_INITIAL_CAPITAL_INR"       -> capital;
+            case "RISK_MAX_DAILY_LOSS_INR"        -> "50000";
+            case "RISK_MAX_DAILY_PROFIT_INR"      -> "100000";
+            case "RISK_MAX_PER_TRADE_PCT"         -> "0.02";
             case "RISK_MAX_EXPOSURE_PER_SYMBOL_PCT" -> "0.50";
-            case "RISK_MAX_QTY_PER_ORDER" -> "1000";
-            case "RISK_MAX_CONSECUTIVE_LOSSES" -> "5";
-            case "RISK_NO_NEW_TRADES_AFTER" -> "15:00";
-            case "RISK_MARKET_CLOSE_TIME" -> "15:15";
-            case "RISK_TRAILING_ACTIVATION_PCT" -> "0.015";
-            case "RISK_TRAILING_STEP_PCT" -> "0.005";
+            case "RISK_MAX_QTY_PER_ORDER"         -> "1000";
+            case "RISK_MAX_CONSECUTIVE_LOSSES"    -> "5";
+            case "RISK_NO_NEW_TRADES_AFTER"       -> "15:00";
+            case "RISK_MARKET_CLOSE_TIME"         -> "15:15";
+            case "RISK_TRAILING_ACTIVATION_PCT"   -> "0.015";
+            case "RISK_TRAILING_STEP_PCT"         -> "0.005";
             default -> null;
         });
     }
