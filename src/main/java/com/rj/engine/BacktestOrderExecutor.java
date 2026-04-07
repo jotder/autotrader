@@ -1,5 +1,6 @@
 package com.rj.engine;
 
+import com.rj.engine.ExitReason;
 import com.rj.model.OpenPosition;
 import com.rj.model.OrderFill;
 import com.rj.model.TradeSignal;
@@ -72,7 +73,7 @@ public class BacktestOrderExecutor implements IOrderExecutor {
 
     @Override
     public OrderFill placeExit(OpenPosition position,
-                               PositionMonitor.ExitReason reason,
+                               ExitReason reason,
                                double exitPrice) {
         // For SL/TP hits in backtest, use the exact trigger price (no additional slippage)
         // to avoid double-counting since the trigger price already models adverse fill

@@ -1,6 +1,6 @@
 package com.rj.model;
 
-import com.rj.engine.PositionMonitor;
+import com.rj.engine.ExitReason;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -37,7 +37,7 @@ public class TradeRecord {
     // ── Exit (set when position closes) ──────────────────────────────────────
     private Double exitPrice;
     private Instant exitTime;
-    private PositionMonitor.ExitReason exitReason;
+    private ExitReason exitReason;
     private Status status = Status.OPEN;
     // ── Computed at close ─────────────────────────────────────────────────────
     private Double pnl;                 // INR: (exit - entry) * qty, direction-adjusted
@@ -77,7 +77,7 @@ public class TradeRecord {
      * Seals the record with exit details and computes derived metrics.
      * Safe to call only once.
      */
-    public void close(double exitPx, Instant exitTs, PositionMonitor.ExitReason reason) {
+    public void close(double exitPx, Instant exitTs, ExitReason reason) {
         this.exitPrice = exitPx;
         this.exitTime = exitTs;
         this.exitReason = reason;
@@ -194,7 +194,7 @@ public class TradeRecord {
         return exitTime;
     }
 
-    public PositionMonitor.ExitReason getExitReason() {
+    public ExitReason getExitReason() {
         return exitReason;
     }
 

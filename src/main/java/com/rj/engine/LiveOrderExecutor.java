@@ -1,6 +1,7 @@
 package com.rj.engine;
 
 import com.rj.broker.IOrderAdapter;
+import com.rj.engine.ExitReason;
 import com.rj.fyers.FyersBrokerAdapter;
 import com.rj.model.*;
 import com.tts.in.model.PlaceOrderModel;
@@ -76,7 +77,7 @@ public class LiveOrderExecutor implements IOrderExecutor {
 
     @Override
     public OrderFill placeExit(OpenPosition position,
-                               PositionMonitor.ExitReason reason,
+                               ExitReason reason,
                                double exitPrice) {
         // Exit direction is opposite to entry direction
         int side = position.getDirection() == Signal.BUY ? -1 : 1;

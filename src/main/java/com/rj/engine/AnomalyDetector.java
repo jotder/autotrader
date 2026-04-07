@@ -1,5 +1,6 @@
 package com.rj.engine;
 
+import com.rj.engine.ExitReason;
 import com.rj.config.RiskConfig;
 import com.rj.model.TickStore;
 import org.slf4j.Logger;
@@ -177,7 +178,7 @@ public class AnomalyDetector {
         // 2. Dispatch flatten operation to a dedicated virtual thread to avoid blocking the guard
         Thread.ofVirtual().name("emergency-flattener").start(() -> {
             try {
-                int closed = positionMonitor.closeAllPositions(PositionMonitor.ExitReason.ANOMALY_FLATTEN);
+                int closed = positionMonitor.closeAllPositions(ExitReason.ANOMALY_FLATTEN);
                 log.error("EMERGENCY FLATTEN COMPLETE: closed {} positions", closed);
                 
                 journal.log("ANOMALY_FLATTEN", java.util.Map.of(

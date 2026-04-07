@@ -1,5 +1,6 @@
 package com.rj.engine;
 
+import com.rj.engine.ExitReason;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -118,7 +119,7 @@ public class TradeJournal {
 
     /** Log an exit order fill. */
     public void logOrderExit(OpenPosition pos, com.rj.model.OrderFill fill,
-                             PositionMonitor.ExitReason reason) {
+                             ExitReason reason) {
         Map<String, Object> event = event("ORDER_EXIT");
         event.put("correlationId", pos.getCorrelationId());
         event.put("symbol", pos.getSymbol());

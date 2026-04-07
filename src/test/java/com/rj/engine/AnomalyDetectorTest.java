@@ -1,6 +1,7 @@
 package com.rj.engine;
 
 import com.rj.config.RiskConfig;
+import com.rj.engine.ExitReason;
 import com.rj.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,7 +59,7 @@ class AnomalyDetectorTest {
                 Instant.now(), 2.0, 1.0, Map.of());
         
         // Close it with a loss of 6000
-        record.close(record.getEntryPrice() - (6000.0 / record.getQuantity()), Instant.now(), PositionMonitor.ExitReason.STOP_LOSS);
+        record.close(record.getEntryPrice() - (6000.0 / record.getQuantity()), Instant.now(), ExitReason.STOP_LOSS);
         
         riskManager.recordClosedTrade(record);
         

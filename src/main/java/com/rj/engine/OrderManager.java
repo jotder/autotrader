@@ -1,5 +1,6 @@
 package com.rj.engine;
 
+import com.rj.engine.ExitReason;
 import com.rj.model.*;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -80,7 +81,7 @@ public final class OrderManager {
         return submit(signal, quantity, OrderSideType.ENTRY);
     }
 
-    public OrderFill submitExit(OpenPosition position, PositionMonitor.ExitReason reason, double exitPrice) {
+    public OrderFill submitExit(OpenPosition position, ExitReason reason, double exitPrice) {
         if (tracker.hasOrderForCorrelationId(position.getCorrelationId(), OrderSideType.EXIT)) {
             log.warn("[OMS][{}] Duplicate exit blocked for correlationId: {}", position.getSymbol(), position.getCorrelationId());
             return OrderFill.rejected("Duplicate exit for correlationId: " + position.getCorrelationId());

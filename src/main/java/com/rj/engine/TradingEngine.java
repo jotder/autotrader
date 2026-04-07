@@ -1,5 +1,6 @@
 package com.rj.engine;
 
+import com.rj.engine.ExitReason;
 import com.rj.engine.disruptor.TickDisruptorEngine;
 import com.rj.engine.disruptor.TickStoreUpdater;
 import com.rj.fyers.FyersSocketListener;
@@ -259,9 +260,9 @@ public class TradingEngine implements OrderStateListener {
         
         TradeRecord record = openRecords.remove(order.getCorrelationId());
         if (record != null) {
-            PositionMonitor.ExitReason reason = PositionMonitor.ExitReason.MANUAL;
+            ExitReason reason = ExitReason.MANUAL;
             if (order.getRejectReason() != null && order.getRejectReason().startsWith("reason=")) {
-                try { reason = PositionMonitor.ExitReason.valueOf(order.getRejectReason().substring(7)); } catch (Exception ignored) {}
+                try { reason = ExitReason.valueOf(order.getRejectReason().substring(7)); } catch (Exception ignored) {}
             }
 
             record.close(order.getFillPrice(), order.getLastUpdatedAt(), reason);
@@ -307,7 +308,7 @@ public class TradingEngine implements OrderStateListener {
         orderManager.submitEntry(signal, check.quantity());
     }
 
-    private void handleExit(OpenPosition position, PositionMonitor.ExitReason reason) {
+    private void handleExit(OpenPosition position, ExitReason reason) {
         double triggerPrice = switch (reason) {
             case STOP_LOSS, TRAILING_STOP -> position.getCurrentStopLoss();
             case TAKE_PROFIT -> position.getTakeProfit();
@@ -394,7 +395,7 @@ public class TradingEngine implements OrderStateListener {
 
     public int flattenAll(String reason) {
         riskManager.triggerAnomaly(reason);
-        return positionMonitor.closeAllPositions(PositionMonitor.ExitReason.ANOMALY_FLATTEN);
+        return positionMonitor.closeAllPositions(ExitReason.ANOMALY_FLATTEN);
     }
 
     public StrategyAnalyzer.Report analyzeSession() {

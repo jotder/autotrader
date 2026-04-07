@@ -1,5 +1,6 @@
 package com.rj.engine;
 
+import com.rj.engine.ExitReason;
 import com.rj.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,7 +49,7 @@ class OrderManagerTest {
         stubExecutor.nextFill = OrderFill.success("PP-2", 105.0, 10, Instant.now());
 
         OrderFill fill = manager.submitExit(position,
-                PositionMonitor.ExitReason.STOP_LOSS, 104.0);
+                ExitReason.STOP_LOSS, 104.0);
         assertTrue(fill.isSuccess());
         assertEquals(105.0, fill.getFillPrice());
     }
@@ -101,7 +102,7 @@ class OrderManagerTest {
                 return OrderFill.success("SLOW-1", 100.0, qty, Instant.now());
             }
             @Override
-            public OrderFill placeExit(OpenPosition p, PositionMonitor.ExitReason r, double price) {
+            public OrderFill placeExit(OpenPosition p, ExitReason r, double price) {
                 return OrderFill.success("SLOW-2", price, p.getQuantity(), Instant.now());
             }
         };
@@ -144,7 +145,7 @@ class OrderManagerTest {
         stubExecutor.nextFill = OrderFill.success("PP-EXIT", 105.0, 10, Instant.now());
 
         OpenPosition pos = testPosition("NSE:SBIN-EQ", Signal.BUY, "corr_exit");
-        OrderFill fill = manager.submitExit(pos, PositionMonitor.ExitReason.TAKE_PROFIT, 105.0);
+        OrderFill fill = manager.submitExit(pos, ExitReason.TAKE_PROFIT, 105.0);
         assertTrue(fill.isSuccess());
     }
 
@@ -196,7 +197,7 @@ class OrderManagerTest {
 
         @Override
         public OrderFill placeExit(OpenPosition position,
-                                   PositionMonitor.ExitReason reason, double exitPrice) {
+                                   ExitReason reason, double exitPrice) {
             return nextFill;
         }
     }

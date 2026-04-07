@@ -3,6 +3,7 @@ package com.rj.engine;
 import com.rj.model.OpenPosition;
 import com.rj.model.OrderFill;
 import com.rj.model.TradeSignal;
+import com.rj.engine.ExitReason;
 
 /**
  * Abstraction over order placement.
@@ -36,6 +37,6 @@ public interface IOrderExecutor {
      * @return fill result
      */
     OrderFill placeExit(OpenPosition position,
-                        PositionMonitor.ExitReason reason,
+                        ExitReason reason,
                         double exitPrice);
 }

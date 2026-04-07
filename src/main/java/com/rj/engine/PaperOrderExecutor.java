@@ -1,5 +1,6 @@
 package com.rj.engine;
 
+import com.rj.engine.ExitReason;
 import com.rj.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +50,7 @@ public class PaperOrderExecutor implements IOrderExecutor {
 
     @Override
     public OrderFill placeExit(OpenPosition position,
-                               PositionMonitor.ExitReason reason,
+                               ExitReason reason,
                                double exitPrice) {
         // Use the actual trigger price for exits (SL / TP / force)
         // rather than the live LTP, so the fill matches the trigger condition exactly

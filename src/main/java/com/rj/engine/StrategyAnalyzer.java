@@ -1,5 +1,6 @@
 package com.rj.engine;
 
+import com.rj.engine.ExitReason;
 import com.rj.model.TradeRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -201,10 +202,10 @@ public class StrategyAnalyzer {
         });
 
         // ── Exit reason analysis ──────────────────────────────────────────────
-        long slCount = trades.stream().filter(t -> t.getExitReason() == PositionMonitor.ExitReason.STOP_LOSS).count();
-        long tpCount = trades.stream().filter(t -> t.getExitReason() == PositionMonitor.ExitReason.TAKE_PROFIT).count();
-        long trCount = trades.stream().filter(t -> t.getExitReason() == PositionMonitor.ExitReason.TRAILING_STOP).count();
-        long sqCount = trades.stream().filter(t -> t.getExitReason() == PositionMonitor.ExitReason.FORCE_SQUAREOFF).count();
+        long slCount = trades.stream().filter(t -> t.getExitReason() == ExitReason.STOP_LOSS).count();
+        long tpCount = trades.stream().filter(t -> t.getExitReason() == ExitReason.TAKE_PROFIT).count();
+        long trCount = trades.stream().filter(t -> t.getExitReason() == ExitReason.TRAILING_STOP).count();
+        long sqCount = trades.stream().filter(t -> t.getExitReason() == ExitReason.FORCE_SQUAREOFF).count();
         double slPct = (double) slCount / trades.size();
         if (slPct > 0.60) {
             s.add("EXIT: " + pct(slPct) + " of trades exit via stop loss. Entries may be poor quality or SL is too tight.");

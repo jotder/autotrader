@@ -1,6 +1,7 @@
 package com.rj.engine;
 
 import com.rj.config.RiskConfig;
+import com.rj.engine.ExitReason;
 import com.rj.model.ExecutionMode;
 import com.rj.model.Signal;
 import com.rj.model.TradeRecord;
@@ -42,7 +43,7 @@ class RiskManagerDrawdownTest {
                 Instant.now(), 2.0, 1.0, Map.of());
         
         // 3500 loss (3.5%)
-        lossTrade.close(500.0 - 350.0, Instant.now(), PositionMonitor.ExitReason.STOP_LOSS);
+        lossTrade.close(500.0 - 350.0, Instant.now(), ExitReason.STOP_LOSS);
         
         riskManager.recordClosedTrade(lossTrade);
         
@@ -71,7 +72,7 @@ class RiskManagerDrawdownTest {
                 "c1", "NSE:SBIN-EQ", "s1", ExecutionMode.PAPER,
                 Signal.BUY, 500.0, 10, 490.0, 550.0,
                 Instant.now(), 2.0, 1.0, Map.of());
-        winTrade.close(500.0 + 500.0, Instant.now(), PositionMonitor.ExitReason.TAKE_PROFIT);
+        winTrade.close(500.0 + 500.0, Instant.now(), ExitReason.TAKE_PROFIT);
         riskManager.recordClosedTrade(winTrade);
         
         assertFalse(riskManager.isKillSwitchActive());

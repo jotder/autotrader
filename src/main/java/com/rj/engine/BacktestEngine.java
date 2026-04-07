@@ -1,6 +1,7 @@
 package com.rj.engine;
 
 import com.rj.config.RiskConfig;
+import com.rj.engine.ExitReason;
 import com.rj.model.*;
 import com.rj.strategy.ITradeStrategy;
 import org.slf4j.Logger;
@@ -262,9 +263,9 @@ public class BacktestEngine {
 
         // If both hit in same candle, SL takes priority (conservative)
         if (slHit)
-            closePosition(openPosition.getCurrentStopLoss(), candle.timestamp.toInstant(), PositionMonitor.ExitReason.STOP_LOSS);
+            closePosition(openPosition.getCurrentStopLoss(), candle.timestamp.toInstant(), ExitReason.STOP_LOSS);
         else if (tpHit)
-            closePosition(openPosition.getTakeProfit(), candle.timestamp.toInstant(), PositionMonitor.ExitReason.TAKE_PROFIT);
+            closePosition(openPosition.getTakeProfit(), candle.timestamp.toInstant(), ExitReason.TAKE_PROFIT);
         else {
             updateTrailingStop(candle.high, candle.low); // Update trailing stop
 
@@ -291,7 +292,7 @@ public class BacktestEngine {
         openPosition.stepTrailingStop(newStop);
     }
 
-    private void closePosition(double exitPx, Instant exitTime, PositionMonitor.ExitReason reason) {
+    private void closePosition(double exitPx, Instant exitTime, ExitReason reason) {
         executor.setNextBar(exitPx, exitTime);
         OrderFill fill = executor.placeExit(openPosition, reason, exitPx);
         double actualExit = fill.isSuccess() ? fill.getFillPrice() : exitPx;
@@ -314,6 +315,6 @@ public class BacktestEngine {
     // ── Compound signal (same logic as StrategyEvaluator) ────────────────────
 
     private void forceClose(double exitPx, Instant exitTime) {
-        closePosition(exitPx, exitTime, PositionMonitor.ExitReason.FORCE_SQUAREOFF);
+        closePosition(exitPx, exitTime, ExitReason.FORCE_SQUAREOFF);
     }
 }

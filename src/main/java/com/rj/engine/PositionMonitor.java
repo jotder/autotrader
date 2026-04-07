@@ -3,6 +3,7 @@ package com.rj.engine;
 import com.lmax.disruptor.EventHandler;
 import com.rj.engine.disruptor.TickEvent;
 import com.rj.config.RiskConfig;
+import com.rj.engine.ExitReason;
 import com.rj.model.OpenPosition;
 import com.rj.model.Signal;
 import com.rj.model.Tick;
@@ -233,7 +234,4 @@ public class PositionMonitor implements EventHandler<TickEvent> {
         return count;
     }
 
-    public enum ExitReason {
-        STOP_LOSS, TAKE_PROFIT, TRAILING_STOP, FORCE_SQUAREOFF, MANUAL, ANOMALY_FLATTEN
-    }
 }

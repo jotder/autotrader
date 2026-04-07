@@ -2,6 +2,7 @@ package com.rj.engine;
 
 import com.rj.config.RiskConfig;
 import com.rj.config.StrategyRiskConfig;
+import com.rj.engine.ExitReason;
 import com.rj.model.ExecutionMode;
 import com.rj.model.OpenPosition;
 import com.rj.model.Signal;
@@ -178,7 +179,7 @@ class RiskManagerStrategyOverrideTest {
                 ExecutionMode.PAPER, Signal.BUY,
                 100.0, 10, 95.0, 110.0,
                 Instant.now(), 1.5, 0.9, votes);
-        tr.close(95.0, Instant.now(), PositionMonitor.ExitReason.STOP_LOSS);
+        tr.close(95.0, Instant.now(), ExitReason.STOP_LOSS);
         return tr;
     }
 }
