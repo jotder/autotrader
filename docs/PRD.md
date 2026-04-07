@@ -85,7 +85,7 @@ Professional-grade multi-asset algorithmic trading system. Single JVM process ma
 | STR-07 | No new entries after configurable cutoff time (default: 15:00 IST) | P1 | ✅ |
 | STR-08 | Each strategy has its own YAML config section with all tunables | P1 | ✅ |
 | STR-09 | Strategy enable/disable at runtime (via UI or YAML hot-reload) | P1 | ✅ (YAML) |
-| STR-10 | Pluggable strategy interface: add new strategies without modifying engine core | P1 | 📋 Planned |
+| STR-10 | Pluggable strategy interface: add new strategies without modifying engine core | P1 | ✅ |
 | STR-11 | Produce stable correlation ID per signal (symbol + direction + epoch) for idempotency | P1 | ✅ |
 | STR-12 | Support multi-leg F&O strategies (spreads, straddles, strangles) | P2 | 📋 Planned |
 | STR-13 | Greeks-aware exit triggers for options (delta/theta decay thresholds) | P2 | 📋 Planned |
@@ -123,9 +123,9 @@ Professional-grade multi-asset algorithmic trading system. Single JVM process ma
 | RSK-11 | Initial SL = entry ± ATR multiplier; initial TP = entry ± R-multiple (configurable) | P1 | ✅ |
 | RSK-12 | SL determined before order submission | P1 | ✅ |
 | RSK-13 | Daily risk state reset via `resetDay()` at session start | P1 | ✅ |
-| RSK-14 | **Anomaly auto-protection**: on flash crash / API down / unusual volume → close all positions, kill all strategies, go to cash, require manual restart | P1 | 📋 Planned |
+| RSK-14 | **Anomaly auto-protection**: on flash crash / API down / unusual volume → close all positions, kill all strategies, go to cash, require manual restart | P1 | ✅ |
 | RSK-15 | Per-strategy risk limits (override global defaults via YAML) | P1 | ✅ |
-| RSK-16 | Max portfolio-level drawdown limit (% of capital) → full auto-protection | P1 | 📋 Planned |
+| RSK-16 | Max portfolio-level drawdown limit (% of capital) → full auto-protection | P1 | ✅ |
 | RSK-17 | F&O margin awareness: check margin requirement before order | P2 | 📋 Planned |
 | RSK-18 | Options-specific risk: max premium at risk, Greeks-based position limits | P2 | 📋 Planned |
 

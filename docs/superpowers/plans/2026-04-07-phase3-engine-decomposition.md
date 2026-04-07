@@ -1,6 +1,6 @@
 # Phase 3 — Engine Decomposition Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Split `RiskManager` and `PositionMonitor` into focused single-responsibility classes and replace the `TradingEngine.create()` static factory with a Spring `@Bean` hand-written assembly method.
 
@@ -53,7 +53,7 @@
 - Modify: `TradeRecord`, `IOrderExecutor`, `LiveOrderExecutor`, `OrderManager`, `PaperOrderExecutor`, `BacktestOrderExecutor`, `StrategyAnalyzer`, `TradeJournal`, `TradingEngine`, `AnomalyDetector`
 - Modify (test): `OrderManagerTest`
 
-- [ ] **Step 1: Create ExitReason.java**
+- [x] **Step 1: Create ExitReason.java**
 
 ```java
 // src/main/java/com/rj/engine/ExitReason.java
@@ -64,7 +64,7 @@ public enum ExitReason {
 }
 ```
 
-- [ ] **Step 2: Create PositionBook.java**
+- [x] **Step 2: Create PositionBook.java**
 
 ```java
 // src/main/java/com/rj/engine/PositionBook.java
@@ -114,7 +114,7 @@ public class PositionBook {
 }
 ```
 
-- [ ] **Step 3: Migrate PositionMonitor.ExitReason → ExitReason in 10 main source files**
+- [x] **Step 3: Migrate PositionMonitor.ExitReason → ExitReason in 10 main source files**
 
 The change in every file is: replace `PositionMonitor.ExitReason` with `ExitReason`, add `import com.rj.engine.ExitReason;`, remove `import com.rj.engine.PositionMonitor;` if no longer needed.
 
@@ -151,14 +151,14 @@ The change in every file is: replace `PositionMonitor.ExitReason` with `ExitReas
 **`src/main/java/com/rj/engine/AnomalyDetector.java`** — 1 change:
 - `PositionMonitor.ExitReason.ANOMALY_FLATTEN` → `ExitReason.ANOMALY_FLATTEN`; add `import com.rj.engine.ExitReason;`
 
-- [ ] **Step 4: Update OrderManagerTest.java**
+- [x] **Step 4: Update OrderManagerTest.java**
 
 In `src/test/java/com/rj/engine/OrderManagerTest.java`:
 - Replace all `PositionMonitor.ExitReason.STOP_LOSS` with `ExitReason.STOP_LOSS` etc.
 - Add `import com.rj.engine.ExitReason;`
 - Remove `import com.rj.engine.PositionMonitor;` if present
 
-- [ ] **Step 5: Compile and verify no errors**
+- [x] **Step 5: Compile and verify no errors**
 
 ```
 mvn compile -q
@@ -166,7 +166,7 @@ mvn compile -q
 
 Expected: BUILD SUCCESS. `PositionMonitor.ExitReason` inner enum still exists in `PositionMonitor.java` so there are no conflicts — we've just added the standalone enum and migrated callers to it.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/main/java/com/rj/engine/ExitReason.java \
@@ -193,7 +193,7 @@ git commit -m "feat(engine): add ExitReason enum + PositionBook; migrate Positio
 - Create: `src/main/java/com/rj/engine/risk/RiskSessionState.java`
 - Create: `src/test/java/com/rj/engine/risk/RiskSessionStateTest.java`
 
-- [ ] **Step 1: Create the package directory and write the failing test**
+- [x] **Step 1: Create the package directory and write the failing test**
 
 ```java
 // src/test/java/com/rj/engine/risk/RiskSessionStateTest.java
@@ -311,7 +311,7 @@ class RiskSessionStateTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```
 mvn test -pl . -Dtest=RiskSessionStateTest -q 2>&1 | tail -5
@@ -319,7 +319,7 @@ mvn test -pl . -Dtest=RiskSessionStateTest -q 2>&1 | tail -5
 
 Expected: FAIL — `RiskSessionState` class not found.
 
-- [ ] **Step 3: Create RiskSessionState.java**
+- [x] **Step 3: Create RiskSessionState.java**
 
 ```java
 // src/main/java/com/rj/engine/risk/RiskSessionState.java
@@ -484,7 +484,7 @@ public class RiskSessionState {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 ```
 mvn test -pl . -Dtest=RiskSessionStateTest -q 2>&1 | tail -5
@@ -492,7 +492,7 @@ mvn test -pl . -Dtest=RiskSessionStateTest -q 2>&1 | tail -5
 
 Expected: `Tests run: 8, Failures: 0, Errors: 0, Skipped: 0`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/com/rj/engine/risk/RiskSessionState.java \
@@ -509,7 +509,7 @@ git commit -m "feat(risk): add RiskSessionState — daily trading state extracte
 - Create: `src/main/java/com/rj/engine/risk/PreTradeGate.java`
 - Create: `src/test/java/com/rj/engine/risk/PreTradeGateTest.java`
 
-- [ ] **Step 1: Create PreTradeResult.java**
+- [x] **Step 1: Create PreTradeResult.java**
 
 ```java
 // src/main/java/com/rj/engine/risk/PreTradeResult.java
@@ -524,7 +524,7 @@ public record PreTradeResult(
 }
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 ```java
 // src/test/java/com/rj/engine/risk/PreTradeGateTest.java
@@ -686,7 +686,7 @@ class PreTradeGateTest {
 }
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 ```
 mvn test -pl . -Dtest=PreTradeGateTest -q 2>&1 | tail -5
@@ -694,7 +694,7 @@ mvn test -pl . -Dtest=PreTradeGateTest -q 2>&1 | tail -5
 
 Expected: FAIL — `PreTradeGate` class not found.
 
-- [ ] **Step 4: Create PreTradeGate.java**
+- [x] **Step 4: Create PreTradeGate.java**
 
 ```java
 // src/main/java/com/rj/engine/risk/PreTradeGate.java
@@ -859,7 +859,7 @@ public class PreTradeGate {
 }
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 ```
 mvn test -pl . -Dtest=PreTradeGateTest -q 2>&1 | tail -5
@@ -867,7 +867,7 @@ mvn test -pl . -Dtest=PreTradeGateTest -q 2>&1 | tail -5
 
 Expected: `Tests run: 9, Failures: 0, Errors: 0, Skipped: 0`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/main/java/com/rj/engine/risk/PreTradeResult.java \
@@ -884,7 +884,7 @@ git commit -m "feat(risk): add PreTradeGate + PreTradeResult extracted from Risk
 - Create: `src/main/java/com/rj/engine/TickRiskProcessor.java`
 - Create: `src/test/java/com/rj/engine/TickRiskProcessorTest.java`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```java
 // src/test/java/com/rj/engine/TickRiskProcessorTest.java
@@ -993,7 +993,7 @@ class TickRiskProcessorTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```
 mvn test -pl . -Dtest=TickRiskProcessorTest -q 2>&1 | tail -5
@@ -1001,7 +1001,7 @@ mvn test -pl . -Dtest=TickRiskProcessorTest -q 2>&1 | tail -5
 
 Expected: FAIL — `TickRiskProcessor` class not found.
 
-- [ ] **Step 3: Create TickRiskProcessor.java**
+- [x] **Step 3: Create TickRiskProcessor.java**
 
 ```java
 // src/main/java/com/rj/engine/TickRiskProcessor.java
@@ -1123,7 +1123,7 @@ public class TickRiskProcessor implements EventHandler<TickEvent> {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 ```
 mvn test -pl . -Dtest=TickRiskProcessorTest -q 2>&1 | tail -5
@@ -1131,7 +1131,7 @@ mvn test -pl . -Dtest=TickRiskProcessorTest -q 2>&1 | tail -5
 
 Expected: `Tests run: 4, Failures: 0, Errors: 0, Skipped: 0`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/com/rj/engine/TickRiskProcessor.java \
@@ -1146,7 +1146,7 @@ git commit -m "feat(engine): add TickRiskProcessor — hot-path SL/TP handler ex
 **Files:**
 - Create: `src/main/java/com/rj/engine/ScheduledPositionManager.java`
 
-- [ ] **Step 1: Create ScheduledPositionManager.java**
+- [x] **Step 1: Create ScheduledPositionManager.java**
 
 ```java
 // src/main/java/com/rj/engine/ScheduledPositionManager.java
@@ -1291,7 +1291,7 @@ public class ScheduledPositionManager {
 }
 ```
 
-- [ ] **Step 2: Compile**
+- [x] **Step 2: Compile**
 
 ```
 mvn compile -q
@@ -1299,7 +1299,7 @@ mvn compile -q
 
 Expected: BUILD SUCCESS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/main/java/com/rj/engine/ScheduledPositionManager.java
@@ -1314,7 +1314,7 @@ git commit -m "feat(engine): add ScheduledPositionManager — 1s scheduler extra
 - Modify: `src/main/java/com/rj/engine/StrategyEvaluator.java`
 - Modify: `src/test/java/com/rj/engine/StrategyEvaluatorYamlTest.java`
 
-- [ ] **Step 1: Update StrategyEvaluator.java**
+- [x] **Step 1: Update StrategyEvaluator.java**
 
 Make the following changes in `src/main/java/com/rj/engine/StrategyEvaluator.java`:
 
@@ -1392,7 +1392,7 @@ signalConsumer.accept(sig);
 if (signalConsumer != null) signalConsumer.accept(sig);
 ```
 
-- [ ] **Step 2: Update StrategyEvaluatorYamlTest.java**
+- [x] **Step 2: Update StrategyEvaluatorYamlTest.java**
 
 In `src/test/java/com/rj/engine/StrategyEvaluatorYamlTest.java`:
 - Remove the `PositionMonitor positionMonitor` field
@@ -1414,7 +1414,7 @@ new StrategyEvaluator(queue, handler, riskConfig, positionBook)
 
 Remove all `RiskManager riskManager = new RiskManager(...)` if the test only used it to construct `PositionMonitor`.
 
-- [ ] **Step 3: Compile and run StrategyEvaluator tests**
+- [x] **Step 3: Compile and run StrategyEvaluator tests**
 
 ```
 mvn test -pl . -Dtest=StrategyEvaluatorYamlTest -q 2>&1 | tail -5
@@ -1422,7 +1422,7 @@ mvn test -pl . -Dtest=StrategyEvaluatorYamlTest -q 2>&1 | tail -5
 
 Expected: same number of passes as before this task (0 failures).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/main/java/com/rj/engine/StrategyEvaluator.java \
@@ -1439,7 +1439,7 @@ git commit -m "feat(engine): StrategyEvaluator — PositionMonitor → PositionB
 - Modify: `src/main/java/com/rj/engine/PositionReconciler.java`
 - Modify: `src/test/java/com/rj/engine/PositionReconcilerTest.java`
 
-- [ ] **Step 1: Update HealthMonitor.java**
+- [x] **Step 1: Update HealthMonitor.java**
 
 In `src/main/java/com/rj/engine/HealthMonitor.java`:
 
@@ -1517,7 +1517,7 @@ private void checkPositionMonitor() {
 }
 ```
 
-- [ ] **Step 2: Update PositionReconciler.java**
+- [x] **Step 2: Update PositionReconciler.java**
 
 In `src/main/java/com/rj/engine/PositionReconciler.java`:
 
@@ -1561,7 +1561,7 @@ positionMonitor.addPosition(position);
 positionBook.add(position);
 ```
 
-- [ ] **Step 3: Update PositionReconcilerTest.java**
+- [x] **Step 3: Update PositionReconcilerTest.java**
 
 In `src/test/java/com/rj/engine/PositionReconcilerTest.java`:
 
@@ -1572,7 +1572,7 @@ PositionBook positionBook = new PositionBook();
 
 Update `PositionReconciler` construction: wherever `positionMonitor` is passed, pass `positionBook` instead.
 
-- [ ] **Step 4: Compile and run tests**
+- [x] **Step 4: Compile and run tests**
 
 ```
 mvn test -pl . -Dtest=PositionReconcilerTest -q 2>&1 | tail -5
@@ -1580,7 +1580,7 @@ mvn test -pl . -Dtest=PositionReconcilerTest -q 2>&1 | tail -5
 
 Expected: same pass count as before (0 new failures).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/com/rj/engine/HealthMonitor.java \
@@ -1597,7 +1597,7 @@ git commit -m "feat(engine): HealthMonitor + PositionReconciler — PositionMoni
 - Modify: `src/main/java/com/rj/engine/AnomalyDetector.java`
 - Modify: `src/test/java/com/rj/engine/AnomalyDetectorTest.java`
 
-- [ ] **Step 1: Update AnomalyDetector.java**
+- [x] **Step 1: Update AnomalyDetector.java**
 
 In `src/main/java/com/rj/engine/AnomalyDetector.java`:
 
@@ -1673,7 +1673,7 @@ journal.log("ANOMALY_FLATTEN", java.util.Map.of(
 ));
 ```
 
-- [ ] **Step 2: Update AnomalyDetectorTest.java**
+- [x] **Step 2: Update AnomalyDetectorTest.java**
 
 In `src/test/java/com/rj/engine/AnomalyDetectorTest.java`:
 
@@ -1720,7 +1720,7 @@ detector.initialize(riskSessionState, scheduledPositionManager, tickStore, journ
 
 Update any test assertions that previously used `riskManager.isAnomalyMode()` → `riskSessionState.isAnomalyMode()`.
 
-- [ ] **Step 3: Compile and run AnomalyDetector tests**
+- [x] **Step 3: Compile and run AnomalyDetector tests**
 
 ```
 mvn test -pl . -Dtest=AnomalyDetectorTest -q 2>&1 | tail -5
@@ -1728,7 +1728,7 @@ mvn test -pl . -Dtest=AnomalyDetectorTest -q 2>&1 | tail -5
 
 Expected: same pass count as before (0 new failures).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/main/java/com/rj/engine/AnomalyDetector.java \
@@ -1743,7 +1743,7 @@ git commit -m "feat(engine): AnomalyDetector — RiskManager → RiskSessionStat
 **Files:**
 - Modify: `src/main/java/com/rj/engine/TradingEngine.java`
 
-- [ ] **Step 1: Update imports**
+- [x] **Step 1: Update imports**
 
 In `src/main/java/com/rj/engine/TradingEngine.java`, replace:
 ```java
@@ -1761,7 +1761,7 @@ import com.rj.engine.TickRiskProcessor;
 import com.rj.engine.ScheduledPositionManager;
 ```
 
-- [ ] **Step 2: Replace private fields**
+- [x] **Step 2: Replace private fields**
 
 ```java
 // Remove these fields:
@@ -1792,7 +1792,7 @@ private final ConcurrentHashMap<String, TradeRecord> openRecords;
 private ConfigFileWatcher configFileWatcher;           // set during loadYamlStrategies
 ```
 
-- [ ] **Step 3: Replace private constructor + delete static factory**
+- [x] **Step 3: Replace private constructor + delete static factory**
 
 Delete the old private constructor and the entire `create()` static factory. Add:
 
@@ -1829,7 +1829,7 @@ TradingEngine(ExecutionMode mode, IOrderExecutor executor, OrderManager orderMan
 }
 ```
 
-- [ ] **Step 4: Update handleSignal()**
+- [x] **Step 4: Update handleSignal()**
 
 ```java
 private void handleSignal(TradeSignal signal) {
@@ -1855,7 +1855,7 @@ private void handleSignal(TradeSignal signal) {
 }
 ```
 
-- [ ] **Step 5: Update handleEntryFilled(), handleExitFilled(), handleExit()**
+- [x] **Step 5: Update handleEntryFilled(), handleExitFilled(), handleExit()**
 
 ```java
 private void handleEntryFilled(ManagedOrder order) {
@@ -1900,7 +1900,7 @@ private void handleExit(OpenPosition position, ExitReason reason) {
 }
 ```
 
-- [ ] **Step 6: Update start() and stop()**
+- [x] **Step 6: Update start() and stop()**
 
 ```java
 public void start() {
@@ -1936,7 +1936,7 @@ public void stop() {
 }
 ```
 
-- [ ] **Step 7: Update flattenAll(), loadYamlStrategies(), initializePluggableStrategies()**
+- [x] **Step 7: Update flattenAll(), loadYamlStrategies(), initializePluggableStrategies()**
 
 ```java
 public int flattenAll(String reason) {
@@ -1952,7 +1952,7 @@ private void loadYamlStrategies(CandleService cs, StrategyEvaluator se) { ... }
 private void initializePluggableStrategies(StrategyEvaluator se) { ... }
 ```
 
-- [ ] **Step 8: Replace old getters with new ones**
+- [x] **Step 8: Replace old getters with new ones**
 
 ```java
 // Remove:
@@ -1968,7 +1968,7 @@ public ScheduledPositionManager getScheduledPositionManager() { return scheduled
 
 Keep all other existing getters unchanged (`getJournal()`, `getOrderTracker()`, `getCircuitBreaker()`, `getDisruptorEngine()`, `getSocketListener()`, `getHealthMonitor()`, `getCandleService()`, `getStrategyEvaluator()`, `getPositionReconciler()`, `getAnomalyDetector()`, `isRunning()`, `getMode()`).
 
-- [ ] **Step 9: Compile — expect errors only from EngineConfiguration**
+- [x] **Step 9: Compile — expect errors only from EngineConfiguration**
 
 ```
 mvn compile -q 2>&1 | grep "error:" | head -20
@@ -1976,7 +1976,7 @@ mvn compile -q 2>&1 | grep "error:" | head -20
 
 Expected: errors only in `EngineConfiguration.java` (still calls `TradingEngine.create()`). No other errors.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/main/java/com/rj/engine/TradingEngine.java
@@ -1990,7 +1990,7 @@ git commit -m "feat(engine): TradingEngine — delete static factory; new constr
 **Files:**
 - Modify: `src/main/java/com/rj/config/EngineConfiguration.java`
 
-- [ ] **Step 1: Rewrite EngineConfiguration.java completely**
+- [x] **Step 1: Rewrite EngineConfiguration.java completely**
 
 ```java
 // src/main/java/com/rj/config/EngineConfiguration.java
@@ -2214,7 +2214,7 @@ public class EngineConfiguration {
 
 Note: `engine.loadYamlStrategies(cs, se)` and `engine.initializePluggableStrategies(se)` are package-accessible methods on TradingEngine. Make them package-private (remove `private` modifier) so `EngineConfiguration` can call them since they are in different packages. Alternatively, make them `public`. Use `public` for simplicity.
 
-- [ ] **Step 2: Make loadYamlStrategies and initializePluggableStrategies public in TradingEngine**
+- [x] **Step 2: Make loadYamlStrategies and initializePluggableStrategies public in TradingEngine**
 
 In `src/main/java/com/rj/engine/TradingEngine.java`:
 ```java
@@ -2229,7 +2229,7 @@ public void initializePluggableStrategies(StrategyEvaluator se) { ... }
 
 Also update references inside `loadYamlStrategies()` from `riskMgr.X(...)` to `preTradeGate.X(...)` (the field, not a param).
 
-- [ ] **Step 3: Compile**
+- [x] **Step 3: Compile**
 
 ```
 mvn compile -q
@@ -2237,7 +2237,7 @@ mvn compile -q
 
 Expected: BUILD SUCCESS.
 
-- [ ] **Step 4: Run all tests**
+- [x] **Step 4: Run all tests**
 
 ```
 mvn test -q 2>&1 | tail -10
@@ -2245,7 +2245,7 @@ mvn test -q 2>&1 | tail -10
 
 Expected: same pre-existing failures only (CandleDatabaseTest ×6, RiskManagerStrategyOverrideTest failures, FnoRiskSizingTest failures, CandleAggregationTest ×1). No new failures.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/com/rj/config/EngineConfiguration.java \
@@ -2263,7 +2263,7 @@ git commit -m "feat(engine): EngineConfiguration — replace TradingEngine.creat
 - Modify: `src/main/java/com/rj/web/StatusController.java`
 - Modify: `src/test/java/com/rj/web/StatusControllerTest.java`
 
-- [ ] **Step 1: Rewrite RiskController.java**
+- [x] **Step 1: Rewrite RiskController.java**
 
 ```java
 // src/main/java/com/rj/web/RiskController.java
@@ -2388,7 +2388,7 @@ public class RiskController {
 }
 ```
 
-- [ ] **Step 2: Update EngineController.java**
+- [x] **Step 2: Update EngineController.java**
 
 In `src/main/java/com/rj/web/EngineController.java`:
 
@@ -2415,7 +2415,7 @@ try {
 
 Remove the `import com.rj.engine.PositionMonitor;` import.
 
-- [ ] **Step 3: Update StatusController.java**
+- [x] **Step 3: Update StatusController.java**
 
 In `src/main/java/com/rj/web/StatusController.java`:
 
@@ -2433,7 +2433,7 @@ In `src/main/java/com/rj/web/StatusController.java`:
 
 Remove `import com.rj.engine.PositionMonitor;`.
 
-- [ ] **Step 4: Update StatusControllerTest.java**
+- [x] **Step 4: Update StatusControllerTest.java**
 
 In `src/test/java/com/rj/web/StatusControllerTest.java`, the test mocks `engine.getPositionMonitor()`. Update:
 
@@ -2455,7 +2455,7 @@ when(pb.openPositionCount()).thenReturn(0);
 
 Add imports: `import com.rj.engine.ScheduledPositionManager;` and `import com.rj.engine.PositionBook;`; remove `import com.rj.engine.PositionMonitor;`.
 
-- [ ] **Step 5: Compile and run web controller tests**
+- [x] **Step 5: Compile and run web controller tests**
 
 ```
 mvn test -pl . -Dtest="StatusControllerTest,StrategyControllerTest,EngineControllerConnectTest" -q 2>&1 | tail -5
@@ -2463,7 +2463,7 @@ mvn test -pl . -Dtest="StatusControllerTest,StrategyControllerTest,EngineControl
 
 Expected: all pass (0 failures).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/main/java/com/rj/web/RiskController.java \
@@ -2484,7 +2484,7 @@ git commit -m "feat(web): update RiskController, EngineController, StatusControl
 - Delete: `src/test/java/com/rj/engine/RiskManagerDrawdownTest.java`
 - Modify: `src/test/java/com/rj/engine/FnoRiskSizingTest.java`
 
-- [ ] **Step 1: Delete the four files**
+- [x] **Step 1: Delete the four files**
 
 ```bash
 rm src/main/java/com/rj/engine/RiskManager.java
@@ -2493,7 +2493,7 @@ rm src/test/java/com/rj/engine/RiskManagerStrategyOverrideTest.java
 rm src/test/java/com/rj/engine/RiskManagerDrawdownTest.java
 ```
 
-- [ ] **Step 2: Rewrite FnoRiskSizingTest.java**
+- [x] **Step 2: Rewrite FnoRiskSizingTest.java**
 
 The test must now construct `PreTradeGate` with a `RiskSessionState` and register a `TradeStrategyConfig` for the `"test"` strategy so Gate 7 passes.
 
@@ -2650,7 +2650,7 @@ class FnoRiskSizingTest {
 }
 ```
 
-- [ ] **Step 3: Full compile**
+- [x] **Step 3: Full compile**
 
 ```
 mvn compile -q
@@ -2658,7 +2658,7 @@ mvn compile -q
 
 Expected: BUILD SUCCESS (all `RiskManager` and `PositionMonitor` references are gone from main source).
 
-- [ ] **Step 4: Run all tests**
+- [x] **Step 4: Run all tests**
 
 ```
 mvn test -q 2>&1 | grep -E "Tests run:|BUILD"
@@ -2666,7 +2666,7 @@ mvn test -q 2>&1 | grep -E "Tests run:|BUILD"
 
 Expected: `Tests run: 280+, Failures: 0, Errors: 0` for all pre-existing-failure test classes now resolved. The `FnoRiskSizingTest` 4 sizing tests now PASS (they were pre-existing failures because of missing strategy config). `CandleAggregationTest`, `CandleDatabaseTest` failures remain (unrelated to this phase).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/test/java/com/rj/engine/FnoRiskSizingTest.java

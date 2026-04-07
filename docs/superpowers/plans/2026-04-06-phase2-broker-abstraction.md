@@ -1,6 +1,6 @@
 # Phase 2 — Broker Abstraction Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace all ad-hoc Fyers SDK instantiation with three typed broker interfaces; eliminate `FyersClientFactory`; broker connection becomes user-triggered via `POST /api/connect`.
 
@@ -49,7 +49,7 @@
 - Create: `src/main/java/com/rj/broker/IOrderAdapter.java`
 - Create: `src/main/java/com/rj/broker/ITickFeed.java`
 
-- [ ] **Step 1: Create `IMarketDataAdapter`**
+- [x] **Step 1: Create `IMarketDataAdapter`**
 
 ```java
 // src/main/java/com/rj/broker/IMarketDataAdapter.java
@@ -71,7 +71,7 @@ public interface IMarketDataAdapter {
 }
 ```
 
-- [ ] **Step 2: Create `IOrderAdapter`**
+- [x] **Step 2: Create `IOrderAdapter`**
 
 ```java
 // src/main/java/com/rj/broker/IOrderAdapter.java
@@ -105,7 +105,7 @@ public interface IOrderAdapter {
 }
 ```
 
-- [ ] **Step 3: Create `ITickFeed`**
+- [x] **Step 3: Create `ITickFeed`**
 
 ```java
 // src/main/java/com/rj/broker/ITickFeed.java
@@ -123,12 +123,12 @@ public interface ITickFeed {
 }
 ```
 
-- [ ] **Step 4: Compile to verify interfaces are valid**
+- [x] **Step 4: Compile to verify interfaces are valid**
 
 Run: `mvn compile -pl . -q`
 Expected: BUILD SUCCESS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/com/rj/broker/
@@ -151,7 +151,7 @@ currently live in `FyersOrderPlacement`. Since `FyersOrderPlacement` will be del
 move these helpers directly into `FyersBrokerAdapter` as `public static` methods — `LiveOrderExecutor`
 calls them, and having them in the adapter keeps the call pattern the same.
 
-- [ ] **Step 1: Create `FyersBrokerAdapter.java`**
+- [x] **Step 1: Create `FyersBrokerAdapter.java`**
 
 ```java
 // src/main/java/com/rj/fyers/FyersBrokerAdapter.java
@@ -462,13 +462,13 @@ public class FyersBrokerAdapter implements IMarketDataAdapter, IOrderAdapter, IT
 }
 ```
 
-- [ ] **Step 2: Compile — expect errors only because `FyersClass` bean and circular dep not yet resolved**
+- [x] **Step 2: Compile — expect errors only because `FyersClass` bean and circular dep not yet resolved**
 
 Run: `mvn compile -pl . -q 2>&1 | head -30`
 
 `FyersBrokerAdapter` will fail to compile if `FyersClass` has no `@Bean` yet. That's expected and will be fixed in Task 3.
 
-- [ ] **Step 3: Commit the file (even with compile errors — next task resolves them)**
+- [x] **Step 3: Commit the file (even with compile errors — next task resolves them)**
 
 ```bash
 git add src/main/java/com/rj/fyers/FyersBrokerAdapter.java
@@ -497,7 +497,7 @@ is already updated — no explicit copy needed.
 2. `tradingEngine()` updated to accept `IOrderAdapter` (passed into `TradingEngine.create()`)
 3. `candleDownloader()` updated to accept `IMarketDataAdapter` (next task, but signature change here)
 
-- [ ] **Step 1: Fix `FyersSocketListener.fyersClass` field initializer**
+- [x] **Step 1: Fix `FyersSocketListener.fyersClass` field initializer**
 
 In `src/main/java/com/rj/fyers/FyersSocketListener.java`, change line 28 from:
 ```java
@@ -510,7 +510,7 @@ public final FyersClass fyersClass = FyersClass.getInstance();
 
 Also remove the `import com.rj.fyers.FyersClientFactory;` if it exists (it doesn't — same package, no import needed), and update the import if `FyersClass` import is already present. Check the existing imports: `com.tts.in.model.FyersClass` is already imported at line 7. No import change needed.
 
-- [ ] **Step 2: Update `EngineConfiguration.java`**
+- [x] **Step 2: Update `EngineConfiguration.java`**
 
 Replace the full file content with:
 
@@ -611,7 +611,7 @@ public class EngineConfiguration {
 }
 ```
 
-- [ ] **Step 3: Update `TradingEngine.create()` signature to accept `IOrderAdapter`**
+- [x] **Step 3: Update `TradingEngine.create()` signature to accept `IOrderAdapter`**
 
 In `src/main/java/com/rj/engine/TradingEngine.java`:
 
@@ -672,13 +672,13 @@ engineFinal.positionReconciler = new PositionReconciler(
 
 Remove `import com.rj.fyers.FyersPositions;` from the imports (line 8).
 
-- [ ] **Step 4: Compile — expect errors only from `LiveOrderExecutor` and `PositionReconciler` (fixed in Tasks 6 & 7)**
+- [x] **Step 4: Compile — expect errors only from `LiveOrderExecutor` and `PositionReconciler` (fixed in Tasks 6 & 7)**
 
 Run: `mvn compile -pl . -q 2>&1 | grep "ERROR\|error:" | head -20`
 
 Expected errors: `LiveOrderExecutor` constructor mismatch, `PositionReconciler` constructor mismatch, `CandleDownloader` constructor mismatch. All will be fixed in subsequent tasks.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/com/rj/fyers/FyersSocketListener.java \
@@ -695,7 +695,7 @@ git commit -m "feat(broker): wire FyersClass bean, update EngineConfiguration an
 - Create: `src/test/java/com/rj/web/EngineControllerConnectTest.java`
 - Modify: `src/main/java/com/rj/web/EngineController.java`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```java
 // src/test/java/com/rj/web/EngineControllerConnectTest.java
@@ -754,12 +754,12 @@ class EngineControllerConnectTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `mvn test -pl . -Dtest=EngineControllerConnectTest -q 2>&1 | tail -20`
 Expected: FAIL — `EngineController` has no `/api/connect` endpoint yet, and it doesn't inject `ITickFeed` or `TokenRefreshScheduler`.
 
-- [ ] **Step 3: Update `EngineController` to add the connect endpoint and inject the new dependencies**
+- [x] **Step 3: Update `EngineController` to add the connect endpoint and inject the new dependencies**
 
 Add these imports to `src/main/java/com/rj/web/EngineController.java`:
 ```java
@@ -827,12 +827,12 @@ public ActionResponse tokenRefresh() {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `mvn test -pl . -Dtest=EngineControllerConnectTest -q 2>&1 | tail -10`
 Expected: Tests run: 2, Failures: 0, Errors: 0
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/test/java/com/rj/web/EngineControllerConnectTest.java \
@@ -851,7 +851,7 @@ git commit -m "feat(broker): add POST /api/connect endpoint to EngineController"
 `CandleDownloader` currently takes `FyersDataApi dataApi` in its constructor and calls `dataApi.getStockHistory(model)`.
 After this task it takes `IMarketDataAdapter marketDataAdapter` and calls `marketDataAdapter.getHistory(model)`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```java
 // src/test/java/com/rj/engine/CandleDownloaderTest.java
@@ -919,12 +919,12 @@ class CandleDownloaderTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `mvn test -pl . -Dtest=CandleDownloaderTest -q 2>&1 | tail -10`
 Expected: FAIL — `CandleDownloader` constructor still takes `FyersDataApi`.
 
-- [ ] **Step 3: Update `CandleDownloader` to use `IMarketDataAdapter`**
+- [x] **Step 3: Update `CandleDownloader` to use `IMarketDataAdapter`**
 
 In `src/main/java/com/rj/engine/CandleDownloader.java`:
 
@@ -990,12 +990,12 @@ if (circuitBreaker != null) {
 return marketDataAdapter.getHistory(model);
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `mvn test -pl . -Dtest=CandleDownloaderTest -q 2>&1 | tail -10`
 Expected: Tests run: 2, Failures: 0, Errors: 0
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/test/java/com/rj/engine/CandleDownloaderTest.java \
@@ -1017,7 +1017,7 @@ git commit -m "feat(broker): CandleDownloader now uses IMarketDataAdapter instea
 No new test — `LiveOrderExecutor` is tested by the engine integration; mocking at this level requires a
 live `FyersClass` for `FyersOrderPlacement`. The adapter mock is tested via `EngineControllerConnectTest`.
 
-- [ ] **Step 1: Replace `FyersOrderPlacement` import and field with `IOrderAdapter`**
+- [x] **Step 1: Replace `FyersOrderPlacement` import and field with `IOrderAdapter`**
 
 In `src/main/java/com/rj/engine/LiveOrderExecutor.java`:
 
@@ -1118,12 +1118,12 @@ public void setAccessToken(String token) {
 
 Also remove the now-unused `import com.tts.in.model.FyersClass;`.
 
-- [ ] **Step 2: Compile to verify `LiveOrderExecutor` errors are resolved**
+- [x] **Step 2: Compile to verify `LiveOrderExecutor` errors are resolved**
 
 Run: `mvn compile -pl . -q 2>&1 | grep "LiveOrderExecutor\|error:" | head -20`
 Expected: No errors mentioning `LiveOrderExecutor`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/main/java/com/rj/engine/LiveOrderExecutor.java
@@ -1141,7 +1141,7 @@ git commit -m "feat(broker): LiveOrderExecutor now uses IOrderAdapter instead of
 `fyersPositions.getPositions()`. The `TradingEngine.create()` already passes `orderAdapter` to it
 (changed in Task 3 Step 3).
 
-- [ ] **Step 1: Replace `FyersPositions` with `IOrderAdapter` in `PositionReconciler`**
+- [x] **Step 1: Replace `FyersPositions` with `IOrderAdapter` in `PositionReconciler`**
 
 In `src/main/java/com/rj/engine/PositionReconciler.java`:
 
@@ -1213,12 +1213,12 @@ PositionsSummary brokerState = circuitBreaker != null
         : orderAdapter.getPositions();
 ```
 
-- [ ] **Step 2: Compile to verify `PositionReconciler` errors are resolved**
+- [x] **Step 2: Compile to verify `PositionReconciler` errors are resolved**
 
 Run: `mvn compile -pl . -q 2>&1 | grep "error:" | head -20`
 Expected: No errors (or only errors from `TokenRefreshScheduler`, fixed next).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/main/java/com/rj/engine/PositionReconciler.java
@@ -1246,7 +1246,7 @@ After this task:
 - `EngineLifecycleManager` starts and stops it
 - `TradingEngine` no longer creates or stops it
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```java
 // src/test/java/com/rj/fyers/TokenRefreshSchedulerTest.java
@@ -1296,12 +1296,12 @@ class TokenRefreshSchedulerTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `mvn test -pl . -Dtest=TokenRefreshSchedulerTest -q 2>&1 | tail -10`
 Expected: FAIL — `TokenRefreshScheduler` constructor currently takes only `ConfigManager`.
 
-- [ ] **Step 3: Update `TokenRefreshScheduler`**
+- [x] **Step 3: Update `TokenRefreshScheduler`**
 
 In `src/main/java/com/rj/fyers/TokenRefreshScheduler.java`:
 
@@ -1352,12 +1352,12 @@ if (newToken != null && !newToken.isBlank()) {
 
 Remove `import com.rj.fyers.FyersClientFactory;` (same package, no import, but any reference is gone).
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `mvn test -pl . -Dtest=TokenRefreshSchedulerTest -q 2>&1 | tail -10`
 Expected: Tests run: 2, Failures: 0, Errors: 0
 
-- [ ] **Step 5: Update `TradingEngine` to remove `TokenRefreshScheduler` lifecycle**
+- [x] **Step 5: Update `TradingEngine` to remove `TokenRefreshScheduler` lifecycle**
 
 In `src/main/java/com/rj/engine/TradingEngine.java`:
 
@@ -1382,7 +1382,7 @@ Remove the getter:
 public com.rj.fyers.TokenRefreshScheduler getTokenRefreshScheduler() { return tokenRefreshScheduler; }
 ```
 
-- [ ] **Step 6: Update `EngineLifecycleManager` to inject and start `TokenRefreshScheduler`**
+- [x] **Step 6: Update `EngineLifecycleManager` to inject and start `TokenRefreshScheduler`**
 
 In `src/main/java/com/rj/config/EngineLifecycleManager.java`:
 
@@ -1418,12 +1418,12 @@ tokenRefreshScheduler.stop();
 ```
 (before `engine.stop()`)
 
-- [ ] **Step 7: Compile to verify all wiring is correct**
+- [x] **Step 7: Compile to verify all wiring is correct**
 
 Run: `mvn compile -pl . -q 2>&1 | grep "error:" | head -20`
 Expected: No errors.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/test/java/com/rj/fyers/TokenRefreshSchedulerTest.java \
@@ -1447,7 +1447,7 @@ happens only when the user calls `POST /api/connect`.
 Also: `FyersSocketListener socketListener` field and the `ConfigManager config` field
 are no longer needed once the broker connect logic is removed.
 
-- [ ] **Step 1: Simplify `EngineLifecycleManager.start()`**
+- [x] **Step 1: Simplify `EngineLifecycleManager.start()`**
 
 Replace the full `src/main/java/com/rj/config/EngineLifecycleManager.java` with:
 
@@ -1507,12 +1507,12 @@ public class EngineLifecycleManager implements SmartLifecycle {
 }
 ```
 
-- [ ] **Step 2: Compile**
+- [x] **Step 2: Compile**
 
 Run: `mvn compile -pl . -q 2>&1 | grep "error:" | head -20`
 Expected: No errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/main/java/com/rj/config/EngineLifecycleManager.java
@@ -1534,7 +1534,7 @@ git commit -m "feat(broker): EngineLifecycleManager no longer does broker connec
 Also: `FyersProfile.java` uses `FyersClientFactory.getConfiguredInstance()` in a field.
 Update it to use `FyersClass.getInstance()` directly before deleting `FyersClientFactory`.
 
-- [ ] **Step 1: Fix `FyersProfile` to remove `FyersClientFactory` dependency**
+- [x] **Step 1: Fix `FyersProfile` to remove `FyersClientFactory` dependency**
 
 In `src/main/java/com/rj/fyers/FyersProfile.java`, change:
 ```java
@@ -1557,12 +1557,12 @@ public ClientProfile getProfile() {
 ```
 (remove the reassignment inside `getProfile()`; the constructor assignment is sufficient since `FyersClass.getInstance()` is a singleton)
 
-- [ ] **Step 2: Grep for any remaining `FyersClientFactory` references before deleting**
+- [x] **Step 2: Grep for any remaining `FyersClientFactory` references before deleting**
 
 Run: `grep -r "FyersClientFactory" src/ --include="*.java" -l`
 Expected output: Only `FyersClientFactory.java` itself. If any other files appear, fix them first.
 
-- [ ] **Step 3: Delete the six wrapper classes**
+- [x] **Step 3: Delete the six wrapper classes**
 
 ```bash
 git rm src/main/java/com/rj/fyers/FyersClientFactory.java \
@@ -1573,12 +1573,12 @@ git rm src/main/java/com/rj/fyers/FyersClientFactory.java \
        src/main/java/com/rj/fyers/FyersOrderManagement.java
 ```
 
-- [ ] **Step 4: Full compile**
+- [x] **Step 4: Full compile**
 
 Run: `mvn compile -pl . -q 2>&1 | grep "error:"`
 Expected: No output (clean compile).
 
-- [ ] **Step 5: Run the full test suite**
+- [x] **Step 5: Run the full test suite**
 
 Run: `mvn test -pl . -q 2>&1 | tail -20`
 
@@ -1596,7 +1596,7 @@ Pre-existing failures that are NOT introduced by Phase 2 (ignore these):
 
 If any OTHER test fails, investigate before proceeding.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/main/java/com/rj/fyers/FyersProfile.java

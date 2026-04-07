@@ -30,14 +30,15 @@ Run the same pipeline in three modes via `APP_ENV`.
 
 ### F-02 · Real-Time Tick Pipeline ✅
 
-WebSocket → **LMAX Disruptor (Ring Buffer)** → Multi-consumer analytical pipeline.
+WebSocket → **LMAX Disruptor (Ring Buffer)** → Sequential handler chain.
 - **Latency:** < 1ms tick-to-trade hot path.
-- **Consumers:**
+- **Handlers (sequential via `.then()` chaining):**
   - `TickStoreUpdater`: Updates in-memory buffer for UI/Candle aggregation.
-  - `PositionMonitor`: Real-time SL/TP/Trailing check on *every* tick.
+  - `TickRiskProcessor`: Real-time SL/TP/Trailing check on *every* tick (Disruptor `EventHandler`).
 - **Performance:** Lock-free inter-thread messaging; Virtual Thread execution.
+- **Feed:** `FyersBrokerAdapter` implements `ITickFeed` — replaces raw `FyersSocketListener` coupling.
 
-**PRD refs:** MKT-01–04, MKT-07, NFR-01 · **Classes:** `FyersSocketListener`, `TickDisruptorEngine`, `PositionMonitor`
+**PRD refs:** MKT-01–04, MKT-07, NFR-01 · **Classes:** `FyersBrokerAdapter`, `FyersSocketListener`, `TickDisruptorEngine`, `TickRiskProcessor`
 
 **REST API:** `GET /api/ticks/{symbol}` — latest LTP
 
@@ -111,7 +112,7 @@ Three strategies per candle close. Highest confidence wins on same symbol.
 
 `risk_budget / risk_per_unit` → lot-aligned → exposure-capped → fat-finger-capped.
 
-**PRD refs:** RSK-08–10 · **Classes:** `RiskManager`
+**PRD refs:** RSK-08–10 · **Classes:** `PreTradeGate`, `RiskSessionState`
 
 **UI surfaces:** Signal card (entry, SL, TP, qty, R, risk INR) · Exposure bar per symbol
 
@@ -119,19 +120,20 @@ Three strategies per candle close. Highest confidence wins on same symbol.
 
 ### F-08 · Pre-Trade Risk Gates ✅
 
-7 sequential gates before broker:
+8 sequential gates before broker:
 
 | # | Gate | Action |
 |---|---|---|
 | 1 | Kill switch active | Reject |
-| 2 | Daily profit locked | Reject |
-| 3 | Daily PnL ≤ −₹5K | Kill switch ON + Reject |
-| 4 | After 15:00 IST | Reject |
-| 5 | Strategy ≥ 3 consecutive losses | Reject |
-| 6 | Symbol exposure ≥ 20% | Reject |
-| 7 | Quantity = 0 | Reject |
+| 2 | Anomaly mode active | Reject |
+| 3 | Daily profit locked | Reject |
+| 4 | Daily PnL ≤ −₹5K | Kill switch ON + Reject |
+| 5 | After 15:00 IST | Reject |
+| 6 | Strategy ≥ 3 consecutive losses | Reject |
+| 7 | Symbol exposure ≥ 20% | Reject |
+| 8 | Quantity = 0 | Reject |
 
-**PRD refs:** RSK-01–13 · **Classes:** `RiskManager`
+**PRD refs:** RSK-01–13 · **Classes:** `PreTradeGate`, `PreTradeResult`, `RiskSessionState`
 
 **REST API:** `GET /api/risk` — PnL, kill switch, exposure · `POST /api/kill` · `POST /api/reset`
 
@@ -141,9 +143,9 @@ Three strategies per candle close. Highest confidence wins on same symbol.
 
 ### F-09 · Live Order Execution ✅
 
-Market orders via `FyersOrderPlacement`. Retry 3×, backoff 500/1K/2K ms. No retry on 4xx (except 429).
+Market orders via `IOrderAdapter` (implemented by `FyersBrokerAdapter`). Retry 3×, backoff 500/1K/2K ms. No retry on 4xx (except 429).
 
-**PRD refs:** ORD-03–08 · **Classes:** `LiveOrderExecutor`
+**PRD refs:** ORD-03–08 · **Classes:** `LiveOrderExecutor`, `IOrderAdapter`, `FyersBrokerAdapter`
 
 **UI surfaces:** Order log (timestamp, symbol, side, qty, fill, broker ID) · Status chip · Retry badge
 
@@ -161,9 +163,12 @@ Fill at LTP (entry) / trigger price (exit). Zero API calls.
 
 ### F-11 · Position Monitor & Exit Triggers ✅
 
-Every 1 second: SL, TP, trailing stop, force square-off (15:15), manual exit.
+Two-layer exit system:
+- **Hot path** (`TickRiskProcessor` — Disruptor handler): SL, TP, trailing stop checked on every tick.
+- **1-second scheduler** (`ScheduledPositionManager`): force square-off (15:15 IST), manual exit, drawdown propagation.
+- **`PositionBook`**: thread-safe `ConcurrentHashMap` wrapper; `remove()` ownership claim prevents double-exit races.
 
-**PRD refs:** POS-01–08, POS-10 · **Classes:** `PositionMonitor`
+**PRD refs:** POS-01–08, POS-10 · **Classes:** `TickRiskProcessor`, `ScheduledPositionManager`, `PositionBook`
 
 **REST API:** `GET /api/positions` · `POST /api/exit/{correlationId}`
 
@@ -185,7 +190,7 @@ Activate at +1% unrealized gain. Step: 1% of HWM. Monotonic. High-water mark upd
 
 15:15 IST → `ExitReason.FORCE_SQUAREOFF` for all open positions.
 
-**PRD refs:** POS-04 · **Classes:** `PositionMonitor`
+**PRD refs:** POS-04 · **Classes:** `ScheduledPositionManager`, `ExitReason`
 
 **UI surfaces:** EOD countdown timer · FORCE_SQUAREOFF badge in trade history
 
@@ -251,7 +256,7 @@ M5 replay → derives M15/H1 → same pipeline → SL/TP on candle high/low → 
 
 Manual (`POST /api/kill`) + automatic (daily loss breach). Reset via `POST /api/reset`.
 
-**PRD refs:** RSK-01–03, RSK-13 · **Classes:** `RiskManager`
+**PRD refs:** RSK-01–03, RSK-13 · **Classes:** `RiskSessionState`, `PreTradeGate`
 
 **UI surfaces:** Red kill switch toggle · Reason log · Day reset button
 
@@ -271,7 +276,7 @@ On shutdown, `TradingEngine.analyzeSession()` generates full report if trades oc
 
 `.env` for global config. YAML for strategy params (`YamlStrategyLoader` + `StrategyYamlConfig`). Per-strategy risk overrides via `StrategyRiskConfig` record; order config via `StrategyOrderConfig` record. `loadWithDefaults()` merges `defaults.yaml` as fallback. `RiskManager.applyStrategyRiskOverride()` applies YAML values at runtime. `ConfigValidator` validates all required fields, numeric ranges, and enum values; `YamlStrategyLoader.reloadWithRollback()` retains last-valid config on failure. `ConfigFileWatcher` monitors `config/strategies/` via WatchService on a virtual thread; debounce 500ms; on valid change applies `StrategyRiskConfig` overrides to RiskManager; wired into TradingEngine start/stop lifecycle.
 
-**PRD refs:** CFG-01–07, CFG-Y01–Y09 · **Classes:** `ConfigManager`, `RiskConfig`, `StrategyConfig`, `YamlStrategyLoader`, `StrategyYamlConfig`, `StrategyRiskConfig`, `StrategyOrderConfig`, `ConfigValidator`, `ConfigFileWatcher`
+**PRD refs:** CFG-01–07, CFG-Y01–Y09 · **Classes:** `ConfigManager` (@Component, no singleton), `EnvConfigPersistence`, `RiskConfig`, `StrategyConfig`, `YamlStrategyLoader`, `StrategyYamlConfig`, `StrategyRiskConfig`, `StrategyOrderConfig`, `ConfigValidator`, `ConfigFileWatcher`
 
 **UI surfaces:** Settings page (read-only MVP) · Strategy config editor (P2) · Symbol manager
 
@@ -282,6 +287,43 @@ On shutdown, `TradingEngine.analyzeSession()` generates full report if trades oc
 All features keyed by symbol. `FYERS_SYMBOLS` comma-separated. Concurrent across symbols.
 
 **UI surfaces:** Symbol selector / watchlist · Per-symbol filter on all views
+
+---
+
+---
+
+### F-23 · Broker Abstraction Layer ✅
+
+Three typed interfaces decouple engine from Fyers SDK. `FyersBrokerAdapter` is the single `@Component` implementing all three. `FyersClientFactory` deleted.
+
+| Interface | Responsibility |
+|---|---|
+| `IMarketDataAdapter` | Historical candle fetch |
+| `IOrderAdapter` | Order placement, position query |
+| `ITickFeed` | WebSocket connect/subscribe/close |
+
+Connection is user-triggered via `POST /api/connect` (not auto-started). `TokenRefreshScheduler` is a Spring `@Component`.
+
+**Classes:** `IMarketDataAdapter`, `IOrderAdapter`, `ITickFeed`, `FyersBrokerAdapter`, `TokenRefreshScheduler`
+
+**REST API:** `POST /api/connect` — authenticate and start WebSocket feed
+
+---
+
+### F-24 · Engine Decomposition (Single-Responsibility) ✅
+
+`RiskManager` and `PositionMonitor` god-objects split into focused classes. `TradingEngine.create()` deleted; `EngineConfiguration.tradingEngine()` is the hand-written Spring `@Bean` factory with setter injection for circular deps.
+
+| Old | New | Responsibility |
+|---|---|---|
+| `RiskManager` | `RiskSessionState` | Daily state: PnL, kill switch, consecutive losses, anomaly flag |
+| `RiskManager` | `PreTradeGate` | 8-gate pre-trade check + position sizing |
+| `PositionMonitor` | `TickRiskProcessor` | Disruptor hot-path SL/TP/trailing handler |
+| `PositionMonitor` | `ScheduledPositionManager` | 1s scheduler: force squareoff, drawdown propagation, manual exit |
+| `PositionMonitor` | `PositionBook` | Thread-safe position state (ConcurrentHashMap wrapper) |
+| `PositionMonitor.ExitReason` | `ExitReason` | Standalone enum |
+
+**REST API:** All existing endpoints unchanged — controllers updated to use new classes.
 
 ---
 

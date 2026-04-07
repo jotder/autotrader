@@ -22,7 +22,7 @@ High-performance algo trading platform. Java 25 · Spring Boot · Reliability-Fi
 
 ## 3. Foundational Mandates & Redlines
 - **No Blocking:** NEVER block the `risk-tick-processor` thread.
-- **Safety:** Orders MUST pass `RiskManager` pre-trade bounds.
+- **Safety:** Orders MUST pass `PreTradeGate` pre-trade bounds (8 sequential gates).
 - **Secrets:** NO credentials in logs or source. Use `APIs.env` (managed via `.gitignore`).
 - **Anomaly Response:** Detected stress (drawdown/latency) → AUTO-FLATTEN all positions → manual restart.
 
@@ -62,4 +62,4 @@ Reference specialized mandates in `.agents/rules/` for granular guidance:
 - `@compliance.md`: Regulatory and audit trail verification.
 
 ---
-*Mandate Effective: Friday, March 27, 2026*
+*Mandate Effective: Friday, March 27, 2026 · Last updated: April 7, 2026*

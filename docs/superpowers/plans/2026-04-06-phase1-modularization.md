@@ -1,6 +1,6 @@
 # Phase 1 Modularization Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Split three god-objects — `EngineController` (80+ endpoints), `ConfigManager` (static singleton), and `BacktestController`/`RiskController` inconsistencies — into focused, single-responsibility classes with no behaviour change.
 
@@ -43,7 +43,7 @@
 **Files:**
 - Modify: `src/main/java/com/rj/config/EngineConfiguration.java`
 
-- [ ] **Step 1: Add three new `@Bean` methods to `EngineConfiguration`**
+- [x] **Step 1: Add three new `@Bean` methods to `EngineConfiguration`**
 
 Open `src/main/java/com/rj/config/EngineConfiguration.java` and add after the `symbolProfiler` bean (before the closing brace):
 
@@ -67,7 +67,7 @@ public com.rj.engine.DownloadTracker downloadTracker(com.rj.engine.CandleDownloa
 }
 ```
 
-- [ ] **Step 2: Verify the application context loads**
+- [x] **Step 2: Verify the application context loads**
 
 ```bash
 ./mvnw spring-boot:run -Dspring-boot.run.arguments="--spring.main.banner-mode=off" 2>&1 | head -40
@@ -75,7 +75,7 @@ public com.rj.engine.DownloadTracker downloadTracker(com.rj.engine.CandleDownloa
 
 Expected: no `NoSuchBeanDefinitionException`. Stop with Ctrl-C after context starts.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/main/java/com/rj/config/EngineConfiguration.java
@@ -92,7 +92,7 @@ Extract `GET /api/status` and `GET /api/health` from `EngineController`. These t
 - Create: `src/main/java/com/rj/web/StatusController.java`
 - Create: `src/test/java/com/rj/web/StatusControllerTest.java`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/test/java/com/rj/web/StatusControllerTest.java`:
 
@@ -165,7 +165,7 @@ class StatusControllerTest {
 }
 ```
 
-- [ ] **Step 2: Run the test — it must fail (class not found)**
+- [x] **Step 2: Run the test — it must fail (class not found)**
 
 ```bash
 ./mvnw test -pl . -Dtest=StatusControllerTest -q 2>&1 | tail -20
@@ -173,7 +173,7 @@ class StatusControllerTest {
 
 Expected: `COMPILATION ERROR` — `StatusController` does not exist yet.
 
-- [ ] **Step 3: Create StatusController**
+- [x] **Step 3: Create StatusController**
 
 Create `src/main/java/com/rj/web/StatusController.java`:
 
@@ -225,7 +225,7 @@ public class StatusController {
 }
 ```
 
-- [ ] **Step 4: Run the test — it must pass**
+- [x] **Step 4: Run the test — it must pass**
 
 ```bash
 ./mvnw test -pl . -Dtest=StatusControllerTest -q 2>&1 | tail -10
@@ -233,11 +233,11 @@ public class StatusController {
 
 Expected: `BUILD SUCCESS`, 2 tests passed.
 
-- [ ] **Step 5: Remove the two endpoints from EngineController**
+- [x] **Step 5: Remove the two endpoints from EngineController**
 
 In `src/main/java/com/rj/web/EngineController.java`, delete the `status()` method (lines 66–74) and the `health()` method (lines 121–130), including their `@GetMapping` annotations.
 
-- [ ] **Step 6: Run all tests to confirm nothing broke**
+- [x] **Step 6: Run all tests to confirm nothing broke**
 
 ```bash
 ./mvnw test -q 2>&1 | tail -15
@@ -245,7 +245,7 @@ In `src/main/java/com/rj/web/EngineController.java`, delete the `status()` metho
 
 Expected: `BUILD SUCCESS`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/main/java/com/rj/web/StatusController.java \
@@ -264,7 +264,7 @@ Extract the five symbol/dimension endpoints from `EngineController`. These share
 - Create: `src/main/java/com/rj/web/SymbolController.java`
 - Create: `src/test/java/com/rj/web/SymbolControllerTest.java`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/test/java/com/rj/web/SymbolControllerTest.java`:
 
@@ -366,7 +366,7 @@ class SymbolControllerTest {
 }
 ```
 
-- [ ] **Step 2: Run the test — expect compilation failure**
+- [x] **Step 2: Run the test — expect compilation failure**
 
 ```bash
 ./mvnw test -pl . -Dtest=SymbolControllerTest -q 2>&1 | tail -10
@@ -374,7 +374,7 @@ class SymbolControllerTest {
 
 Expected: `COMPILATION ERROR`.
 
-- [ ] **Step 3: Create SymbolController**
+- [x] **Step 3: Create SymbolController**
 
 Create `src/main/java/com/rj/web/SymbolController.java`:
 
@@ -475,7 +475,7 @@ public class SymbolController {
 }
 ```
 
-- [ ] **Step 4: Run tests — all must pass**
+- [x] **Step 4: Run tests — all must pass**
 
 ```bash
 ./mvnw test -pl . -Dtest=SymbolControllerTest -q 2>&1 | tail -10
@@ -483,7 +483,7 @@ public class SymbolController {
 
 Expected: `BUILD SUCCESS`, 7 tests passed.
 
-- [ ] **Step 5: Remove the five endpoints from EngineController**
+- [x] **Step 5: Remove the five endpoints from EngineController**
 
 In `src/main/java/com/rj/web/EngineController.java`, delete:
 - `symbols()` method and its `@GetMapping("/symbols")`
@@ -494,7 +494,7 @@ In `src/main/java/com/rj/web/EngineController.java`, delete:
 
 Also remove the now-unused imports: `SymbolFormatParser`, `MarketCategory`, `SymbolMasterCache`, `DimensionDataCache` from `EngineController.java`, and remove those constructor parameters and fields.
 
-- [ ] **Step 6: Run all tests**
+- [x] **Step 6: Run all tests**
 
 ```bash
 ./mvnw test -q 2>&1 | tail -15
@@ -502,7 +502,7 @@ Also remove the now-unused imports: `SymbolFormatParser`, `MarketCategory`, `Sym
 
 Expected: `BUILD SUCCESS`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/main/java/com/rj/web/SymbolController.java \
@@ -521,7 +521,7 @@ Extract all `/api/candle-db/**` and `/api/profile/{symbol}` endpoints from `Engi
 - Create: `src/main/java/com/rj/web/CandleController.java`
 - Create: `src/test/java/com/rj/web/CandleControllerTest.java`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/test/java/com/rj/web/CandleControllerTest.java`:
 
@@ -634,7 +634,7 @@ class CandleControllerTest {
 }
 ```
 
-- [ ] **Step 2: Run test — expect compilation failure**
+- [x] **Step 2: Run test — expect compilation failure**
 
 ```bash
 ./mvnw test -pl . -Dtest=CandleControllerTest -q 2>&1 | tail -10
@@ -642,7 +642,7 @@ class CandleControllerTest {
 
 Expected: `COMPILATION ERROR`.
 
-- [ ] **Step 3: Create CandleController**
+- [x] **Step 3: Create CandleController**
 
 Create `src/main/java/com/rj/web/CandleController.java`:
 
@@ -769,7 +769,7 @@ public class CandleController {
 }
 ```
 
-- [ ] **Step 4: Run tests — all must pass**
+- [x] **Step 4: Run tests — all must pass**
 
 ```bash
 ./mvnw test -pl . -Dtest=CandleControllerTest -q 2>&1 | tail -10
@@ -777,7 +777,7 @@ public class CandleController {
 
 Expected: `BUILD SUCCESS`, 7 tests passed.
 
-- [ ] **Step 5: Remove candle + profile endpoints from EngineController**
+- [x] **Step 5: Remove candle + profile endpoints from EngineController**
 
 In `src/main/java/com/rj/web/EngineController.java`, delete:
 - `candleDbSymbols()`, `candleDbSummary()`, `candleDbDates()`, `candleDbLoad()` methods
@@ -788,7 +788,7 @@ In `src/main/java/com/rj/web/EngineController.java`, delete:
 - The `candleDatabase` field, constructor parameter, and `CandleDatabase` import
 - The `symbolProfiler` field, constructor parameter, and `SymbolProfiler` import
 
-- [ ] **Step 6: Run all tests**
+- [x] **Step 6: Run all tests**
 
 ```bash
 ./mvnw test -q 2>&1 | tail -15
@@ -796,7 +796,7 @@ In `src/main/java/com/rj/web/EngineController.java`, delete:
 
 Expected: `BUILD SUCCESS`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/main/java/com/rj/web/CandleController.java \
@@ -816,7 +816,7 @@ Two groups of endpoints currently in `EngineController` belong in existing contr
 - Modify: `src/main/java/com/rj/web/BacktestController.java`
 - Modify: `src/main/java/com/rj/web/EngineController.java`
 
-- [ ] **Step 1: Move risk + anomaly endpoints to RiskController**
+- [x] **Step 1: Move risk + anomaly endpoints to RiskController**
 
 Replace the full contents of `src/main/java/com/rj/web/RiskController.java` with:
 
@@ -930,7 +930,7 @@ public class RiskController {
 }
 ```
 
-- [ ] **Step 2: Move simple backtest endpoint to BacktestController**
+- [x] **Step 2: Move simple backtest endpoint to BacktestController**
 
 In `src/main/java/com/rj/web/BacktestController.java`, add these imports at the top:
 
@@ -991,7 +991,7 @@ public ResponseEntity<?> backtest(@RequestBody Map<String, String> request) {
 
 Note: The URL is now `POST /api/backtest` (matching existing `@RequestMapping("/api/backtest")`). Also remove `ConfigManager.getInstance()` call — `riskConfig` is injected.
 
-- [ ] **Step 3: Remove the three endpoint groups from EngineController**
+- [x] **Step 3: Remove the three endpoint groups from EngineController**
 
 In `src/main/java/com/rj/web/EngineController.java`, delete:
 - `risk()` method (`@GetMapping("/risk")`)
@@ -1001,7 +1001,7 @@ In `src/main/java/com/rj/web/EngineController.java`, delete:
 - `backtest()` method (`@PostMapping("/backtest")`)
 - Unused imports: `MultiTimeframeVotingStrategy`, `BacktestEngine`
 
-- [ ] **Step 4: Run all tests**
+- [x] **Step 4: Run all tests**
 
 ```bash
 ./mvnw test -q 2>&1 | tail -15
@@ -1009,7 +1009,7 @@ In `src/main/java/com/rj/web/EngineController.java`, delete:
 
 Expected: `BUILD SUCCESS`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/com/rj/web/RiskController.java \
@@ -1030,7 +1030,7 @@ git commit -m "refactor(web): consolidate risk/anomaly into RiskController, back
 - Modify: `src/main/java/com/rj/web/RiskController.java` (already fixed in Task 5 — verify no `getInstance()`)
 - Modify: `src/main/java/com/rj/web/BacktestController.java` (already fixed in Task 5 — verify no `getInstance()`)
 
-- [ ] **Step 1: Verify all `getInstance()` call sites**
+- [x] **Step 1: Verify all `getInstance()` call sites**
 
 ```bash
 grep -rn "ConfigManager.getInstance()" src/
@@ -1038,7 +1038,7 @@ grep -rn "ConfigManager.getInstance()" src/
 
 Expected output includes only `EngineConfiguration.java` and possibly `TradingEngine.java`. Fix any other callers by injecting `ConfigManager` via constructor instead.
 
-- [ ] **Step 2: Convert ConfigManager to a Spring @Component**
+- [x] **Step 2: Convert ConfigManager to a Spring @Component**
 
 Replace the full contents of `src/main/java/com/rj/config/ConfigManager.java` with:
 
@@ -1161,7 +1161,7 @@ public class ConfigManager implements IConfiguration {
 }
 ```
 
-- [ ] **Step 3: Update EngineConfiguration to remove getInstance()**
+- [x] **Step 3: Update EngineConfiguration to remove getInstance()**
 
 In `src/main/java/com/rj/config/EngineConfiguration.java`, the `configManager()` bean method currently calls `ConfigManager.getInstance()`. Remove that method entirely — Spring will autowire the `@Component`-annotated `ConfigManager` automatically.
 
@@ -1175,7 +1175,7 @@ public ConfigManager configManager() {
 }
 ```
 
-- [ ] **Step 4: Fix TradingEngine.create() — inject ConfigManager instead of getInstance()**
+- [x] **Step 4: Fix TradingEngine.create() — inject ConfigManager instead of getInstance()**
 
 `TradingEngine.create()` calls `ConfigManager.getInstance()` on line 81. Since `TradingEngine` is not a Spring bean itself (it's built by `EngineConfiguration.tradingEngine()`), we need to pass `ConfigManager` in.
 
@@ -1199,7 +1199,7 @@ public static TradingEngine create(ConfigManager config) {
 }
 ```
 
-- [ ] **Step 5: Run all tests and verify no compilation errors**
+- [x] **Step 5: Run all tests and verify no compilation errors**
 
 ```bash
 ./mvnw test -q 2>&1 | tail -20
@@ -1207,7 +1207,7 @@ public static TradingEngine create(ConfigManager config) {
 
 Expected: `BUILD SUCCESS`. If any test references `ConfigManager.getInstance()`, inject it via `@MockBean` in the test instead.
 
-- [ ] **Step 6: Verify no remaining getInstance() calls**
+- [x] **Step 6: Verify no remaining getInstance() calls**
 
 ```bash
 grep -rn "ConfigManager.getInstance()" src/
@@ -1215,7 +1215,7 @@ grep -rn "ConfigManager.getInstance()" src/
 
 Expected: no output.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/main/java/com/rj/config/ConfigManager.java \
@@ -1233,7 +1233,7 @@ git commit -m "refactor(config): remove ConfigManager static singleton, convert 
 **Files:**
 - Create: `src/main/java/com/rj/config/EnvConfigPersistence.java`
 
-- [ ] **Step 1: Create EnvConfigPersistence**
+- [x] **Step 1: Create EnvConfigPersistence**
 
 Create `src/main/java/com/rj/config/EnvConfigPersistence.java`:
 
@@ -1291,7 +1291,7 @@ public class EnvConfigPersistence {
 }
 ```
 
-- [ ] **Step 2: Find callers of updateEnvProperty and switch them to EnvConfigPersistence**
+- [x] **Step 2: Find callers of updateEnvProperty and switch them to EnvConfigPersistence**
 
 ```bash
 grep -rn "updateEnvProperty" src/
@@ -1299,7 +1299,7 @@ grep -rn "updateEnvProperty" src/
 
 For each caller found, add `EnvConfigPersistence` as a constructor-injected dependency and call `envConfigPersistence.update(key, value)` instead of `configManager.updateEnvProperty(key, value)`.
 
-- [ ] **Step 3: Run all tests**
+- [x] **Step 3: Run all tests**
 
 ```bash
 ./mvnw test -q 2>&1 | tail -15
@@ -1307,7 +1307,7 @@ For each caller found, add `EnvConfigPersistence` as a constructor-injected depe
 
 Expected: `BUILD SUCCESS`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/main/java/com/rj/config/EnvConfigPersistence.java
@@ -1323,7 +1323,7 @@ The existing test does not declare `@MockBean` for `StrategyService`, so `when(s
 **Files:**
 - Modify: `src/test/java/com/rj/web/StrategyControllerTest.java`
 
-- [ ] **Step 1: Fix the test**
+- [x] **Step 1: Fix the test**
 
 Replace the full contents of `src/test/java/com/rj/web/StrategyControllerTest.java` with:
 
@@ -1379,7 +1379,7 @@ class StrategyControllerTest {
 }
 ```
 
-- [ ] **Step 2: Run the test**
+- [x] **Step 2: Run the test**
 
 ```bash
 ./mvnw test -pl . -Dtest=StrategyControllerTest -q 2>&1 | tail -10
@@ -1387,7 +1387,7 @@ class StrategyControllerTest {
 
 Expected: `BUILD SUCCESS`, 2 tests passed.
 
-- [ ] **Step 3: Run full test suite**
+- [x] **Step 3: Run full test suite**
 
 ```bash
 ./mvnw test -q 2>&1 | tail -15
@@ -1395,7 +1395,7 @@ Expected: `BUILD SUCCESS`, 2 tests passed.
 
 Expected: `BUILD SUCCESS`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/test/java/com/rj/web/StrategyControllerTest.java
