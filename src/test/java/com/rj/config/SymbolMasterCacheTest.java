@@ -121,13 +121,28 @@ class SymbolMasterCacheTest {
                 fnoEntry("NSE:NIFTY50-INDEX", "CE"),
                 fnoEntry("NSE:NIFTY50-INDEX", "PE"),
                 fnoEntry("NSE:NIFTY50-INDEX", "XX"),   // future — excluded
-                fnoEntry("NSE:SBIN-EQ",       null),   // equity — excluded
+                fnoEntry("NSE:SBIN-EQ",       ""),     // equity — excluded
                 fnoEntry("NSE:BANKNIFTY",     "CE")
         ));
 
         Set<String> result = fnoCache.allFnoUnderlyings();
 
         assertThat(result).containsExactlyInAnyOrder("NSE:NIFTY50-INDEX", "NSE:BANKNIFTY");
+    }
+
+    @Test
+    void allFnoUnderlyings_emptyCache_returnsEmpty() {
+        SymbolMasterCache empty = SymbolMasterCache.fromEntries(List.of());
+        assertThat(empty.allFnoUnderlyings()).isEmpty();
+    }
+
+    @Test
+    void allFnoUnderlyings_futuresOnly_returnsEmpty() {
+        SymbolMasterCache futOnly = SymbolMasterCache.fromEntries(List.of(
+            fnoEntry("NIFTY", "XX"),
+            fnoEntry("BANKNIFTY", "XX")
+        ));
+        assertThat(futOnly.allFnoUnderlyings()).isEmpty();
     }
 
     @Test
