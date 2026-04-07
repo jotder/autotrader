@@ -124,7 +124,11 @@ public class TickRiskProcessor implements EventHandler<TickEvent> {
     }
 
     private void closePosition(OpenPosition pos, ExitReason reason) {
-        positionBook.remove(pos.getCorrelationId());
+        OpenPosition removed = positionBook.remove(pos.getCorrelationId());
+        if (removed == null) {
+            log.debug("[{}] Position already removed by concurrent close — skipping duplicate exit", pos.getSymbol());
+            return;
+        }
         log.info("[{}] Closing position reason={}: {}", pos.getSymbol(), reason, pos);
 
         BiConsumer<OpenPosition, ExitReason> handler = exitHandler;

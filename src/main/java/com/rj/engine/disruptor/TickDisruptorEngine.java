@@ -25,8 +25,26 @@ public class TickDisruptorEngine {
 
     private Disruptor<TickEvent> disruptor;
     private RingBuffer<TickEvent> ringBuffer;
+    /** First-stage handlers (e.g. TickStoreUpdater) — run before second-stage handlers. */
+    private final List<EventHandler<TickEvent>> firstHandlers = new ArrayList<>();
+    /** Second-stage handlers (e.g. TickRiskProcessor) — run after all first-stage handlers complete. */
     private final List<EventHandler<TickEvent>> handlers = new ArrayList<>();
 
+    /**
+     * Registers a first-stage handler that must complete before any second-stage handler sees the event.
+     * Use this for store/cache updaters (e.g. {@link TickStoreUpdater}).
+     */
+    public void addFirstHandler(EventHandler<TickEvent> handler) {
+        if (disruptor != null) {
+            throw new IllegalStateException("Cannot add handler after Disruptor has started");
+        }
+        this.firstHandlers.add(handler);
+    }
+
+    /**
+     * Registers a second-stage handler that runs after all first-stage handlers have processed the event.
+     * Use this for risk processors and analytical consumers.
+     */
     public void addHandler(EventHandler<TickEvent> handler) {
         if (disruptor != null) {
             throw new IllegalStateException("Cannot add handler after Disruptor has started");
@@ -43,7 +61,8 @@ public class TickDisruptorEngine {
             return;
         }
 
-        log.info("Starting TickDisruptorEngine (size={}, handlers={})...", RING_BUFFER_SIZE, handlers.size());
+        log.info("Starting TickDisruptorEngine (size={}, firstHandlers={}, secondHandlers={})...",
+                RING_BUFFER_SIZE, firstHandlers.size(), handlers.size());
 
         ThreadFactory threadFactory = Thread.ofVirtual().name("disruptor-worker-", 0).factory();
 
@@ -55,10 +74,18 @@ public class TickDisruptorEngine {
                 new BlockingWaitStrategy()
         );
 
-        if (handlers.isEmpty()) {
+        if (firstHandlers.isEmpty() && handlers.isEmpty()) {
             log.warn("No handlers registered for TickDisruptorEngine — ticks will be dropped!");
-        } else {
+        } else if (firstHandlers.isEmpty()) {
+            // No first-stage handlers — register second-stage directly
             disruptor.handleEventsWith(handlers.toArray(new EventHandler[0]));
+        } else if (handlers.isEmpty()) {
+            // Only first-stage handlers
+            disruptor.handleEventsWith(firstHandlers.toArray(new EventHandler[0]));
+        } else {
+            // Sequential: first-stage handlers complete before second-stage handlers see the event
+            disruptor.handleEventsWith(firstHandlers.toArray(new EventHandler[0]))
+                     .then(handlers.toArray(new EventHandler[0]));
         }
 
         ringBuffer = disruptor.start();

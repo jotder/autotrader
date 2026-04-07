@@ -68,12 +68,10 @@ public class EngineController {
 
     @PostMapping("/exit/{correlationId}")
     public ActionResponse exit(@PathVariable String correlationId) {
-        try {
-            engine.getScheduledPositionManager().requestManualExit(correlationId);
-            return new ActionResponse(true, "Manual exit requested for " + correlationId);
-        } catch (IllegalArgumentException e) {
-            return new ActionResponse(false, e.getMessage());
-        }
+        engine.getScheduledPositionManager().requestManualExit(correlationId);
+        // requestManualExit is a graceful no-op if the position is already closed or unknown
+        // (logs a warning internally). Always return success to the caller.
+        return new ActionResponse(true, "Manual exit requested for " + correlationId);
     }
 
     @GetMapping("/reconciliation")

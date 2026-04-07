@@ -80,7 +80,8 @@ public class ScheduledPositionManager {
     public void requestManualExit(String correlationId) {
         OpenPosition pos = positionBook.get(correlationId);
         if (pos == null) {
-            throw new IllegalArgumentException("No open position with correlationId: " + correlationId);
+            log.warn("requestManualExit: no open position with correlationId '{}' — already closed or unknown", correlationId);
+            return;
         }
         closePosition(pos, ExitReason.MANUAL);
     }
@@ -129,7 +130,11 @@ public class ScheduledPositionManager {
     }
 
     private void closePosition(OpenPosition pos, ExitReason reason) {
-        positionBook.remove(pos.getCorrelationId());
+        OpenPosition removed = positionBook.remove(pos.getCorrelationId());
+        if (removed == null) {
+            log.debug("[{}] Position already removed by concurrent close — skipping duplicate exit", pos.getSymbol());
+            return;
+        }
         log.info("[{}] Closing position reason={}: {}", pos.getSymbol(), reason, pos);
         BiConsumer<OpenPosition, ExitReason> handler = this.exitHandler;
         StrategyEvaluator se = this.strategyEvaluator;

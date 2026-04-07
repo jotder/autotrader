@@ -129,7 +129,9 @@ public class EngineConfiguration {
         se.setSignalHandler(engine::handleSignal);
 
         // Step 4: Disruptor handlers + OMS listener
-        disruptor.addHandler(new TickStoreUpdater());
+        // TickStoreUpdater runs first (first-stage) so tick data is committed to the store
+        // before TickRiskProcessor (second-stage) evaluates risk on that tick.
+        disruptor.addFirstHandler(new TickStoreUpdater());
         disruptor.addHandler(tickRiskProcessor);
         orderTracker.addListener(engine);
 
