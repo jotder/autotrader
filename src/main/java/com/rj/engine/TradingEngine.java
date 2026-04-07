@@ -5,7 +5,7 @@ import com.rj.engine.disruptor.TickStoreUpdater;
 import com.rj.fyers.FyersSocketListener;
 import com.rj.config.*;
 import com.rj.model.*;
-import com.rj.fyers.FyersPositions;
+import com.rj.broker.IOrderAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +51,6 @@ public class TradingEngine implements OrderStateListener {
     private HealthMonitor healthMonitor;
     private PositionReconciler positionReconciler;
     private ConfigFileWatcher configFileWatcher;
-    private com.rj.fyers.TokenRefreshScheduler tokenRefreshScheduler;
     private AnomalyDetector anomalyDetector;
     private BrokerCircuitBreaker circuitBreaker;
 
@@ -77,12 +76,12 @@ public class TradingEngine implements OrderStateListener {
     /**
      * Creates a fully wired TradingEngine.
      */
-    public static TradingEngine create(ConfigManager config) {
+    public static TradingEngine create(ConfigManager config, IOrderAdapter orderAdapter) {
         RiskConfig riskCfg = config.getRiskConfig();
         TickStore tickStore = TickStore.getInstance();
 
         ExecutionMode mode = resolveMode(config.getProperty("APP_ENV"));
-        IOrderExecutor executor = createExecutor(mode, tickStore);
+        IOrderExecutor executor = createExecutor(mode, tickStore, orderAdapter);
 
         TradeJournal journal = new TradeJournal(mode);
         RiskManager riskMgr = new RiskManager(riskCfg);
@@ -141,7 +140,7 @@ public class TradingEngine implements OrderStateListener {
 
         if (mode == ExecutionMode.LIVE) {
             engineFinal.positionReconciler = new PositionReconciler(
-                    new FyersPositions(), pm, engineFinal.openRecords, journal, riskCfg);
+                    orderAdapter, pm, engineFinal.openRecords, journal, riskCfg);
         }
 
         // OMS Listener
@@ -339,8 +338,6 @@ public class TradingEngine implements OrderStateListener {
         }
 
         if (configFileWatcher != null) try { configFileWatcher.start(); } catch (IOException ignored) {}
-        tokenRefreshScheduler = new com.rj.fyers.TokenRefreshScheduler(config);
-        tokenRefreshScheduler.start();
 
         registerShutdownHook();
     }
@@ -349,7 +346,6 @@ public class TradingEngine implements OrderStateListener {
         if (!running.compareAndSet(true, false)) return;
         log.info("TradingEngine stopping...");
         if (configFileWatcher != null) configFileWatcher.stop();
-        if (tokenRefreshScheduler != null) tokenRefreshScheduler.stop();
         socketListener.close();
         orderManager.shutdown();
         healthMonitor.stop();
@@ -371,9 +367,9 @@ public class TradingEngine implements OrderStateListener {
         };
     }
 
-    private static IOrderExecutor createExecutor(ExecutionMode mode, TickStore tickStore) {
+    private static IOrderExecutor createExecutor(ExecutionMode mode, TickStore tickStore, IOrderAdapter orderAdapter) {
         return switch (mode) {
-            case LIVE -> new LiveOrderExecutor();
+            case LIVE -> new LiveOrderExecutor(orderAdapter);
             case BACKTEST -> new BacktestOrderExecutor();
             default -> new PaperOrderExecutor(tickStore);
         };
@@ -394,7 +390,6 @@ public class TradingEngine implements OrderStateListener {
     public CandleService getCandleService() { return candleService; }
     public StrategyEvaluator getStrategyEvaluator() { return strategyEvaluator; }
     public PositionReconciler getPositionReconciler() { return positionReconciler; }
-    public com.rj.fyers.TokenRefreshScheduler getTokenRefreshScheduler() { return tokenRefreshScheduler; }
     public AnomalyDetector getAnomalyDetector() { return anomalyDetector; }
 
     public int flattenAll(String reason) {

@@ -9,7 +9,7 @@ public class FyersBrokerConfig {
     FyersClass fyersClass;
 
     public FyersBrokerConfig() {
-        fyersClass = FyersClientFactory.getConfiguredInstance();
+        fyersClass = FyersClass.getInstance();
     }
 
     public MarketStatus getMarketStatus() {

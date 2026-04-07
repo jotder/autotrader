@@ -9,11 +9,10 @@ public class FyersProfile {
     FyersClass fyersClass;
 
     public FyersProfile() {
-        fyersClass = FyersClientFactory.getConfiguredInstance();
+        fyersClass = FyersClass.getInstance();
     }
 
     public ClientProfile getProfile() {
-        fyersClass = FyersClientFactory.getConfiguredInstance();
         Tuple<JSONObject, JSONObject> profileResponseTuple = fyersClass.GetProfile();
 
         if (profileResponseTuple.Item2() != null) {

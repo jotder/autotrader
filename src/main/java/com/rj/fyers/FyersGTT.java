@@ -13,7 +13,7 @@ public class FyersGTT {
     FyersClass fyersClass;
 
     public FyersGTT() {
-        fyersClass = FyersClientFactory.getConfiguredInstance();
+        fyersClass = FyersClass.getInstance();
     }
 
     public OrderResult placeGTTOrder(List<GTTModel> models) {

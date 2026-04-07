@@ -1,5 +1,7 @@
 package com.rj.config;
 
+import com.rj.broker.IMarketDataAdapter;
+import com.rj.broker.IOrderAdapter;
 import com.rj.engine.BrokerCircuitBreaker;
 import com.rj.engine.CandleDatabase;
 import com.rj.engine.CandleDownloader;
@@ -7,21 +9,21 @@ import com.rj.engine.DownloadTracker;
 import com.rj.engine.SymbolProfiler;
 import com.rj.engine.TradingEngine;
 import com.rj.engine.disruptor.TickDisruptorEngine;
-import com.rj.fyers.FyersDataApi;
 import com.rj.fyers.FyersSocketListener;
 import com.rj.model.TickStore;
+import com.tts.in.model.FyersClass;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.nio.file.Path;
 
-/**
- * Bridges existing singletons and factory-created objects into the Spring bean context.
- * No engine code is modified — this class simply registers references so that
- * controllers and other Spring components can inject them.
- */
 @Configuration
 public class EngineConfiguration {
+
+    @Bean
+    public FyersClass fyersClass() {
+        return FyersClass.getInstance();
+    }
 
     @Bean
     public TickStore tickStore() {
@@ -39,8 +41,8 @@ public class EngineConfiguration {
     }
 
     @Bean
-    public TradingEngine tradingEngine(ConfigManager configManager) {
-        return TradingEngine.create(configManager);
+    public TradingEngine tradingEngine(ConfigManager configManager, IOrderAdapter orderAdapter) {
+        return TradingEngine.create(configManager, orderAdapter);
     }
 
     @Bean
@@ -80,10 +82,10 @@ public class EngineConfiguration {
 
     @Bean
     public CandleDownloader candleDownloader(
+            IMarketDataAdapter marketDataAdapter,
             CandleDatabase candleDatabase,
             BrokerCircuitBreaker circuitBreaker) {
-        return new CandleDownloader(
-                new FyersDataApi(), candleDatabase, 500, circuitBreaker);
+        return new CandleDownloader(marketDataAdapter, candleDatabase, 500, circuitBreaker);
     }
 
     @Bean

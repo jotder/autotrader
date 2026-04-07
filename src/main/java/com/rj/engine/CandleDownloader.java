@@ -2,7 +2,7 @@ package com.rj.engine;
 
 import com.rj.model.Candle;
 import com.tts.in.model.StockHistoryModel;
-import com.rj.fyers.FyersDataApi;
+import com.rj.broker.IMarketDataAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,16 +23,16 @@ public class CandleDownloader {
     private static final Logger log = LoggerFactory.getLogger(CandleDownloader.class);
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
-    private final FyersDataApi dataApi;
+    private final IMarketDataAdapter dataApi;
     private final CandleDatabase db;
     private final long delayBetweenCallsMs;
     private final BrokerCircuitBreaker circuitBreaker; // nullable
 
-    public CandleDownloader(FyersDataApi dataApi, CandleDatabase db) {
+    public CandleDownloader(IMarketDataAdapter dataApi, CandleDatabase db) {
         this(dataApi, db, 500, null);
     }
 
-    public CandleDownloader(FyersDataApi dataApi, CandleDatabase db, long delayBetweenCallsMs,
+    public CandleDownloader(IMarketDataAdapter dataApi, CandleDatabase db, long delayBetweenCallsMs,
                             BrokerCircuitBreaker circuitBreaker) {
         this.dataApi = dataApi;
         this.db = db;
@@ -111,12 +111,12 @@ public class CandleDownloader {
         if (circuitBreaker != null) {
             return circuitBreaker.execute(() -> {
                 try {
-                    return dataApi.getStockHistory(model);
+                    return dataApi.getHistory(model);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
             }, false);
         }
-        return dataApi.getStockHistory(model);
+        return dataApi.getHistory(model);
     }
 }

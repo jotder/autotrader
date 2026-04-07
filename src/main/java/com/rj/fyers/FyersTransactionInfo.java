@@ -12,7 +12,7 @@ public class FyersTransactionInfo {
     FyersClass fyersClass;
 
     public FyersTransactionInfo() {
-        fyersClass = FyersClientFactory.getConfiguredInstance();
+        fyersClass = FyersClass.getInstance();
     }
 
     public List<TradeEntry> getTradeBook() {

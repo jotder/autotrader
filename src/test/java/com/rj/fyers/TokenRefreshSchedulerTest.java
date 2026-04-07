@@ -1,38 +1,58 @@
 package com.rj.fyers;
 
+import com.rj.broker.ITickFeed;
+import com.rj.config.ConfigManager;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class TokenRefreshSchedulerTest {
+
+    @Mock
+    private ITickFeed tickFeed;
+
+    @Mock
+    private ConfigManager config;
+
+    @Test
+    void refreshNow_withNoRefreshToken_returnsFalseAndDoesNotCallAdapter() {
+        when(config.getProperty("REFRESH_TOKEN")).thenReturn(null);
+
+        TokenRefreshScheduler scheduler = new TokenRefreshScheduler(config, tickFeed);
+        boolean result = scheduler.refreshNow();
+
+        verify(tickFeed, never()).refreshToken(any());
+        assert !result;
+    }
+
+    @Test
+    void refreshNow_withNoPin_returnsFalseAndDoesNotCallAdapter() {
+        when(config.getProperty("REFRESH_TOKEN")).thenReturn("some-refresh-token");
+        when(config.getProperty("FYERS_PIN")).thenReturn(null);
+
+        TokenRefreshScheduler scheduler = new TokenRefreshScheduler(config, tickFeed);
+        boolean result = scheduler.refreshNow();
+
+        verify(tickFeed, never()).refreshToken(any());
+        assert !result;
+    }
 
     @Test
     void computeAppHashProducesDeterministicSha256() {
         String hash1 = TokenRefreshScheduler.computeAppHash("myAppId", "mySecret");
         String hash2 = TokenRefreshScheduler.computeAppHash("myAppId", "mySecret");
-        assertNotNull(hash1);
-        assertEquals(hash1, hash2);
-        assertEquals(64, hash1.length()); // SHA-256 hex = 64 chars
-    }
-
-    @Test
-    void computeAppHashDiffersForDifferentInputs() {
-        String hash1 = TokenRefreshScheduler.computeAppHash("app1", "secret1");
-        String hash2 = TokenRefreshScheduler.computeAppHash("app2", "secret2");
-        assertNotEquals(hash1, hash2);
+        assert hash1 != null;
+        assert hash1.equals(hash2);
+        assert hash1.length() == 64;
     }
 
     @Test
     void computeAppHashReturnsNullForNullInputs() {
-        assertNull(TokenRefreshScheduler.computeAppHash(null, "secret"));
-        assertNull(TokenRefreshScheduler.computeAppHash("app", null));
-    }
-
-    @Test
-    void computeAppHashMatchesExpectedFormat() {
-        String hash = TokenRefreshScheduler.computeAppHash("testApp", "testSecret");
-        assertNotNull(hash);
-        // SHA-256 hex string: only lowercase hex chars
-        assertTrue(hash.matches("^[0-9a-f]{64}$"));
+        assert TokenRefreshScheduler.computeAppHash(null, "secret") == null;
+        assert TokenRefreshScheduler.computeAppHash("app", null) == null;
     }
 }

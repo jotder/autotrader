@@ -9,7 +9,7 @@ public class FyersFund {
     FyersClass fyersClass;
 
     public FyersFund() {
-        fyersClass = FyersClientFactory.getConfiguredInstance();
+        fyersClass = FyersClass.getInstance();
     }
 
     public FundSummary getFunds() {

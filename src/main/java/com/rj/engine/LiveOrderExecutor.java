@@ -1,9 +1,9 @@
 package com.rj.engine;
 
+import com.rj.broker.IOrderAdapter;
+import com.rj.fyers.FyersBrokerAdapter;
 import com.rj.model.*;
-import com.tts.in.model.FyersClass;
 import com.tts.in.model.PlaceOrderModel;
-import com.rj.fyers.FyersOrderPlacement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,7 +16,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <h3>Pre-conditions</h3>
  * <ol>
  *   <li>{@code APP_ENV=live} must be set in {@code .env}.</li>
- *   <li>{@link #setAccessToken} must be called with a valid token before first use.</li>
  *   <li>All items in {@code docs/GO_LIVE_CHECKLIST.md} must be cleared.</li>
  * </ol>
  *
@@ -35,16 +34,16 @@ public class LiveOrderExecutor implements IOrderExecutor {
     /** Default product type when instrument info is not available. */
     private static final String DEFAULT_PRODUCT_TYPE = "INTRADAY";
 
-    private final FyersOrderPlacement fyersOrders;
+    private final IOrderAdapter orderAdapter;
     private volatile BrokerCircuitBreaker circuitBreaker;
     private final AtomicInteger orderSeq = new AtomicInteger(0);
 
-    public LiveOrderExecutor() {
-        this(null);
+    public LiveOrderExecutor(IOrderAdapter orderAdapter) {
+        this(orderAdapter, null);
     }
 
-    public LiveOrderExecutor(BrokerCircuitBreaker circuitBreaker) {
-        this.fyersOrders = new FyersOrderPlacement();
+    public LiveOrderExecutor(IOrderAdapter orderAdapter, BrokerCircuitBreaker circuitBreaker) {
+        this.orderAdapter = orderAdapter;
         this.circuitBreaker = circuitBreaker;
     }
 
@@ -53,25 +52,19 @@ public class LiveOrderExecutor implements IOrderExecutor {
         this.circuitBreaker = circuitBreaker;
     }
 
-    /** Updates the access token on FyersClass so all subsequent API calls use it. */
-    public void setAccessToken(String token) {
-        FyersClass.getInstance().accessToken = token;
-        log.info("LiveOrderExecutor: access token updated");
-    }
-
     // ── IOrderExecutor ────────────────────────────────────────────────────────
 
     @Override
     public OrderFill placeEntry(TradeSignal signal, int quantity) {
         int side = signal.getDirection() == Signal.BUY ? 1 : -1;
-        
+
         // F&O Support: Derivatives MUST use MARGIN product type
         String productType = signal.getProductType();
         if (signal.getInstrumentInfo() != null && signal.getInstrumentInfo().isDerivative()) {
             productType = "MARGIN";
         }
 
-        PlaceOrderModel model = FyersOrderPlacement.marketOrder(
+        PlaceOrderModel model = FyersBrokerAdapter.marketOrder(
                 signal.getSymbol(), quantity, side, productType);
 
         log.info("[LIVE] Placing entry: {} {} qty={} product={} correlationId={}",
@@ -87,13 +80,13 @@ public class LiveOrderExecutor implements IOrderExecutor {
                                double exitPrice) {
         // Exit direction is opposite to entry direction
         int side = position.getDirection() == Signal.BUY ? -1 : 1;
-        
+
         String productType = position.getProductType();
         if (position.getInstrumentInfo() != null && position.getInstrumentInfo().isDerivative()) {
             productType = "MARGIN";
         }
 
-        PlaceOrderModel model = FyersOrderPlacement.marketOrder(
+        PlaceOrderModel model = FyersBrokerAdapter.marketOrder(
                 position.getSymbol(), position.getQuantity(), side, productType);
 
         log.info("[LIVE] Placing exit: {} {} qty={} product={} reason={} triggerPrice={}",
@@ -114,7 +107,7 @@ public class LiveOrderExecutor implements IOrderExecutor {
         }
         try {
             return circuitBreaker.execute(() -> {
-                OrderResult result = fyersOrders.placeOrder(model);
+                OrderResult result = orderAdapter.placeOrder(model);
 
                 if (result == null) {
                     throw new BrokerCircuitBreaker.BrokerApiException(
@@ -156,7 +149,7 @@ public class LiveOrderExecutor implements IOrderExecutor {
     /** Direct broker call without circuit breaker (fallback). */
     private OrderFill directCall(PlaceOrderModel model, String tag) {
         try {
-            OrderResult result = fyersOrders.placeOrder(model);
+            OrderResult result = orderAdapter.placeOrder(model);
             if (result == null) {
                 return OrderFill.rejected("Null response from Fyers API");
             }
