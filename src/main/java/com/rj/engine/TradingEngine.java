@@ -60,9 +60,9 @@ public class TradingEngine implements OrderStateListener {
     private AnomalyDetector anomalyDetector;
     private BrokerCircuitBreaker circuitBreaker;
 
-    // ── Package-visible constructor (used by EngineConfiguration) ────────────
+    // ── Public constructor (used by EngineConfiguration) ─────────────────────
 
-    TradingEngine(ExecutionMode mode, IOrderExecutor executor, OrderManager orderManager,
+    public TradingEngine(ExecutionMode mode, IOrderExecutor executor, OrderManager orderManager,
                   PreTradeGate preTradeGate, RiskSessionState riskSessionState,
                   PositionBook positionBook, TickRiskProcessor tickRiskProcessor,
                   ScheduledPositionManager scheduledPositionManager,
@@ -95,7 +95,7 @@ public class TradingEngine implements OrderStateListener {
 
     // ── Static helpers kept for EngineConfiguration use ──────────────────────
 
-    static ExecutionMode resolveMode(String appEnv) {
+    public static ExecutionMode resolveMode(String appEnv) {
         if (appEnv == null) return ExecutionMode.PAPER;
         return switch (appEnv.trim().toUpperCase()) {
             case "LIVE" -> ExecutionMode.LIVE;
@@ -104,7 +104,7 @@ public class TradingEngine implements OrderStateListener {
         };
     }
 
-    static IOrderExecutor createExecutor(ExecutionMode mode, TickStore tickStore, IOrderAdapter orderAdapter) {
+    public static IOrderExecutor createExecutor(ExecutionMode mode, TickStore tickStore, IOrderAdapter orderAdapter) {
         return switch (mode) {
             case LIVE -> new LiveOrderExecutor(orderAdapter);
             case BACKTEST -> new BacktestOrderExecutor();
@@ -241,7 +241,7 @@ public class TradingEngine implements OrderStateListener {
 
     // ── Lifecycle & Handlers ─────────────────────────────────────────────────
 
-    private void handleSignal(TradeSignal signal) {
+    public void handleSignal(TradeSignal signal) {
         log.info("[{}] Signal received: {}", signal.getSymbol(), signal);
         journal.logSignalGenerated(signal);
 
@@ -264,7 +264,7 @@ public class TradingEngine implements OrderStateListener {
         orderManager.submitEntry(signal, check.quantity());
     }
 
-    private void handleExit(OpenPosition position, ExitReason reason) {
+    public void handleExit(OpenPosition position, ExitReason reason) {
         double triggerPrice = switch (reason) {
             case STOP_LOSS, TRAILING_STOP -> position.getCurrentStopLoss();
             case TAKE_PROFIT -> position.getTakeProfit();
