@@ -1,8 +1,10 @@
 package com.rj.engine;
 
-import com.rj.engine.ExitReason;
 import com.rj.engine.disruptor.TickDisruptorEngine;
 import com.rj.engine.disruptor.TickStoreUpdater;
+import com.rj.engine.risk.PreTradeGate;
+import com.rj.engine.risk.PreTradeResult;
+import com.rj.engine.risk.RiskSessionState;
 import com.rj.fyers.FyersSocketListener;
 import com.rj.config.*;
 import com.rj.model.*;
@@ -32,7 +34,11 @@ public class TradingEngine implements OrderStateListener {
     private final ExecutionMode mode;
     private final IOrderExecutor executor;
     private final OrderManager orderManager;
-    private final RiskManager riskManager;
+    private final PreTradeGate preTradeGate;
+    private final RiskSessionState riskSessionState;
+    private final PositionBook positionBook;
+    private final TickRiskProcessor tickRiskProcessor;
+    private final ScheduledPositionManager scheduledPositionManager;
     private final TradeJournal journal;
     private final ConfigManager config;
     private final TickDisruptorEngine disruptorEngine;
@@ -42,149 +48,73 @@ public class TradingEngine implements OrderStateListener {
      * Open trade records keyed by correlationId.
      * Created on SUBMITTED; removed and closed on exit FILLED.
      */
-    private final ConcurrentHashMap<String, TradeRecord> openRecords = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, TradeRecord> openRecords;
 
     // ── Services ──────────────────────────────────────────────────────────────
     private final AtomicBoolean running = new AtomicBoolean(false);
     private CandleService candleService;
     private StrategyEvaluator strategyEvaluator;
-    private PositionMonitor positionMonitor;
     private HealthMonitor healthMonitor;
     private PositionReconciler positionReconciler;
     private ConfigFileWatcher configFileWatcher;
     private AnomalyDetector anomalyDetector;
     private BrokerCircuitBreaker circuitBreaker;
 
-    // ── Factory ───────────────────────────────────────────────────────────────
+    // ── Package-visible constructor (used by EngineConfiguration) ────────────
 
-    private TradingEngine(ExecutionMode mode, IOrderExecutor executor,
-                          RiskManager riskManager, TradeJournal journal,
-                          ConfigManager config, TickDisruptorEngine disruptorEngine,
-                          FyersSocketListener socketListener) {
+    TradingEngine(ExecutionMode mode, IOrderExecutor executor, OrderManager orderManager,
+                  PreTradeGate preTradeGate, RiskSessionState riskSessionState,
+                  PositionBook positionBook, TickRiskProcessor tickRiskProcessor,
+                  ScheduledPositionManager scheduledPositionManager,
+                  StrategyEvaluator strategyEvaluator, CandleService candleService,
+                  AnomalyDetector anomalyDetector, BrokerCircuitBreaker circuitBreaker,
+                  HealthMonitor healthMonitor, PositionReconciler positionReconciler,
+                  TradeJournal journal, ConfigManager config,
+                  TickDisruptorEngine disruptorEngine, FyersSocketListener socketListener,
+                  ConcurrentHashMap<String, TradeRecord> openRecords) {
         this.mode = mode;
         this.executor = executor;
-        this.riskManager = riskManager;
+        this.orderManager = orderManager;
+        this.preTradeGate = preTradeGate;
+        this.riskSessionState = riskSessionState;
+        this.positionBook = positionBook;
+        this.tickRiskProcessor = tickRiskProcessor;
+        this.scheduledPositionManager = scheduledPositionManager;
+        this.strategyEvaluator = strategyEvaluator;
+        this.candleService = candleService;
+        this.anomalyDetector = anomalyDetector;
+        this.circuitBreaker = circuitBreaker;
+        this.healthMonitor = healthMonitor;
+        this.positionReconciler = positionReconciler;
         this.journal = journal;
         this.config = config;
         this.disruptorEngine = disruptorEngine;
         this.socketListener = socketListener;
-
-        // OMS state machine wraps the raw executor
-        var orderTracker = new OrderTracker(java.time.Duration.ofSeconds(30));
-        this.orderManager = new OrderManager(executor, orderTracker, journal);
+        this.openRecords = openRecords;
     }
 
-    /**
-     * Creates a fully wired TradingEngine.
-     */
-    public static TradingEngine create(ConfigManager config, IOrderAdapter orderAdapter) {
-        RiskConfig riskCfg = config.getRiskConfig();
-        TickStore tickStore = TickStore.getInstance();
+    // ── Static helpers kept for EngineConfiguration use ──────────────────────
 
-        ExecutionMode mode = resolveMode(config.getProperty("APP_ENV"));
-        IOrderExecutor executor = createExecutor(mode, tickStore, orderAdapter);
-
-        TradeJournal journal = new TradeJournal(mode);
-        RiskManager riskMgr = new RiskManager(riskCfg);
-
-        // Disruptor & WebSocket Ingestion
-        TickDisruptorEngine disruptor = new TickDisruptorEngine();
-        FyersSocketListener listener = new FyersSocketListener(disruptor, null); // Wired below
-
-        TradingEngine engine = new TradingEngine(mode, executor, riskMgr, journal, config, disruptor, listener);
-
-        // Fix circular dependency for listener -> manager -> engine
-        FyersSocketListener updatedListener = new FyersSocketListener(disruptor, engine.orderManager);
-        TradingEngine engineFinal = new TradingEngine(mode, executor, riskMgr, journal, config, disruptor, updatedListener);
-
-        // Queue between Thread 4 (candle workers) and Thread 5 (strategy evaluator)
-        LinkedBlockingQueue<CandleRecommendation> recQueue =
-                new LinkedBlockingQueue<>(REC_QUEUE_CAPACITY);
-
-        // Position Monitor — Disruptor Handler 2
-        PositionMonitor pm = new PositionMonitor(
-                tickStore, riskCfg, riskMgr, engineFinal::handleExit, null);
-        engineFinal.positionMonitor = pm;
-
-        // Register Disruptor Handlers
-        disruptor.addHandler(new TickStoreUpdater());
-        disruptor.addHandler(pm);
-
-        // Strategy Evaluator (positionBook wired in Task 9 rewrite)
-        StrategyEvaluator se = new StrategyEvaluator(
-                recQueue, engineFinal::handleSignal, riskCfg, (PositionBook) null);
-        pm.setStrategyEvaluator(se);    // complete the cycle
-        engineFinal.strategyEvaluator = se;
-
-        // Candle Workers
-        CandleService cs = new CandleService(tickStore, recQueue, config);
-        engineFinal.candleService = cs;
-
-        // Anomaly detector (uses new decomposed dependencies; Task 9 will wire full RiskSessionState)
-        com.rj.engine.risk.RiskSessionState riskSessionState = new com.rj.engine.risk.RiskSessionState(riskCfg);
-        ScheduledPositionManager spm = new ScheduledPositionManager(new PositionBook(), riskSessionState, riskCfg, tickStore);
-        AnomalyDetector ad = new AnomalyDetector();
-        ad.initialize(riskSessionState, spm, tickStore, journal, riskCfg);
-        engineFinal.anomalyDetector = ad;
-
-        // Circuit breaker
-        var cbConfig = com.rj.config.CircuitBreakerConfig.fromEnvironment(config::getProperty);
-        BrokerCircuitBreaker cb = new BrokerCircuitBreaker(cbConfig, ad);
-        engineFinal.circuitBreaker = cb;
-
-        if (executor instanceof LiveOrderExecutor loe) {
-            loe.setCircuitBreaker(cb);
-        }
-
-        // Health monitor (TODO Task 9: wire real ScheduledPositionManager + PositionBook)
-        PositionBook positionBook = new PositionBook();
-        HealthMonitor hm = new HealthMonitor(
-                tickStore, cs, se, null, positionBook, config.getActiveSymbols());
-        engineFinal.healthMonitor = hm;
-
-        if (mode == ExecutionMode.LIVE) {
-            engineFinal.positionReconciler = new PositionReconciler(
-                    orderAdapter, positionBook, engineFinal.openRecords, journal, riskCfg);
-        }
-
-        // OMS Listener
-        engineFinal.orderManager.getTracker().addListener(engineFinal);
-
-        // Load YAML strategies...
-        engineFinal.loadYamlStrategies(cs, se, riskMgr);
-        engineFinal.initializePluggableStrategies(se, riskMgr);
-
-        log.info("TradingEngine created — mode={} symbols={}",
-                mode, String.join(",", config.getActiveSymbols()));
-        return engineFinal;
+    static ExecutionMode resolveMode(String appEnv) {
+        if (appEnv == null) return ExecutionMode.PAPER;
+        return switch (appEnv.trim().toUpperCase()) {
+            case "LIVE" -> ExecutionMode.LIVE;
+            case "BACKTEST" -> ExecutionMode.BACKTEST;
+            default -> ExecutionMode.PAPER;
+        };
     }
 
-    private void initializePluggableStrategies(StrategyEvaluator se, RiskManager riskMgr) {
-        // Phase-II: Register the default voting strategy
-        // In a real scenario, this would be loaded from a plugin directory or DB
-        var defaultStrategy = new com.rj.strategy.MultiTimeframeVotingStrategy(
-                "trend_following",
-                "Trend Following (Phase-I Port)",
-                0.70, // minConfidence
-                2.0,  // slAtrMultiplier
-                2.0   // tpRMultiple
-        );
-        se.addStrategy(defaultStrategy);
-
-        // Register configuration for this strategy in RiskManager
-        TradeStrategyConfig stratCfg = new TradeStrategyConfig();
-        stratCfg.setStrategyId(defaultStrategy.getId());
-        stratCfg.setName(defaultStrategy.getName());
-        stratCfg.setActive(true);
-        stratCfg.setAllocationPercentage(100.0); // Use 100% of capital for this one by default
-        stratCfg.setSizingType(com.rj.model.SizingType.VOLATILITY_ATR);
-        stratCfg.setRiskPercentage(1.0);
-        stratCfg.setAtrMultiplier(2.0);
-        
-        riskMgr.updateStrategyConfig(stratCfg);
+    static IOrderExecutor createExecutor(ExecutionMode mode, TickStore tickStore, IOrderAdapter orderAdapter) {
+        return switch (mode) {
+            case LIVE -> new LiveOrderExecutor(orderAdapter);
+            case BACKTEST -> new BacktestOrderExecutor();
+            default -> new PaperOrderExecutor(tickStore);
+        };
     }
 
-    private void loadYamlStrategies(CandleService cs, StrategyEvaluator se, RiskManager riskMgr) {
+    // ── Strategy loading (called by EngineConfiguration) ─────────────────────
+
+    public void loadYamlStrategies(CandleService cs, StrategyEvaluator se) {
         Path strategiesDir = Path.of("config/strategies");
         Path strategiesPath = Path.of("config/strategies/intraday.yaml");
         Path defaultsPath = Path.of("config/defaults.yaml");
@@ -197,7 +127,7 @@ public class TradingEngine implements OrderStateListener {
 
                 for (Map.Entry<String, StrategyYamlConfig> entry : initialConfigs.entrySet()) {
                     StrategyRiskConfig riskOverride = StrategyRiskConfig.from(entry.getValue().getRisk());
-                    riskMgr.applyStrategyRiskOverride(entry.getKey(), riskOverride);
+                    preTradeGate.applyStrategyRiskOverride(entry.getKey(), riskOverride);
                 }
                 log.info("Loaded {} strategy configs from YAML at startup", initialConfigs.size());
 
@@ -208,7 +138,7 @@ public class TradingEngine implements OrderStateListener {
                         newStrategies -> {
                             for (Map.Entry<String, StrategyYamlConfig> entry : newStrategies.entrySet()) {
                                 StrategyRiskConfig riskOverride = StrategyRiskConfig.from(entry.getValue().getRisk());
-                                riskMgr.applyStrategyRiskOverride(entry.getKey(), riskOverride);
+                                preTradeGate.applyStrategyRiskOverride(entry.getKey(), riskOverride);
                             }
                             se.updateStrategyConfigs(newStrategies);
                             log.info("Hot-reload applied: {} strategy configs updated", newStrategies.size());
@@ -217,6 +147,30 @@ public class TradingEngine implements OrderStateListener {
                 log.warn("Failed to load strategy YAML configs at startup: {}", e.getMessage());
             }
         }
+    }
+
+    public void initializePluggableStrategies(StrategyEvaluator se) {
+        // Phase-II: Register the default voting strategy
+        var defaultStrategy = new com.rj.strategy.MultiTimeframeVotingStrategy(
+                "trend_following",
+                "Trend Following (Phase-I Port)",
+                0.70, // minConfidence
+                2.0,  // slAtrMultiplier
+                2.0   // tpRMultiple
+        );
+        se.addStrategy(defaultStrategy);
+
+        // Register configuration for this strategy in PreTradeGate
+        TradeStrategyConfig stratCfg = new TradeStrategyConfig();
+        stratCfg.setStrategyId(defaultStrategy.getId());
+        stratCfg.setName(defaultStrategy.getName());
+        stratCfg.setActive(true);
+        stratCfg.setAllocationPercentage(100.0);
+        stratCfg.setSizingType(com.rj.model.SizingType.VOLATILITY_ATR);
+        stratCfg.setRiskPercentage(1.0);
+        stratCfg.setAtrMultiplier(2.0);
+
+        preTradeGate.updateStrategyConfig(stratCfg);
     }
 
     // ── OrderStateListener ───────────────────────────────────────────────────
@@ -239,7 +193,7 @@ public class TradingEngine implements OrderStateListener {
 
     private void handleEntryFilled(ManagedOrder order) {
         log.info("[{}] ENTRY FILLED: {} @ {}", order.getSymbol(), order.getFilledQuantity(), order.getFillPrice());
-        
+
         TradeRecord record = openRecords.get(order.getCorrelationId());
         double sl = record != null ? record.getInitialStopLoss() : order.getFillPrice() * 0.99;
         double tp = record != null ? record.getTakeProfit() : order.getFillPrice() * 1.02;
@@ -254,13 +208,13 @@ public class TradingEngine implements OrderStateListener {
                 sl, tp,
                 order.getLastUpdatedAt());
 
-        positionMonitor.addPosition(pos);
+        positionBook.add(pos);
         journal.logOrderEntry(null, order.toOrderFill());
     }
 
     private void handleExitFilled(ManagedOrder order) {
         log.info("[{}] EXIT FILLED: {} @ {}", order.getSymbol(), order.getFilledQuantity(), order.getFillPrice());
-        
+
         TradeRecord record = openRecords.remove(order.getCorrelationId());
         if (record != null) {
             ExitReason reason = ExitReason.MANUAL;
@@ -269,11 +223,11 @@ public class TradingEngine implements OrderStateListener {
             }
 
             record.close(order.getFillPrice(), order.getLastUpdatedAt(), reason);
-            riskManager.recordClosedTrade(record);
+            riskSessionState.recordClosedTrade(record);
             journal.logTradeClosed(record);
-            
-            log.info("[{}] Trade CLOSED: pnl={} R={}", order.getSymbol(), 
-                    String.format("%.2f", record.getPnl()), 
+
+            log.info("[{}] Trade CLOSED: pnl={} R={}", order.getSymbol(),
+                    String.format("%.2f", record.getPnl()),
                     String.format("%.2f", record.getRMultipleAchieved()));
         }
     }
@@ -291,8 +245,8 @@ public class TradingEngine implements OrderStateListener {
         log.info("[{}] Signal received: {}", signal.getSymbol(), signal);
         journal.logSignalGenerated(signal);
 
-        RiskManager.PreTradeResult check = riskManager.preTradeCheck(
-                signal, positionMonitor.openPositions(), config.getRiskConfig().getInitialCapitalInr());
+        PreTradeResult check = preTradeGate.preTradeCheck(
+                signal, positionBook.openPositions(), config.getRiskConfig().getInitialCapitalInr());
 
         if (!check.approved()) {
             log.info("[{}] Signal REJECTED: {}", signal.getSymbol(), check.rejectReason());
@@ -300,7 +254,6 @@ public class TradingEngine implements OrderStateListener {
             return;
         }
 
-        // Initialize TradeRecord placeholder
         double entryAtr = Math.abs(signal.getSuggestedEntry() - signal.getSuggestedStopLoss()) / 2.0;
         TradeRecord record = new TradeRecord(
                 signal.getCorrelationId(), signal.getSymbol(), signal.getStrategyId(),
@@ -330,7 +283,7 @@ public class TradingEngine implements OrderStateListener {
         }
 
         disruptorEngine.start();
-        positionMonitor.start();
+        scheduledPositionManager.start();
         anomalyDetector.start();
         strategyEvaluator.start();
         candleService.start(config.getActiveSymbols());
@@ -356,40 +309,27 @@ public class TradingEngine implements OrderStateListener {
         candleService.stop();
         strategyEvaluator.stop();
         anomalyDetector.stop();
-        positionMonitor.stop();
+        scheduledPositionManager.stop();
         disruptorEngine.stop();
     }
 
-    // ── Standard Boilerplate ─────────────────────────────────────────────────
-
-    private static ExecutionMode resolveMode(String appEnv) {
-        if (appEnv == null) return ExecutionMode.PAPER;
-        return switch (appEnv.trim().toUpperCase()) {
-            case "LIVE" -> ExecutionMode.LIVE;
-            case "BACKTEST" -> ExecutionMode.BACKTEST;
-            default -> ExecutionMode.PAPER;
-        };
-    }
-
-    private static IOrderExecutor createExecutor(ExecutionMode mode, TickStore tickStore, IOrderAdapter orderAdapter) {
-        return switch (mode) {
-            case LIVE -> new LiveOrderExecutor(orderAdapter);
-            case BACKTEST -> new BacktestOrderExecutor();
-            default -> new PaperOrderExecutor(tickStore);
-        };
-    }
+    // ── Getters ───────────────────────────────────────────────────────────────
 
     public boolean isRunning() { return running.get(); }
     public ExecutionMode getMode() { return mode; }
-    public RiskManager getRiskManager() { return riskManager; }
     public TradeJournal getJournal() { return journal; }
     public OrderTracker getOrderTracker() { return orderManager.getTracker(); }
     public BrokerCircuitBreaker getCircuitBreaker() { return circuitBreaker; }
     public TickDisruptorEngine getDisruptorEngine() { return disruptorEngine; }
     public FyersSocketListener getSocketListener() { return socketListener; }
-    
+
+    // New decomposed getters
+    public PreTradeGate getPreTradeGate() { return preTradeGate; }
+    public RiskSessionState getRiskSessionState() { return riskSessionState; }
+    public PositionBook getPositionBook() { return positionBook; }
+    public ScheduledPositionManager getScheduledPositionManager() { return scheduledPositionManager; }
+
     // REST API Accessors
-    public PositionMonitor getPositionMonitor() { return positionMonitor; }
     public HealthMonitor getHealthMonitor() { return healthMonitor; }
     public CandleService getCandleService() { return candleService; }
     public StrategyEvaluator getStrategyEvaluator() { return strategyEvaluator; }
@@ -397,8 +337,8 @@ public class TradingEngine implements OrderStateListener {
     public AnomalyDetector getAnomalyDetector() { return anomalyDetector; }
 
     public int flattenAll(String reason) {
-        riskManager.triggerAnomaly(reason);
-        return positionMonitor.closeAllPositions(ExitReason.ANOMALY_FLATTEN);
+        riskSessionState.triggerAnomaly(reason);
+        return scheduledPositionManager.closeAllPositions(ExitReason.ANOMALY_FLATTEN);
     }
 
     public StrategyAnalyzer.Report analyzeSession() {

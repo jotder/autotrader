@@ -35,9 +35,9 @@ public class StatusController {
     public Map<String, Object> health() {
         return Map.of(
                 "engineRunning", engine.isRunning(),
-                "positionMonitorRunning", engine.getPositionMonitor().isRunning(),
+                "scheduledPositionManagerRunning", engine.getScheduledPositionManager().isRunning(),
                 "healthMonitorRunning", engine.getHealthMonitor().isRunning(),
-                "openPositionCount", engine.getPositionMonitor().openPositionCount(),
+                "openPositionCount", engine.getPositionBook().openPositionCount(),
                 "closedTradeCount", engine.getJournal().closedTradeCount(),
                 "timestamp", Instant.now()
         );

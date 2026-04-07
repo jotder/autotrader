@@ -2,7 +2,8 @@ package com.rj.web;
 
 import com.rj.config.ConfigManager;
 import com.rj.engine.HealthMonitor;
-import com.rj.engine.PositionMonitor;
+import com.rj.engine.PositionBook;
+import com.rj.engine.ScheduledPositionManager;
 import com.rj.engine.TradingEngine;
 import com.rj.engine.TradeJournal;
 import com.rj.model.ExecutionMode;
@@ -44,23 +45,25 @@ class StatusControllerTest {
 
     @Test
     void health_returnsComponentStatus() throws Exception {
-        PositionMonitor pm = mock(PositionMonitor.class);
+        ScheduledPositionManager spm = mock(ScheduledPositionManager.class);
         HealthMonitor hm = mock(HealthMonitor.class);
         TradeJournal journal = mock(TradeJournal.class);
+        PositionBook positionBook = mock(PositionBook.class);
 
         when(engine.isRunning()).thenReturn(true);
-        when(engine.getPositionMonitor()).thenReturn(pm);
+        when(engine.getScheduledPositionManager()).thenReturn(spm);
         when(engine.getHealthMonitor()).thenReturn(hm);
         when(engine.getJournal()).thenReturn(journal);
-        when(pm.isRunning()).thenReturn(true);
+        when(engine.getPositionBook()).thenReturn(positionBook);
+        when(spm.isRunning()).thenReturn(true);
         when(hm.isRunning()).thenReturn(true);
-        when(pm.openPositionCount()).thenReturn(2);
+        when(positionBook.openPositionCount()).thenReturn(2);
         when(journal.closedTradeCount()).thenReturn(5);
 
         mockMvc.perform(get("/api/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.engineRunning").value(true))
-                .andExpect(jsonPath("$.positionMonitorRunning").value(true))
+                .andExpect(jsonPath("$.scheduledPositionManagerRunning").value(true))
                 .andExpect(jsonPath("$.openPositionCount").value(2))
                 .andExpect(jsonPath("$.closedTradeCount").value(5));
     }

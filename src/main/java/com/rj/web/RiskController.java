@@ -2,8 +2,10 @@ package com.rj.web;
 
 import com.rj.config.ConfigManager;
 import com.rj.engine.AnomalyDetector;
-import com.rj.engine.RiskManager;
 import com.rj.engine.TradingEngine;
+import com.rj.engine.risk.PreTradeGate;
+import com.rj.engine.risk.PreTradeResult;
+import com.rj.engine.risk.RiskSessionState;
 import com.rj.model.Confidence;
 import com.rj.model.TradeSignal;
 import com.rj.web.dto.ActionResponse;
@@ -29,12 +31,12 @@ public class RiskController {
 
     @GetMapping("/risk")
     public RiskResponse risk() {
-        RiskManager rm = engine.getRiskManager();
+        RiskSessionState rs = engine.getRiskSessionState();
         var cfg = configManager.getRiskConfig();
         return new RiskResponse(
-                rm.getDailyRealizedPnl(),
-                rm.isKillSwitchActive(),
-                rm.isDailyProfitLocked(),
+                rs.getDailyRealizedPnl(),
+                rs.isKillSwitchActive(),
+                rs.isDailyProfitLocked(),
                 cfg.getMaxDailyLossInr(),
                 cfg.getMaxDailyProfitInr(),
                 cfg.getInitialCapitalInr()
@@ -53,9 +55,9 @@ public class RiskController {
                 .atr(request.atr() > 0 ? request.atr() : request.entryPrice() * 0.01)
                 .build();
 
-        RiskManager.PreTradeResult result = engine.getRiskManager().preTradeCheck(
+        PreTradeResult result = engine.getPreTradeGate().preTradeCheck(
                 dummySignal,
-                engine.getPositionMonitor().openPositions(),
+                engine.getPositionBook().openPositions(),
                 configManager.getRiskConfig().getInitialCapitalInr()
         );
 
@@ -70,12 +72,12 @@ public class RiskController {
 
     @GetMapping("/anomaly/status")
     public Map<String, Object> anomalyStatus() {
-        RiskManager rm = engine.getRiskManager();
+        RiskSessionState rs = engine.getRiskSessionState();
         var result = new LinkedHashMap<String, Object>();
-        result.put("anomalyMode", rm.isAnomalyMode());
-        result.put("reason", rm.getAnomalyReason());
-        result.put("triggeredAt", rm.getAnomalyTriggeredAt());
-        result.put("killSwitchActive", rm.isKillSwitchActive());
+        result.put("anomalyMode", rs.isAnomalyMode());
+        result.put("reason", rs.getAnomalyReason());
+        result.put("triggeredAt", rs.getAnomalyTriggeredAt());
+        result.put("killSwitchActive", rs.isKillSwitchActive());
         AnomalyDetector detector = engine.getAnomalyDetector();
         if (detector != null) {
             result.put("detectorTriggered", detector.isTriggered());
@@ -86,8 +88,8 @@ public class RiskController {
 
     @PostMapping("/anomaly/acknowledge")
     public ActionResponse acknowledgeAnomaly() {
-        RiskManager rm = engine.getRiskManager();
-        boolean cleared = rm.acknowledgeAnomaly();
+        RiskSessionState rs = engine.getRiskSessionState();
+        boolean cleared = rs.acknowledgeAnomaly();
         if (cleared) {
             AnomalyDetector detector = engine.getAnomalyDetector();
             if (detector != null) detector.reset();
@@ -107,13 +109,13 @@ public class RiskController {
 
     @PostMapping("/kill")
     public ActionResponse kill(@RequestParam(defaultValue = "Manual kill via REST API") String reason) {
-        engine.getRiskManager().activateKillSwitch(reason);
+        engine.getRiskSessionState().activateKillSwitch(reason);
         return new ActionResponse(true, "Kill switch activated: " + reason);
     }
 
     @PostMapping("/reset")
     public ActionResponse reset() {
-        engine.getRiskManager().resetDay();
+        engine.getRiskSessionState().resetDay();
         return new ActionResponse(true, "Daily risk state reset");
     }
 }

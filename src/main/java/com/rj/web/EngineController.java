@@ -2,6 +2,7 @@ package com.rj.web;
 
 import com.rj.broker.ITickFeed;
 import com.rj.engine.*;
+import com.rj.engine.risk.RiskSessionState;
 import com.rj.fyers.TokenRefreshScheduler;
 import com.rj.model.*;
 import com.rj.web.dto.ActionResponse;
@@ -32,7 +33,7 @@ public class EngineController {
 
     @GetMapping("/positions")
     public Collection<OpenPosition> positions() {
-        return engine.getPositionMonitor().openPositions();
+        return engine.getPositionBook().openPositions();
     }
 
     @GetMapping("/trades")
@@ -67,9 +68,8 @@ public class EngineController {
 
     @PostMapping("/exit/{correlationId}")
     public ActionResponse exit(@PathVariable String correlationId) {
-        PositionMonitor pm = engine.getPositionMonitor();
         try {
-            pm.requestManualExit(correlationId);
+            engine.getScheduledPositionManager().requestManualExit(correlationId);
             return new ActionResponse(true, "Manual exit requested for " + correlationId);
         } catch (IllegalArgumentException e) {
             return new ActionResponse(false, e.getMessage());
