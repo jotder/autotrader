@@ -129,6 +129,25 @@ public final class SymbolMasterCache {
     public Set<String> allUnderlyings() { return byUnderlying.keySet(); }
 
     /**
+     * Returns all distinct underlying symbols that have at least one CE or PE option
+     * in the symbol master (i.e., F&amp;O-eligible underlyings).
+     * Futures (optionType "XX") and equity entries (null optionType) are excluded.
+     */
+    public Set<String> allFnoUnderlyings() {
+        return byUnderlying.entrySet().stream()
+                .filter(e -> e.getValue().stream()
+                        .anyMatch(entry -> "CE".equals(entry.optionType())
+                                || "PE".equals(entry.optionType())))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    /** Test-only factory — builds a cache directly from a list of entries. */
+    static SymbolMasterCache fromEntries(List<SymbolMasterEntry> entries) {
+        return new SymbolMasterCache(entries);
+    }
+
+    /**
      * Search by partial ticker or underlying (case-insensitive substring match).
      * Returns at most {@code limit} results.
      */
