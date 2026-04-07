@@ -1,5 +1,6 @@
 package com.rj.web;
 
+import com.rj.broker.ITickFeed;
 import com.rj.engine.*;
 import com.rj.model.*;
 import com.rj.web.dto.ActionResponse;
@@ -15,10 +16,12 @@ public class EngineController {
 
     private final TradingEngine engine;
     private final TickStore tickStore;
+    private final ITickFeed brokerFeed;
 
-    public EngineController(TradingEngine engine, TickStore tickStore) {
+    public EngineController(TradingEngine engine, TickStore tickStore, ITickFeed brokerFeed) {
         this.engine = engine;
         this.tickStore = tickStore;
+        this.brokerFeed = brokerFeed;
     }
 
     // ── Read endpoints ──────────────────────────────────────────────────────
@@ -153,5 +156,18 @@ public class EngineController {
         }
         cb.forceClose();
         return new ActionResponse(true, "Circuit breaker force-closed");
+    }
+
+    // ── Broker connect endpoint ───────────────────────────────────────────
+
+    record ConnectRequest(String accessToken) {}
+
+    @PostMapping("/connect")
+    public ResponseEntity<Void> connect(@RequestBody ConnectRequest request) {
+        if (request.accessToken() == null || request.accessToken().isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        brokerFeed.connect(request.accessToken());
+        return ResponseEntity.ok().build();
     }
 }

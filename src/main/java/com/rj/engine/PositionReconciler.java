@@ -7,7 +7,7 @@ import com.rj.model.Signal;
 import com.rj.model.Timeframe;
 import com.rj.model.TradeRecord;
 import com.rj.model.ExecutionMode;
-import com.rj.fyers.FyersPositions;
+import com.rj.broker.IOrderAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +35,7 @@ public class PositionReconciler {
     private static final Logger log = LoggerFactory.getLogger(PositionReconciler.class);
     private static final double DEFAULT_SL_PERCENT = 0.02; // 2% fallback SL for adopted positions
 
-    private final FyersPositions fyersPositions;
+    private final IOrderAdapter fyersPositions;
     private final PositionMonitor positionMonitor;
     private final ConcurrentHashMap<String, TradeRecord> openRecords;
     private final TradeJournal journal;
@@ -44,7 +44,7 @@ public class PositionReconciler {
 
     private volatile ReconciliationResult lastResult;
 
-    public PositionReconciler(FyersPositions fyersPositions,
+    public PositionReconciler(IOrderAdapter fyersPositions,
                               PositionMonitor positionMonitor,
                               ConcurrentHashMap<String, TradeRecord> openRecords,
                               TradeJournal journal,
@@ -52,7 +52,7 @@ public class PositionReconciler {
         this(fyersPositions, positionMonitor, openRecords, journal, riskConfig, null);
     }
 
-    public PositionReconciler(FyersPositions fyersPositions,
+    public PositionReconciler(IOrderAdapter fyersPositions,
                               PositionMonitor positionMonitor,
                               ConcurrentHashMap<String, TradeRecord> openRecords,
                               TradeJournal journal,

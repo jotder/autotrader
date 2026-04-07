@@ -1,9 +1,12 @@
 package com.rj.engine;
 
+import com.rj.broker.IOrderAdapter;
 import com.rj.config.RiskConfig;
 import com.rj.model.*;
 import com.rj.model.Timeframe;
-import com.rj.fyers.FyersPositions;
+import com.tts.in.model.MultiLegModel;
+import com.tts.in.model.PlaceOrderModel;
+import com.tts.in.model.PositionConversionModel;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
@@ -199,13 +202,9 @@ class PositionReconcilerTest {
 
     // ── Test helpers ────────────────────────────────────────────────────────────
 
-    /** Mock FyersPositions that returns a pre-configured PositionsSummary. */
-    static class MockFyersPositions extends FyersPositions {
+    /** Mock IOrderAdapter that returns a pre-configured PositionsSummary. */
+    static class MockFyersPositions implements IOrderAdapter {
         private PositionsSummary positions;
-
-        MockFyersPositions() {
-            // Don't call super() broker init — we override getPositions()
-        }
 
         void setPositions(PositionsSummary positions) {
             this.positions = positions;
@@ -215,6 +214,19 @@ class PositionReconcilerTest {
         public PositionsSummary getPositions() {
             return positions;
         }
+
+        @Override public OrderResult placeOrder(PlaceOrderModel model) { throw new UnsupportedOperationException(); }
+        @Override public MultiOrderResult placeMultipleOrders(java.util.List<PlaceOrderModel> models) { throw new UnsupportedOperationException(); }
+        @Override public MultiOrderResult placeMultiLegOrder(java.util.List<MultiLegModel> models) { throw new UnsupportedOperationException(); }
+        @Override public OrderResult modifyOrder(PlaceOrderModel model) { throw new UnsupportedOperationException(); }
+        @Override public MultiOrderResult modifyMultipleOrders(java.util.List<PlaceOrderModel> models) { throw new UnsupportedOperationException(); }
+        @Override public OrderResult cancelOrder(String orderId) { throw new UnsupportedOperationException(); }
+        @Override public MultiOrderResult cancelMultipleOrders(java.util.List<String> orderIds) { throw new UnsupportedOperationException(); }
+        @Override public ApiResponse exitPositions(java.util.List<String> positionIds) { throw new UnsupportedOperationException(); }
+        @Override public ApiResponse exitPositionBySegmentSidePrdType(int[] sides, int[] segments, String[] products) { throw new UnsupportedOperationException(); }
+        @Override public ApiResponse convertPosition(PositionConversionModel model) { throw new UnsupportedOperationException(); }
+        @Override public java.util.List<OrderEntry> getOrders() { throw new UnsupportedOperationException(); }
+        @Override public java.util.List<OrderEntry> getOrderById(String orderId) { throw new UnsupportedOperationException(); }
     }
 
     private static PositionsSummary buildPositionsSummary(JSONObject... positions) {

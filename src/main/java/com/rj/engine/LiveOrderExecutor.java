@@ -1,5 +1,6 @@
 package com.rj.engine;
 
+import com.rj.broker.IOrderAdapter;
 import com.rj.model.*;
 import com.tts.in.model.FyersClass;
 import com.tts.in.model.PlaceOrderModel;
@@ -38,14 +39,24 @@ public class LiveOrderExecutor implements IOrderExecutor {
     private final FyersOrderPlacement fyersOrders;
     private volatile BrokerCircuitBreaker circuitBreaker;
     private final AtomicInteger orderSeq = new AtomicInteger(0);
+    // TODO(Task 6): replace FyersOrderPlacement with IOrderAdapter
+    @SuppressWarnings("unused")
+    private final IOrderAdapter orderAdapter;
 
     public LiveOrderExecutor() {
-        this(null);
+        this((IOrderAdapter) null);
+    }
+
+    public LiveOrderExecutor(IOrderAdapter orderAdapter) {
+        this.fyersOrders = new FyersOrderPlacement();
+        this.circuitBreaker = null;
+        this.orderAdapter = orderAdapter;
     }
 
     public LiveOrderExecutor(BrokerCircuitBreaker circuitBreaker) {
         this.fyersOrders = new FyersOrderPlacement();
         this.circuitBreaker = circuitBreaker;
+        this.orderAdapter = null;
     }
 
     /** Attach circuit breaker after construction (used when wiring at engine startup). */
