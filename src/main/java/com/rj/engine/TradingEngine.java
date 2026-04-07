@@ -120,9 +120,11 @@ public class TradingEngine implements OrderStateListener {
         CandleService cs = new CandleService(tickStore, recQueue, config);
         engineFinal.candleService = cs;
 
-        // Anomaly detector
+        // Anomaly detector (uses new decomposed dependencies; Task 9 will wire full RiskSessionState)
+        com.rj.engine.risk.RiskSessionState riskSessionState = new com.rj.engine.risk.RiskSessionState(riskCfg);
+        ScheduledPositionManager spm = new ScheduledPositionManager(new PositionBook(), riskSessionState, riskCfg, tickStore);
         AnomalyDetector ad = new AnomalyDetector();
-        ad.initialize(riskMgr, pm, tickStore, journal, riskCfg);
+        ad.initialize(riskSessionState, spm, tickStore, journal, riskCfg);
         engineFinal.anomalyDetector = ad;
 
         // Circuit breaker

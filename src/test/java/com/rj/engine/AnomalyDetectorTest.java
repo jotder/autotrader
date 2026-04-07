@@ -1,7 +1,7 @@
 package com.rj.engine;
 
 import com.rj.config.RiskConfig;
-import com.rj.engine.ExitReason;
+import com.rj.engine.risk.RiskSessionState;
 import com.rj.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -9,20 +9,17 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 class AnomalyDetectorTest {
 
-    private RiskManager riskManager;
-    private PositionMonitor positionMonitor;
+    private RiskSessionState riskSessionState;
+    private ScheduledPositionManager scheduledPositionManager;
     private TickStore tickStore;
     private TradeJournal journal;
     private RiskConfig riskConfig;
     private AnomalyDetector detector;
-    private final AtomicInteger closedCount = new AtomicInteger(0);
 
     @BeforeEach
     void setup() {
@@ -31,23 +28,15 @@ class AnomalyDetectorTest {
         env.put("RISK_MAX_DAILY_LOSS_INR", "5000");
         riskConfig = RiskConfig.fromEnvironment(env::get);
 
-        riskManager = new RiskManager(riskConfig);
-        positionMonitor = new PositionMonitor(null, riskConfig, riskManager, (p, r) -> {}, null) {
-            @Override
-            public int closeAllPositions(ExitReason reason) {
-                return closedCount.get();
-            }
-            @Override
-            public void start() {}
-            @Override
-            public void stop() {}
-        };
-        
+        riskSessionState = new RiskSessionState(riskConfig);
+        scheduledPositionManager = new ScheduledPositionManager(
+                new PositionBook(), riskSessionState, riskConfig, null);
+
         tickStore = TickStore.getInstance();
         journal = new TradeJournal(ExecutionMode.BACKTEST);
 
         detector = new AnomalyDetector();
-        detector.initialize(riskManager, positionMonitor, tickStore, journal, riskConfig);
+        detector.initialize(riskSessionState, scheduledPositionManager, tickStore, journal, riskConfig);
     }
 
     @Test
@@ -57,18 +46,17 @@ class AnomalyDetectorTest {
                 "corr-1", "NSE:SBIN-EQ", "test", ExecutionMode.PAPER,
                 Signal.BUY, 500.0, 10, 490.0, 520.0,
                 Instant.now(), 2.0, 1.0, Map.of());
-        
+
         // Close it with a loss of 6000
         record.close(record.getEntryPrice() - (6000.0 / record.getQuantity()), Instant.now(), ExitReason.STOP_LOSS);
-        
-        riskManager.recordClosedTrade(record);
-        
-        closedCount.set(3);
+
+        riskSessionState.recordClosedTrade(record);
+
         detector.check();
-        
+
         assertTrue(detector.isTriggered());
-        assertTrue(riskManager.isAnomalyMode());
-        assertTrue(riskManager.getAnomalyReason().contains("CRITICAL DRAWDOWN"));
+        assertTrue(riskSessionState.isAnomalyMode());
+        assertTrue(riskSessionState.getAnomalyReason().contains("CRITICAL DRAWDOWN"));
     }
 
     @Test
@@ -76,21 +64,21 @@ class AnomalyDetectorTest {
         for (int i = 0; i < 10; i++) {
             detector.recordBrokerError();
         }
-        
+
         detector.check();
-        
+
         assertTrue(detector.isTriggered());
-        assertTrue(riskManager.isAnomalyMode());
-        assertTrue(riskManager.getAnomalyReason().contains("BROKER ERROR CASCADE"));
+        assertTrue(riskSessionState.isAnomalyMode());
+        assertTrue(riskSessionState.getAnomalyReason().contains("BROKER ERROR CASCADE"));
     }
 
     @Test
     void resetClearsTrigger() {
         for (int i = 0; i < 10; i++) detector.recordBrokerError();
-        
+
         detector.check();
         assertTrue(detector.isTriggered());
-        
+
         detector.reset();
         assertFalse(detector.isTriggered());
     }

@@ -1,6 +1,7 @@
 package com.rj.engine;
 
 import com.rj.engine.ExitReason;
+import com.rj.engine.risk.RiskSessionState;
 import com.rj.config.RiskConfig;
 import com.rj.model.TickStore;
 import org.slf4j.Logger;
@@ -35,8 +36,8 @@ public class AnomalyDetector {
     private final double heapCriticalPct = 0.90;
 
     // ── Dependencies ────────────────────────────────────────────────────────
-    private RiskManager riskManager;
-    private PositionMonitor positionMonitor;
+    private RiskSessionState riskSessionState;
+    private ScheduledPositionManager scheduledPositionManager;
     private TickStore tickStore;
     private TradeJournal journal;
     private RiskConfig riskConfig;
@@ -51,10 +52,11 @@ public class AnomalyDetector {
         // Required for Spring, but dependencies wired via TradingEngine for now
     }
 
-    public void initialize(RiskManager riskManager, PositionMonitor positionMonitor,
+    public void initialize(RiskSessionState riskSessionState,
+                           ScheduledPositionManager scheduledPositionManager,
                            TickStore tickStore, TradeJournal journal, RiskConfig riskConfig) {
-        this.riskManager = riskManager;
-        this.positionMonitor = positionMonitor;
+        this.riskSessionState = riskSessionState;
+        this.scheduledPositionManager = scheduledPositionManager;
         this.tickStore = tickStore;
         this.journal = journal;
         this.riskConfig = riskConfig;
@@ -83,7 +85,7 @@ public class AnomalyDetector {
      * Run all anomaly checks. If any condition is met, triggers emergency flatten.
      */
     public void check() {
-        if (triggered.get() || riskManager == null || riskManager.isAnomalyMode()) return;
+        if (triggered.get() || riskSessionState == null || riskSessionState.isAnomalyMode()) return;
 
         String reason = null;
 
@@ -110,7 +112,7 @@ public class AnomalyDetector {
         double capital = riskConfig.getInitialCapitalInr();
         if (capital <= 0) return null;
         
-        double pnl = riskManager.getDailyRealizedPnl();
+        double pnl = riskSessionState.getDailyRealizedPnl();
         double drawdownPct = Math.abs(pnl) / capital * 100.0;
         
         if (pnl < 0 && drawdownPct >= maxDrawdownPct) {
@@ -172,19 +174,19 @@ public class AnomalyDetector {
         
         log.error("!!! EMERGENCY ANOMALY TRIGGERED !!! Reason: {}", reason);
 
-        // 1. Block all new entries via RiskManager
-        riskManager.triggerAnomaly(reason);
+        // 1. Block all new entries via RiskSessionState
+        riskSessionState.triggerAnomaly(reason);
 
         // 2. Dispatch flatten operation to a dedicated virtual thread to avoid blocking the guard
         Thread.ofVirtual().name("emergency-flattener").start(() -> {
             try {
-                int closed = positionMonitor.closeAllPositions(ExitReason.ANOMALY_FLATTEN);
+                int closed = scheduledPositionManager.closeAllPositions(ExitReason.ANOMALY_FLATTEN);
                 log.error("EMERGENCY FLATTEN COMPLETE: closed {} positions", closed);
-                
+
                 journal.log("ANOMALY_FLATTEN", java.util.Map.of(
                         "reason", reason,
                         "closedCount", closed,
-                        "pnlAtTrigger", riskManager.getDailyRealizedPnl()
+                        "pnlAtTrigger", riskSessionState.getDailyRealizedPnl()
                 ));
             } catch (Exception e) {
                 log.error("CRITICAL: Emergency flatten failed: {}", e.getMessage(), e);
