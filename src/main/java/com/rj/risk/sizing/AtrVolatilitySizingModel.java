@@ -19,13 +19,18 @@ public class AtrVolatilitySizingModel implements ISizingModel {
     @Override
     public double calculateQuantity(TradeSignal signal, double currentCapital) {
         double atr = signal.getAtr();
-        if (atr <= 0) return 0;
+
+        // Fallback: when ATR is not set, use the signal's SL distance as the risk-per-unit proxy
+        double riskDistance = atr > 0
+                ? atr * atrMultiplier
+                : Math.abs(signal.getSuggestedEntry() - signal.getSuggestedStopLoss());
+
+        if (riskDistance <= 0) return 0;
 
         double adjustedRiskPct = riskPercentage * signal.getConfidenceLevel().getMultiplier();
         double monetaryRisk = (currentCapital * adjustedRiskPct) / 100.0;
 
-        // Risk is distributed over (ATR * Multiplier)
-        return monetaryRisk / (atr * atrMultiplier);
+        return monetaryRisk / riskDistance;
     }
 
     @Override
