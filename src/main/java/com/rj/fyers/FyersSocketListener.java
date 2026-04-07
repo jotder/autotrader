@@ -24,7 +24,7 @@ import java.util.List;
 public class FyersSocketListener implements FyersSocketDelegate {
     private static final Logger log = LoggerFactory.getLogger(FyersSocketListener.class);
     
-    public FyersSocket socket;
+    public volatile FyersSocket socket;
     public final FyersClass fyersClass = FyersClientFactory.getConfiguredInstance();
     
     private final TickDisruptorEngine disruptor;
