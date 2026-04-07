@@ -5,7 +5,7 @@ import com.rj.engine.disruptor.TickStoreUpdater;
 import com.rj.fyers.FyersSocketListener;
 import com.rj.config.*;
 import com.rj.model.*;
-import com.rj.fyers.FyersPositions;
+import com.rj.broker.IOrderAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,12 +77,12 @@ public class TradingEngine implements OrderStateListener {
     /**
      * Creates a fully wired TradingEngine.
      */
-    public static TradingEngine create(ConfigManager config) {
+    public static TradingEngine create(ConfigManager config, IOrderAdapter orderAdapter) {
         RiskConfig riskCfg = config.getRiskConfig();
         TickStore tickStore = TickStore.getInstance();
 
         ExecutionMode mode = resolveMode(config.getProperty("APP_ENV"));
-        IOrderExecutor executor = createExecutor(mode, tickStore);
+        IOrderExecutor executor = createExecutor(mode, tickStore, orderAdapter);
 
         TradeJournal journal = new TradeJournal(mode);
         RiskManager riskMgr = new RiskManager(riskCfg);
@@ -141,7 +141,7 @@ public class TradingEngine implements OrderStateListener {
 
         if (mode == ExecutionMode.LIVE) {
             engineFinal.positionReconciler = new PositionReconciler(
-                    new FyersPositions(), pm, engineFinal.openRecords, journal, riskCfg);
+                    orderAdapter, pm, engineFinal.openRecords, journal, riskCfg);
         }
 
         // OMS Listener
@@ -371,9 +371,9 @@ public class TradingEngine implements OrderStateListener {
         };
     }
 
-    private static IOrderExecutor createExecutor(ExecutionMode mode, TickStore tickStore) {
+    private static IOrderExecutor createExecutor(ExecutionMode mode, TickStore tickStore, IOrderAdapter orderAdapter) {
         return switch (mode) {
-            case LIVE -> new LiveOrderExecutor();
+            case LIVE -> new LiveOrderExecutor(orderAdapter);
             case BACKTEST -> new BacktestOrderExecutor();
             default -> new PaperOrderExecutor(tickStore);
         };

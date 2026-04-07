@@ -25,7 +25,7 @@ public class FyersSocketListener implements FyersSocketDelegate {
     private static final Logger log = LoggerFactory.getLogger(FyersSocketListener.class);
     
     public volatile FyersSocket socket;
-    public final FyersClass fyersClass = FyersClientFactory.getConfiguredInstance();
+    public final FyersClass fyersClass = FyersClass.getInstance();
     
     private final TickDisruptorEngine disruptor;
     private final OrderManager orderManager;
