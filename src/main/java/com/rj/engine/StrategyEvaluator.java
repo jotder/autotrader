@@ -39,9 +39,9 @@ public class StrategyEvaluator {
     private static final int DEFAULT_COOLDOWN_MINUTES = 25;
 
     private final BlockingQueue<CandleRecommendation> inQueue;
-    private final Consumer<TradeSignal> signalConsumer;
+    private Consumer<TradeSignal> signalConsumer;
     private final RiskConfig riskConfig;
-    private final PositionMonitor positionMonitor;
+    private PositionBook positionBook;
     private final SignalJournal signalJournal;
     private final List<ITradeStrategy> strategies = new ArrayList<>();
 
@@ -56,12 +56,16 @@ public class StrategyEvaluator {
     public StrategyEvaluator(BlockingQueue<CandleRecommendation> inQueue,
                              Consumer<TradeSignal> signalConsumer,
                              RiskConfig riskConfig,
-                             PositionMonitor positionMonitor) {
+                             PositionBook positionBook) {
         this.inQueue = inQueue;
         this.signalConsumer = signalConsumer;
         this.riskConfig = riskConfig;
-        this.positionMonitor = positionMonitor;
+        this.positionBook = positionBook;
         this.signalJournal = new SignalJournal();
+    }
+
+    public void setSignalHandler(Consumer<TradeSignal> handler) {
+        this.signalConsumer = handler;
     }
 
     /**
@@ -157,7 +161,7 @@ public class StrategyEvaluator {
                 if (isExecutionAllowed(symbol, sig)) {
                     log.info("[{}] Strategy [{}] signal APPROVED for execution: {}",
                             symbol, strategy.getId(), sig);
-                    signalConsumer.accept(sig);
+                    if (signalConsumer != null) signalConsumer.accept(sig);
                 } else {
                     log.debug("[{}] Strategy [{}] signal rejected by global gates",
                             symbol, strategy.getId());
@@ -185,7 +189,7 @@ public class StrategyEvaluator {
         }
 
         // ── Gate 3: no open position ──────────────────────────────────────────
-        if (positionMonitor.hasOpenPosition(symbol)) {
+        if (positionBook != null && positionBook.hasOpenPosition(symbol)) {
             log.debug("[{}] Open position exists — skipping entry", symbol);
             return false;
         }

@@ -110,9 +110,9 @@ public class TradingEngine implements OrderStateListener {
         disruptor.addHandler(new TickStoreUpdater());
         disruptor.addHandler(pm);
 
-        // Strategy Evaluator
+        // Strategy Evaluator (positionBook wired in Task 9 rewrite)
         StrategyEvaluator se = new StrategyEvaluator(
-                recQueue, engineFinal::handleSignal, riskCfg, pm);
+                recQueue, engineFinal::handleSignal, riskCfg, (PositionBook) null);
         pm.setStrategyEvaluator(se);    // complete the cycle
         engineFinal.strategyEvaluator = se;
 

@@ -32,7 +32,7 @@ class StrategyEvaluatorYamlTest {
     private LinkedBlockingQueue<CandleRecommendation> queue;
     private AtomicReference<TradeSignal> capturedSignal;
     private RiskConfig riskConfig;
-    private PositionMonitor positionMonitor;
+    private PositionBook positionBook;
     private StrategyEvaluator evaluator;
 
     @BeforeEach
@@ -41,13 +41,11 @@ class StrategyEvaluatorYamlTest {
         capturedSignal = new AtomicReference<>();
         riskConfig = RiskConfig.defaults();
 
-        // PositionMonitor with no open positions (stub)
-        RiskManager riskManager = new RiskManager(riskConfig);
-        positionMonitor = new PositionMonitor(
-                TickStore.getInstance(), riskConfig, riskManager, (pos, reason) -> {}, null);
+        // PositionBook with no open positions
+        positionBook = new PositionBook();
 
         evaluator = new StrategyEvaluator(
-                queue, sig -> capturedSignal.set(sig), riskConfig, positionMonitor);
+                queue, sig -> capturedSignal.set(sig), riskConfig, positionBook);
     }
 
     // ── Helper to build test CandleRecommendation ───────────────────────────────
