@@ -35,7 +35,7 @@ public class PositionReconciler {
     private static final Logger log = LoggerFactory.getLogger(PositionReconciler.class);
     private static final double DEFAULT_SL_PERCENT = 0.02; // 2% fallback SL for adopted positions
 
-    private final IOrderAdapter fyersPositions;
+    private final IOrderAdapter orderAdapter;
     private final PositionMonitor positionMonitor;
     private final ConcurrentHashMap<String, TradeRecord> openRecords;
     private final TradeJournal journal;
@@ -44,21 +44,21 @@ public class PositionReconciler {
 
     private volatile ReconciliationResult lastResult;
 
-    public PositionReconciler(IOrderAdapter fyersPositions,
+    public PositionReconciler(IOrderAdapter orderAdapter,
                               PositionMonitor positionMonitor,
                               ConcurrentHashMap<String, TradeRecord> openRecords,
                               TradeJournal journal,
                               RiskConfig riskConfig) {
-        this(fyersPositions, positionMonitor, openRecords, journal, riskConfig, null);
+        this(orderAdapter, positionMonitor, openRecords, journal, riskConfig, null);
     }
 
-    public PositionReconciler(IOrderAdapter fyersPositions,
+    public PositionReconciler(IOrderAdapter orderAdapter,
                               PositionMonitor positionMonitor,
                               ConcurrentHashMap<String, TradeRecord> openRecords,
                               TradeJournal journal,
                               RiskConfig riskConfig,
                               BrokerCircuitBreaker circuitBreaker) {
-        this.fyersPositions = fyersPositions;
+        this.orderAdapter = orderAdapter;
         this.positionMonitor = positionMonitor;
         this.openRecords = openRecords;
         this.journal = journal;
@@ -77,8 +77,8 @@ public class PositionReconciler {
 
         // ── 1. Fetch broker positions (via circuit breaker if available) ─────────
         PositionsSummary brokerState = circuitBreaker != null
-                ? circuitBreaker.execute(() -> fyersPositions.getPositions(), true)
-                : fyersPositions.getPositions();
+                ? circuitBreaker.execute(() -> orderAdapter.getPositions(), true)
+                : orderAdapter.getPositions();
         if (brokerState == null) {
             throw new ReconciliationException(
                     "Broker API returned null — cannot reconcile positions. Aborting startup.");
