@@ -7,7 +7,7 @@ public class FyersUser {
     FyersClass fyersClass;
 
     public FyersUser() {
-        fyersClass = FyersClientFactory.getConfiguredInstance();
+        fyersClass = FyersClass.getInstance();
     }
 
     /** Returns null on success (SDK returns null when logout succeeds), or error JSONObject. */

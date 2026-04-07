@@ -11,7 +11,7 @@ public class FyersSmartOrders {
     FyersClass fyersClass;
 
     public FyersSmartOrders() {
-        fyersClass = FyersClientFactory.getConfiguredInstance();
+        fyersClass = FyersClass.getInstance();
     }
 
     public OrderResult createSmartLimit(JSONObject requestBody) {

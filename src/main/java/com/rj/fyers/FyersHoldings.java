@@ -9,7 +9,7 @@ public class FyersHoldings {
     FyersClass fyersClass;
 
     public FyersHoldings() {
-        fyersClass = FyersClientFactory.getConfiguredInstance();
+        fyersClass = FyersClass.getInstance();
     }
 
     public HoldingsSummary getHoldings() {

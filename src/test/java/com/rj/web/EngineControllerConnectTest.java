@@ -2,6 +2,7 @@ package com.rj.web;
 
 import com.rj.broker.ITickFeed;
 import com.rj.engine.TradingEngine;
+import com.rj.fyers.TokenRefreshScheduler;
 import com.rj.model.TickStore;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,9 @@ class EngineControllerConnectTest {
 
     @MockBean
     private ITickFeed brokerFeed;
+
+    @MockBean
+    private TokenRefreshScheduler tokenRefreshScheduler;
 
     @Test
     void connect_withToken_returns200AndCallsConnect() throws Exception {

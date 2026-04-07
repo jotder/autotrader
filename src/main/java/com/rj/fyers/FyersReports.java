@@ -12,7 +12,7 @@ public class FyersReports {
     FyersClass fyersClass;
 
     public FyersReports() {
-        fyersClass = FyersClientFactory.getConfiguredInstance();
+        fyersClass = FyersClass.getInstance();
     }
 
     /** @param queryParams e.g. "symbol=NSE:SBIN-EQ&from_date=2025-01-01&to_date=2025-01-31", or null for defaults */

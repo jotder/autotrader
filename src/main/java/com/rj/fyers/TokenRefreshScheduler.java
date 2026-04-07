@@ -21,8 +21,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>
  * Uses the refresh token (stored in {@code .env}) to obtain a new access token
  * via {@link TokenGenerator#generateTokenFromRefreshToken}. After refresh,
- * updates {@code .env} and forces {@link FyersClientFactory} to re-read the
- * new token on the next API call.
+ * updates {@code .env} and calls {@link com.rj.broker.ITickFeed#refreshToken} to
+ * propagate the new token to the broker adapter immediately.
  * <p>
  * Default schedule: first refresh at 6 hours after start, then every 6 hours.
  * Configurable via {@code FYERS_TOKEN_REFRESH_INTERVAL_MINUTES} in .env.

@@ -12,7 +12,7 @@ public class FyersPriceAlerts {
     FyersClass fyersClass;
 
     public FyersPriceAlerts() {
-        fyersClass = FyersClientFactory.getConfiguredInstance();
+        fyersClass = FyersClass.getInstance();
     }
 
     public ApiResponse createPriceAlert(PriceAlertModel alert) {

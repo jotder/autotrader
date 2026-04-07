@@ -12,7 +12,7 @@ public class FyersSmartExit {
     FyersClass fyersClass;
 
     public FyersSmartExit() {
-        fyersClass = FyersClientFactory.getConfiguredInstance();
+        fyersClass = FyersClass.getInstance();
     }
 
     public SmartExitTrigger createSmartExit(JSONObject requestBody) {
