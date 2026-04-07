@@ -134,14 +134,15 @@ public class TradingEngine implements OrderStateListener {
             loe.setCircuitBreaker(cb);
         }
 
-        // Health monitor
+        // Health monitor (TODO Task 9: wire real ScheduledPositionManager + PositionBook)
+        PositionBook positionBook = new PositionBook();
         HealthMonitor hm = new HealthMonitor(
-                tickStore, cs, se, pm, config.getActiveSymbols());
+                tickStore, cs, se, null, positionBook, config.getActiveSymbols());
         engineFinal.healthMonitor = hm;
 
         if (mode == ExecutionMode.LIVE) {
             engineFinal.positionReconciler = new PositionReconciler(
-                    orderAdapter, pm, engineFinal.openRecords, journal, riskCfg);
+                    orderAdapter, positionBook, engineFinal.openRecords, journal, riskCfg);
         }
 
         // OMS Listener

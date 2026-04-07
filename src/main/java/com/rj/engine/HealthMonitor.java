@@ -41,7 +41,8 @@ public class HealthMonitor {
     private final TickStore tickStore;
     private final CandleService candleService;
     private final StrategyEvaluator strategyEvaluator;
-    private final PositionMonitor positionMonitor;
+    private final ScheduledPositionManager scheduledPositionManager;
+    private final PositionBook positionBook;
     private final String[] activeSymbols;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -51,12 +52,14 @@ public class HealthMonitor {
     public HealthMonitor(TickStore tickStore,
                          CandleService candleService,
                          StrategyEvaluator strategyEvaluator,
-                         PositionMonitor positionMonitor,
+                         ScheduledPositionManager scheduledPositionManager,
+                         PositionBook positionBook,
                          String[] activeSymbols) {
         this.tickStore = tickStore;
         this.candleService = candleService;
         this.strategyEvaluator = strategyEvaluator;
-        this.positionMonitor = positionMonitor;
+        this.scheduledPositionManager = scheduledPositionManager;
+        this.positionBook = positionBook;
         this.activeSymbols = activeSymbols;
     }
 
@@ -147,15 +150,15 @@ public class HealthMonitor {
     }
 
     private void checkPositionMonitor() {
-        boolean alive = positionMonitor.isRunning();
-        int openCount = positionMonitor.openPositionCount();
+        boolean alive = scheduledPositionManager != null && scheduledPositionManager.isRunning();
+        int openCount = positionBook.openPositionCount();
         if (!alive) {
             log.error("[HealthMonitor] POSITIONS Monitor is NOT running! {} positions unmonitored",
                     openCount);
         } else {
             log.info("[HealthMonitor] POSITIONS Monitor running — {} open positions", openCount);
             if (openCount > 0) {
-                positionMonitor.openPositions().forEach(pos ->
+                positionBook.openPositions().forEach(pos ->
                         log.info("[HealthMonitor]   → {}", pos));
             }
         }

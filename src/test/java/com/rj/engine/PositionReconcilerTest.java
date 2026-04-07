@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PositionReconcilerTest {
 
     private MockFyersPositions mockPositions;
-    private PositionMonitor positionMonitor;
+    private PositionBook positionBook;
     private ConcurrentHashMap<String, TradeRecord> openRecords;
     private TradeJournal journal;
     private RiskConfig riskConfig;
@@ -38,11 +38,10 @@ class PositionReconcilerTest {
     void setUp() {
         mockPositions = new MockFyersPositions();
         riskConfig = RiskConfig.defaults();
-        RiskManager riskManager = new RiskManager(riskConfig);
-        positionMonitor = new PositionMonitor(TickStore.getInstance(), riskConfig, riskManager, (p, r) -> {}, null);
+        positionBook = new PositionBook();
         openRecords = new ConcurrentHashMap<>();
         journal = new TradeJournal(ExecutionMode.LIVE, tempDir);
-        reconciler = new PositionReconciler(mockPositions, positionMonitor, openRecords, journal, riskConfig);
+        reconciler = new PositionReconciler(mockPositions, positionBook, openRecords, journal, riskConfig);
     }
 
     @Test
@@ -69,11 +68,11 @@ class PositionReconcilerTest {
         assertEquals(1, result.adopted());
         assertEquals(0, result.removed());
         assertEquals(0, result.matched());
-        assertEquals(1, positionMonitor.openPositionCount());
+        assertEquals(1, positionBook.openPositionCount());
         assertEquals(1, openRecords.size());
 
         // Verify adopted position has correct properties
-        OpenPosition adopted = positionMonitor.openPositions().iterator().next();
+        OpenPosition adopted = positionBook.openPositions().iterator().next();
         assertEquals("NSE:SBIN-EQ", adopted.getSymbol());
         assertEquals(Signal.BUY, adopted.getDirection());
         assertEquals(100, adopted.getQuantity());
@@ -94,11 +93,11 @@ class PositionReconcilerTest {
         var result = reconciler.reconcile();
 
         assertEquals(2, result.adopted());
-        assertEquals(2, positionMonitor.openPositionCount());
+        assertEquals(2, positionBook.openPositionCount());
         assertEquals(2, openRecords.size());
 
         // Check short position
-        boolean hasShort = positionMonitor.openPositions().stream()
+        boolean hasShort = positionBook.openPositions().stream()
                 .anyMatch(p -> p.getSymbol().equals("NSE:RELIANCE-EQ")
                         && p.getDirection() == Signal.SELL
                         && p.getQuantity() == 50);
@@ -121,7 +120,7 @@ class PositionReconcilerTest {
         var result = reconciler.reconcile();
 
         assertEquals(0, result.adopted());
-        assertEquals(0, positionMonitor.openPositionCount());
+        assertEquals(0, positionBook.openPositionCount());
     }
 
     @Test
@@ -130,7 +129,7 @@ class PositionReconcilerTest {
         OpenPosition existing = new OpenPosition(
                 "NSE:SBIN-EQ", "corr-1", "strat-1", Signal.BUY,
                 550.0, 100, 539.0, 572.0, java.time.Instant.now());
-        positionMonitor.addPosition(existing);
+        positionBook.add(existing);
 
         // Broker also has it with same qty
         mockPositions.setPositions(buildPositionsSummary(
@@ -151,7 +150,7 @@ class PositionReconcilerTest {
         OpenPosition existing = new OpenPosition(
                 "NSE:SBIN-EQ", "corr-1", "strat-1", Signal.BUY,
                 550.0, 100, 539.0, 572.0, java.time.Instant.now());
-        positionMonitor.addPosition(existing);
+        positionBook.add(existing);
 
         mockPositions.setPositions(buildPositionsSummary(
                 netPosition("NSE:SBIN-EQ", 150, 550.0, 555.0)
@@ -170,7 +169,7 @@ class PositionReconcilerTest {
         OpenPosition stale = new OpenPosition(
                 "NSE:INFY-EQ", "corr-stale", "strat-1", Signal.BUY,
                 1500.0, 50, 1470.0, 1560.0, java.time.Instant.now());
-        positionMonitor.addPosition(stale);
+        positionBook.add(stale);
         java.util.Map<Timeframe, Signal> votes = new java.util.EnumMap<>(Timeframe.class);
         votes.put(Timeframe.M5, Signal.BUY);
         openRecords.put("corr-stale", new TradeRecord(
@@ -185,7 +184,7 @@ class PositionReconcilerTest {
 
         assertEquals(0, result.adopted());
         assertEquals(1, result.removed());
-        assertEquals(0, positionMonitor.openPositionCount());
+        assertEquals(0, positionBook.openPositionCount());
         assertEquals(0, openRecords.size());
         assertTrue(result.details().get(0).contains("REMOVED_STALE"));
     }

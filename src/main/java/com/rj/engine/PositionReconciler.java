@@ -36,7 +36,7 @@ public class PositionReconciler {
     private static final double DEFAULT_SL_PERCENT = 0.02; // 2% fallback SL for adopted positions
 
     private final IOrderAdapter orderAdapter;
-    private final PositionMonitor positionMonitor;
+    private final PositionBook positionBook;
     private final ConcurrentHashMap<String, TradeRecord> openRecords;
     private final TradeJournal journal;
     private final RiskConfig riskConfig;
@@ -45,21 +45,21 @@ public class PositionReconciler {
     private volatile ReconciliationResult lastResult;
 
     public PositionReconciler(IOrderAdapter orderAdapter,
-                              PositionMonitor positionMonitor,
+                              PositionBook positionBook,
                               ConcurrentHashMap<String, TradeRecord> openRecords,
                               TradeJournal journal,
                               RiskConfig riskConfig) {
-        this(orderAdapter, positionMonitor, openRecords, journal, riskConfig, null);
+        this(orderAdapter, positionBook, openRecords, journal, riskConfig, null);
     }
 
     public PositionReconciler(IOrderAdapter orderAdapter,
-                              PositionMonitor positionMonitor,
+                              PositionBook positionBook,
                               ConcurrentHashMap<String, TradeRecord> openRecords,
                               TradeJournal journal,
                               RiskConfig riskConfig,
                               BrokerCircuitBreaker circuitBreaker) {
         this.orderAdapter = orderAdapter;
-        this.positionMonitor = positionMonitor;
+        this.positionBook = positionBook;
         this.openRecords = openRecords;
         this.journal = journal;
         this.riskConfig = riskConfig;
@@ -92,7 +92,7 @@ public class PositionReconciler {
         // ── 2. Build lookup maps ────────────────────────────────────────────────
         // Engine positions keyed by "symbol:direction"
         Map<String, OpenPosition> engineMap = new HashMap<>();
-        for (OpenPosition ep : positionMonitor.openPositions()) {
+        for (OpenPosition ep : positionBook.openPositions()) {
             String key = reconciliationKey(ep.getSymbol(), ep.getDirection() == Signal.BUY ? 1 : -1);
             engineMap.put(key, ep);
         }
@@ -148,7 +148,7 @@ public class PositionReconciler {
             if (!brokerMap.containsKey(key)) {
                 removed++;
                 OpenPosition stale = entry.getValue();
-                positionMonitor.removePosition(stale.getCorrelationId());
+                positionBook.remove(stale.getCorrelationId());
                 openRecords.remove(stale.getCorrelationId());
                 String detail = String.format("REMOVED_STALE %s: correlationId=%s",
                         stale.getSymbol(), stale.getCorrelationId());
@@ -204,7 +204,7 @@ public class PositionReconciler {
                 entryPrice, qty, stopLoss, takeProfit,
                 entryTime, 0, 0, votes);
 
-        positionMonitor.addPosition(position);
+        positionBook.add(position);
         openRecords.put(correlationId, record);
 
         log.info("[RECONCILE] Adopted {} {} qty={} entry={} sl={}",
