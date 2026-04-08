@@ -69,7 +69,7 @@ public class OptionChainConfig {
     public List<String> getUnderlyings()           { return underlyings; }
 
     /** Test-only setter — bypasses YAML loading. */
-    void setUnderlyingsForTest(java.util.List<String> underlyings) {
+    public void setUnderlyingsForTest(java.util.List<String> underlyings) {
         this.underlyings = underlyings;
     }
 }
