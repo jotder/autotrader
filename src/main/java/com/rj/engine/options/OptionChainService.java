@@ -169,7 +169,7 @@ public class OptionChainService {
             log.info("OptionChainService: nothing to archive (cache empty)");
             return;
         }
-        String date = LocalDate.now().toString();
+        String date = LocalDate.now(java.time.ZoneId.of("Asia/Kolkata")).toString();
         Path dir = Path.of(config.getArchivePath(), date);
         try {
             Files.createDirectories(dir);

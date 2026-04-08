@@ -109,8 +109,8 @@ class OptionChainServiceTest {
         service.refresh("NSE:NIFTY50-INDEX"); // second call while first in-flight
 
         Thread.sleep(200); // wait for async fetch to complete
-        verify(marketDataAdapter, atMost(2))
-                .getOptionChain(any(), anyInt(), any()); // debounced — at most 1 per flight
+        verify(marketDataAdapter, times(1))
+                .getOptionChain(any(), anyInt(), any()); // debounced — second call dropped
     }
 
     @Test
