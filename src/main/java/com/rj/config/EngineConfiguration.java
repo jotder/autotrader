@@ -1,10 +1,12 @@
 package com.rj.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rj.broker.IMarketDataAdapter;
 import com.rj.broker.IOrderAdapter;
 import com.rj.engine.*;
 import com.rj.engine.disruptor.TickDisruptorEngine;
 import com.rj.engine.disruptor.TickStoreUpdater;
+import com.rj.engine.options.OptionChainService;
 import com.rj.engine.risk.PreTradeGate;
 import com.rj.engine.risk.RiskSessionState;
 import com.rj.fyers.FyersSocketListener;
@@ -194,5 +196,15 @@ public class EngineConfiguration {
     @Bean
     public DownloadTracker downloadTracker(CandleDownloader candleDownloader) {
         return new DownloadTracker(candleDownloader);
+    }
+
+    @Bean
+    public OptionChainService optionChainService(
+            IMarketDataAdapter marketDataAdapter,
+            OptionChainConfig optionChainConfig,
+            SymbolMasterCache symbolMasterCache,
+            ObjectMapper objectMapper) {
+        return new OptionChainService(marketDataAdapter, optionChainConfig,
+                symbolMasterCache, objectMapper);
     }
 }
