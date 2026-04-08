@@ -1,10 +1,12 @@
 package com.rj.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rj.broker.IMarketDataAdapter;
 import com.rj.broker.IOrderAdapter;
 import com.rj.engine.*;
 import com.rj.engine.disruptor.TickDisruptorEngine;
 import com.rj.engine.disruptor.TickStoreUpdater;
+import com.rj.engine.options.OptionChainService;
 import com.rj.engine.risk.PreTradeGate;
 import com.rj.engine.risk.RiskSessionState;
 import com.rj.fyers.FyersSocketListener;
@@ -70,7 +72,8 @@ public class EngineConfiguration {
                                        IOrderAdapter orderAdapter,
                                        PreTradeGate preTradeGate,
                                        RiskSessionState riskSessionState,
-                                       PositionBook positionBook) {
+                                       PositionBook positionBook,
+                                       OptionChainService optionChainService) {
 
         ExecutionMode mode = TradingEngine.resolveMode(config.getProperty("APP_ENV"));
         TickStore tickStore = TickStore.getInstance();
@@ -137,6 +140,7 @@ public class EngineConfiguration {
 
         // Step 5: AnomalyDetector init + strategy loading
         ad.initialize(riskSessionState, scheduledPositionManager, tickStore, journal, riskConfig);
+        cs.setOptionChainService(optionChainService);
         engine.loadYamlStrategies(cs, se);
         engine.initializePluggableStrategies(se);
 
@@ -194,5 +198,15 @@ public class EngineConfiguration {
     @Bean
     public DownloadTracker downloadTracker(CandleDownloader candleDownloader) {
         return new DownloadTracker(candleDownloader);
+    }
+
+    @Bean
+    public OptionChainService optionChainService(
+            IMarketDataAdapter marketDataAdapter,
+            OptionChainConfig optionChainConfig,
+            SymbolMasterCache symbolMasterCache,
+            ObjectMapper objectMapper) {
+        return new OptionChainService(marketDataAdapter, optionChainConfig,
+                symbolMasterCache, objectMapper);
     }
 }

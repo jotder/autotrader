@@ -7,7 +7,9 @@ import org.junit.jupiter.api.Test;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SymbolMasterCacheTest {
@@ -101,6 +103,46 @@ class SymbolMasterCacheTest {
         assertTrue(fut.isPresent());
         assertEquals(11, fut.get().segment());  // FO segment
         assertEquals(11, fut.get().exInstType()); // FUTIDX
+    }
+
+    // ── fromEntries + allFnoUnderlyings ─────────────────────────────────────
+
+    private static SymbolMasterEntry fnoEntry(String underlying, String optionType) {
+        return new SymbolMasterEntry(
+                "tok", "details", 0, 50, 0.05, "isin", "session",
+                "2026-01-01", "2026-04-10", "NSE:NIFTY26APR22000CE",
+                10, 11, 0, underlying, "0", 22000.0, optionType, "ftok",
+                "", "", "");
+    }
+
+    @Test
+    void allFnoUnderlyings_returnOnlyOptionUnderlyings() {
+        SymbolMasterCache fnoCache = SymbolMasterCache.fromEntries(List.of(
+                fnoEntry("NSE:NIFTY50-INDEX", "CE"),
+                fnoEntry("NSE:NIFTY50-INDEX", "PE"),
+                fnoEntry("NSE:NIFTY50-INDEX", "XX"),   // future — excluded
+                fnoEntry("NSE:SBIN-EQ",       ""),     // equity — excluded
+                fnoEntry("NSE:BANKNIFTY",     "CE")
+        ));
+
+        Set<String> result = fnoCache.allFnoUnderlyings();
+
+        assertThat(result).containsExactlyInAnyOrder("NSE:NIFTY50-INDEX", "NSE:BANKNIFTY");
+    }
+
+    @Test
+    void allFnoUnderlyings_emptyCache_returnsEmpty() {
+        SymbolMasterCache empty = SymbolMasterCache.fromEntries(List.of());
+        assertThat(empty.allFnoUnderlyings()).isEmpty();
+    }
+
+    @Test
+    void allFnoUnderlyings_futuresOnly_returnsEmpty() {
+        SymbolMasterCache futOnly = SymbolMasterCache.fromEntries(List.of(
+            fnoEntry("NIFTY", "XX"),
+            fnoEntry("BANKNIFTY", "XX")
+        ));
+        assertThat(futOnly.allFnoUnderlyings()).isEmpty();
     }
 
     @Test

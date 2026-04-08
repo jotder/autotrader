@@ -1,0 +1,14 @@
+option-chain:
+  enabled: true
+  poll-interval-seconds: 30
+  strike-count: 10
+  stale-threshold-seconds: 90
+  refresh-rel-vol-threshold: 1.5
+  refresh-confidence-threshold: 0.85
+  archive-path: data/option-chain
+  underlyings: []
+  # Leave underlyings empty to auto-discover from symbol master (NSE_FO / BSE_FO / MCX_COM).
+  # Add entries to restrict to specific underlyings:
+  # underlyings:
+  #   - NSE:NIFTY50-INDEX
+  #   - NSE:NIFTY BANK
