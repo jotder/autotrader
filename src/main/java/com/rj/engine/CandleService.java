@@ -2,6 +2,7 @@ package com.rj.engine;
 
 import com.rj.config.ConfigManager;
 import com.rj.config.StrategyYamlConfig;
+import com.rj.engine.options.OptionChainService;
 import com.rj.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +39,7 @@ public class CandleService {
     private final AtomicInteger workerCount = new AtomicInteger(0);
 
     private volatile Map<String, StrategyYamlConfig> strategyConfigs = Map.of();
+    private volatile OptionChainService optionChainService; // optional — null if disabled
 
     public CandleService(TickStore tickStore,
                          BlockingQueue<CandleRecommendation> outQueue,
@@ -53,6 +55,10 @@ public class CandleService {
         this.outQueue = outQueue;
         this.configManager = configManager;
         this.timeframes = Arrays.copyOf(timeframes, timeframes.length);
+    }
+
+    public void setOptionChainService(OptionChainService optionChainService) {
+        this.optionChainService = optionChainService;
     }
 
     public void setStrategyConfigs(Map<String, StrategyYamlConfig> configs) {
@@ -167,6 +173,12 @@ public class CandleService {
                         symbol, tf, windowTicks.size(),
                         rec.getSignal(), String.format("%.2f", rec.getConfidence()),
                         rec.getStrategySource());
+
+                // Trigger async option chain refresh if the candle shows a significant move
+                OptionChainService ocs = optionChainService;
+                if (ocs != null) {
+                    ocs.refreshIfSignificant(symbol, rec.getSignal(), rec.getConfidence(), rec.getRelVolume());
+                }
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

@@ -72,7 +72,8 @@ public class EngineConfiguration {
                                        IOrderAdapter orderAdapter,
                                        PreTradeGate preTradeGate,
                                        RiskSessionState riskSessionState,
-                                       PositionBook positionBook) {
+                                       PositionBook positionBook,
+                                       OptionChainService optionChainService) {
 
         ExecutionMode mode = TradingEngine.resolveMode(config.getProperty("APP_ENV"));
         TickStore tickStore = TickStore.getInstance();
@@ -139,6 +140,7 @@ public class EngineConfiguration {
 
         // Step 5: AnomalyDetector init + strategy loading
         ad.initialize(riskSessionState, scheduledPositionManager, tickStore, journal, riskConfig);
+        cs.setOptionChainService(optionChainService);
         engine.loadYamlStrategies(cs, se);
         engine.initializePluggableStrategies(se);
 
