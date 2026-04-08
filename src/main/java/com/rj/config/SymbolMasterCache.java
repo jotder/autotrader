@@ -156,8 +156,8 @@ public final class SymbolMasterCache {
         String q = query.toUpperCase();
         return byTicker.values().stream()
                 .filter(e -> e.symbolTicker().toUpperCase().contains(q)
-                        || e.underlyingSymbol().toUpperCase().contains(q)
-                        || e.symbolDetails().toUpperCase().contains(q))
+                        || (e.underlyingSymbol() != null && e.underlyingSymbol().toUpperCase().contains(q))
+                        || (e.symbolDetails() != null && e.symbolDetails().toUpperCase().contains(q)))
                 .limit(limit)
                 .toList();
     }

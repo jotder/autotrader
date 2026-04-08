@@ -66,7 +66,7 @@ public class OptionChainService {
         scheduler = Executors.newSingleThreadScheduledExecutor(
                 Thread.ofVirtual().name("option-chain-scheduler").factory());
         scheduler.scheduleAtFixedRate(this::refreshAll,
-                0, config.getPollIntervalSeconds(), TimeUnit.SECONDS);
+                config.getPollIntervalSeconds(), config.getPollIntervalSeconds(), TimeUnit.SECONDS);
 
         log.info("OptionChainService started — poll={}s, {} underlyings",
                 config.getPollIntervalSeconds(), trackedUnderlyings.size());
@@ -80,13 +80,19 @@ public class OptionChainService {
 
     // ── Refresh paths ───────────────────────────────────────────────────────
 
-    /** Path 1: scheduled — polls all tracked underlyings. Called by scheduler. */
+    /** Path 1: scheduled — submits each underlying to the virtual-thread executor (non-blocking). */
     void refreshAll() {
         for (String underlying : trackedUnderlyings) {
-            try {
-                fetchAndCache(underlying);
-            } catch (Exception e) {
-                log.warn("Scheduled refresh failed for {}: {}", underlying, e.getMessage());
+            if (inFlight.add(underlying)) {
+                executor.submit(() -> {
+                    try {
+                        fetchAndCache(underlying);
+                    } catch (Exception e) {
+                        log.warn("Scheduled refresh failed for {}: {}", underlying, e.getMessage());
+                    } finally {
+                        inFlight.remove(underlying);
+                    }
+                });
             }
         }
     }

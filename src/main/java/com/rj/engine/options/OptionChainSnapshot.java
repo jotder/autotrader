@@ -36,11 +36,12 @@ public record OptionChainSnapshot(
     }
 
     /**
-     * Best-effort PCR for a specific expiry date. Note: Fyers option symbols do not embed the
-     * expiry date string directly, so this method currently always returns 0.0.
-     * For per-expiry analysis, use {@code data.expiryData} and {@code data.optionsChain} directly.
-     * Use {@link #pcr()} (aggregate) for primary production use.
+     * @deprecated Fyers option symbols do not embed the expiry date string, so this method
+     *             always returns 0.0 regardless of input. Use {@link #pcr()} (aggregate) for
+     *             production use. For per-expiry breakdown, query {@code data.expiryData} and
+     *             {@code data.optionsChain} directly.
      */
+    @Deprecated
     public double pcr(String expiryDate) {
         if (data.optionsChain == null || data.optionsChain.isEmpty()) return 0.0;
         long callOi = data.optionsChain.stream()
