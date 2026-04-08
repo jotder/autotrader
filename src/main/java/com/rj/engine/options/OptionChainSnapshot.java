@@ -4,6 +4,7 @@ import com.rj.model.OptionChainResult;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 
 /**
  * Immutable snapshot of an option chain for one underlying, captured at a point in time.
@@ -15,6 +16,10 @@ public record OptionChainSnapshot(
         OptionChainResult data,
         Instant fetchedAt
 ) {
+    public OptionChainSnapshot {
+        Objects.requireNonNull(data, "data must not be null");
+    }
+
     /**
      * Returns true if more than {@code threshold} time has passed since this snapshot was fetched.
      */
@@ -31,9 +36,10 @@ public record OptionChainSnapshot(
     }
 
     /**
-     * PCR for a specific expiry date string (format as returned by Fyers, e.g. "10-Apr-2026").
-     * Computes from option entries filtered by that expiry date.
-     * Returns 0.0 if expiry not found or no options for that expiry.
+     * Best-effort PCR for a specific expiry date. Note: Fyers option symbols do not embed the
+     * expiry date string directly, so this method currently always returns 0.0.
+     * For per-expiry analysis, use {@code data.expiryData} and {@code data.optionsChain} directly.
+     * Use {@link #pcr()} (aggregate) for primary production use.
      */
     public double pcr(String expiryDate) {
         if (data.optionsChain == null || data.optionsChain.isEmpty()) return 0.0;
