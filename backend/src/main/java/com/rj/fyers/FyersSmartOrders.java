@@ -1,5 +1,6 @@
 package com.rj.fyers;
 
+import com.rj.config.ConfigManager;
 import com.rj.model.ApiResponse;
 import com.rj.model.OrderResult;
 import com.rj.model.SmartOrderBook;
@@ -11,7 +12,7 @@ public class FyersSmartOrders {
     FyersClass fyersClass;
 
     public FyersSmartOrders() {
-        fyersClass = FyersClass.getInstance();
+        fyersClass = new ConfigManager().getFyersClass();
     }
 
     public OrderResult createSmartLimit(JSONObject requestBody) {

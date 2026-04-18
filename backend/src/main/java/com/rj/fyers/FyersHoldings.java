@@ -1,5 +1,6 @@
 package com.rj.fyers;
 
+import com.rj.config.ConfigManager;
 import com.rj.model.HoldingsSummary;
 import com.tts.in.model.FyersClass;
 import com.tts.in.utilities.Tuple;
@@ -9,7 +10,7 @@ public class FyersHoldings {
     FyersClass fyersClass;
 
     public FyersHoldings() {
-        fyersClass = FyersClass.getInstance();
+        fyersClass = new ConfigManager().getFyersClass();
     }
 
     public HoldingsSummary getHoldings() {

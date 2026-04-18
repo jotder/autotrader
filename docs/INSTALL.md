@@ -14,7 +14,10 @@ Ensure you have the following installed:
 
 ## 2. Environment Configuration
 
-The system requires two environment files in the root directory:
+The system requires two environment files:
+
+- `.env` — trading & broker config, at the repo root.
+- `backend/APIs.env` — agent/AI config, inside the backend project (this is where the Java process reads it from).
 
 ### `.env` (Trading & Broker Configuration)
 Create a `.env` file by copying the example (if available) or creating a new one:
@@ -33,7 +36,7 @@ LOG_LEVEL=INFO
 PORT=7777
 ```
 
-### `APIs.env` (Agent & AI Configuration)
+### `backend/APIs.env` (Agent & AI Configuration)
 This file is used for AI-driven development and research features.
 
 ```properties
@@ -42,13 +45,15 @@ OPENROUTER_API_KEY=your_api_key_here
 
 ## 3. Backend Setup
 
+Backend and frontend are independent projects — build each in its own directory. The Maven build does NOT invoke npm.
+
 1. **Clean and Install Dependencies**:
    ```bash
+   cd backend
    mvn clean install
    ```
 
 2. **Verify Installation**:
-   Run the tests to ensure everything is configured correctly:
    ```bash
    mvn test
    ```
@@ -57,7 +62,7 @@ OPENROUTER_API_KEY=your_api_key_here
 
 1. **Navigate to UI Directory**:
    ```bash
-   cd web-ui
+   cd frontend
    ```
 
 2. **Install Dependencies**:
@@ -67,10 +72,12 @@ OPENROUTER_API_KEY=your_api_key_here
 
 ## 5. Directory Structure Verification
 
-Ensure the following directories exist (they are typically created automatically or managed via Git):
-- `config/`: Contains YAML strategy and symbol configurations.
-- `data/`: Contains CSV master data and trade journals.
-- `logs/`: Application logs.
+Ensure the following directories exist inside `backend/` (they are typically created automatically or managed via Git):
+- `backend/config/`: YAML strategy and symbol configurations.
+- `backend/data/`: CSV master data and trade journals.
+- `backend/logs/`: Application logs.
+
+The backend reads these as paths relative to its working directory, so always run Maven/Spring Boot from inside `backend/` (or pass `-f backend/pom.xml` **and** `cd backend` first).
 
 ---
 For operational instructions, refer to [OPERATION.md](./OPERATION.md).

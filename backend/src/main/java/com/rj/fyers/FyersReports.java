@@ -1,5 +1,6 @@
 package com.rj.fyers;
 
+import com.rj.config.ConfigManager;
 import com.rj.model.ReportOrder;
 import com.rj.model.ReportTrade;
 import com.tts.in.model.FyersClass;
@@ -12,7 +13,7 @@ public class FyersReports {
     FyersClass fyersClass;
 
     public FyersReports() {
-        fyersClass = FyersClass.getInstance();
+        fyersClass = new ConfigManager().getFyersClass();
     }
 
     /** @param queryParams e.g. "symbol=NSE:SBIN-EQ&from_date=2025-01-01&to_date=2025-01-31", or null for defaults */

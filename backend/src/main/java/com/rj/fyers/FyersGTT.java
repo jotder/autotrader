@@ -1,5 +1,6 @@
 package com.rj.fyers;
 
+import com.rj.config.ConfigManager;
 import com.rj.model.GTTOrderBook;
 import com.rj.model.OrderResult;
 import com.tts.in.model.FyersClass;
@@ -13,7 +14,7 @@ public class FyersGTT {
     FyersClass fyersClass;
 
     public FyersGTT() {
-        fyersClass = FyersClass.getInstance();
+        fyersClass = new ConfigManager().getFyersClass();
     }
 
     public OrderResult placeGTTOrder(List<GTTModel> models) {

@@ -1,5 +1,6 @@
 package com.rj.fyers;
 
+import com.rj.config.ConfigManager;
 import com.rj.model.ClientProfile;
 import com.tts.in.model.FyersClass;
 import com.tts.in.utilities.Tuple;
@@ -9,7 +10,7 @@ public class FyersProfile {
     FyersClass fyersClass;
 
     public FyersProfile() {
-        fyersClass = FyersClass.getInstance();
+        fyersClass = new ConfigManager().getFyersClass();
     }
 
     public ClientProfile getProfile() {

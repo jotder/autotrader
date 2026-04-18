@@ -4,6 +4,14 @@ A professional-grade multi-asset algorithmic trading system for Indian markets.
 
 ## 🚀 Quick Start
 
+The repo is split into two independent projects — build each on its own.
+
+```
+autotrader/
+├── backend/    # Java 25 + Spring Boot (Maven)
+└── frontend/   # Angular 19 (npm)
+```
+
 ### 1. Setup Environment
 ```bash
 # Copy and fill credentials
@@ -12,12 +20,13 @@ cp .env.example .env
 
 ### 2. Start Backend Engine
 ```bash
+cd backend
 mvn spring-boot:run
 ```
 
-### 3. Start Web UI
+### 3. Start Web UI (separate terminal)
 ```bash
-cd web-ui
+cd frontend
 npm install
 npm start
 ```

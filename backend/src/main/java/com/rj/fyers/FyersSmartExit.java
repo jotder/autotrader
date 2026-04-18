@@ -1,5 +1,6 @@
 package com.rj.fyers;
 
+import com.rj.config.ConfigManager;
 import com.rj.model.ApiResponse;
 import com.rj.model.SmartExitTrigger;
 import com.tts.in.model.FyersClass;
@@ -12,7 +13,7 @@ public class FyersSmartExit {
     FyersClass fyersClass;
 
     public FyersSmartExit() {
-        fyersClass = FyersClass.getInstance();
+        fyersClass = new ConfigManager().getFyersClass();
     }
 
     public SmartExitTrigger createSmartExit(JSONObject requestBody) {

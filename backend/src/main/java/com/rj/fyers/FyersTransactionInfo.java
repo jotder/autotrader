@@ -1,5 +1,6 @@
 package com.rj.fyers;
 
+import com.rj.config.ConfigManager;
 import com.rj.model.TradeEntry;
 import com.tts.in.model.FyersClass;
 import com.tts.in.utilities.Tuple;
@@ -12,7 +13,7 @@ public class FyersTransactionInfo {
     FyersClass fyersClass;
 
     public FyersTransactionInfo() {
-        fyersClass = FyersClass.getInstance();
+        fyersClass = new ConfigManager().getFyersClass();
     }
 
     public List<TradeEntry> getTradeBook() {

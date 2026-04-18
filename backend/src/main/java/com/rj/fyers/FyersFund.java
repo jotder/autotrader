@@ -1,5 +1,6 @@
 package com.rj.fyers;
 
+import com.rj.config.ConfigManager;
 import com.rj.model.FundSummary;
 import com.tts.in.model.FyersClass;
 import com.tts.in.utilities.Tuple;
@@ -9,7 +10,7 @@ public class FyersFund {
     FyersClass fyersClass;
 
     public FyersFund() {
-        fyersClass = FyersClass.getInstance();
+        fyersClass = new ConfigManager().getFyersClass();
     }
 
     public FundSummary getFunds() {

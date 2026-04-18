@@ -16,11 +16,11 @@ import java.util.Scanner;
 public class TokenGenerator {
 
     /** Static reference set by Spring injection so instances created via new() can fall back to it. */
-    private static ConfigManager configManagerInstance;
+    private static ConfigManager config;
 
     @Autowired
     public void setConfigManager(ConfigManager configManager) {
-        TokenGenerator.configManagerInstance = configManager;
+        config = configManager;
     }
 
     /**
@@ -46,9 +46,9 @@ public class TokenGenerator {
         String refreshToken = jsonObject.getString("refresh_token");
         scanner.close();
 
-        if (configManagerInstance != null) {
-            configManagerInstance.updateEnvProperty("ACCESS_TOKEN", accessToken);
-            configManagerInstance.updateEnvProperty("REFRESH_TOKEN", refreshToken);
+        if (config != null) {
+            config.updateEnvProperty("ACCESS_TOKEN", accessToken);
+            config.updateEnvProperty("REFRESH_TOKEN", refreshToken);
         }
         return accessToken;
     }
@@ -77,7 +77,6 @@ public class TokenGenerator {
                         .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
                         .build();
-
                 response = client.send(request, HttpResponse.BodyHandlers.ofString());
             }
 
@@ -85,13 +84,11 @@ public class TokenGenerator {
                 JSONObject jsonResponse = new JSONObject(response.body());
                 if ("ok".equals(jsonResponse.optString("s"))) {
                     String accessToken = jsonResponse.getString("access_token");
-                    if (configManagerInstance != null) {
-                        configManagerInstance.updateEnvProperty("ACCESS_TOKEN", accessToken);
-                    }
+                    if (config != null)
+                        config.updateEnvProperty("ACCESS_TOKEN", accessToken);
                     return accessToken;
-                } else {
+                } else
                     System.err.println("API error: " + jsonResponse.optString("message"));
-                }
             } else {
                 System.err.println("HTTP error: " + response.statusCode() + " - " + response.body());
             }

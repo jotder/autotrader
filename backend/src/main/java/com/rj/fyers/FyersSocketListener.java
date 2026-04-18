@@ -1,5 +1,6 @@
 package com.rj.fyers;
 
+import com.rj.config.ConfigManager;
 import com.rj.engine.disruptor.TickDisruptorEngine;
 import com.rj.engine.OrderManager;
 import com.rj.model.Tick;
@@ -25,7 +26,7 @@ public class FyersSocketListener implements FyersSocketDelegate {
     private static final Logger log = LoggerFactory.getLogger(FyersSocketListener.class);
     
     public volatile FyersSocket socket;
-    public final FyersClass fyersClass = FyersClass.getInstance();
+    public final FyersClass fyersClass = new ConfigManager().getFyersClass();
     
     private final TickDisruptorEngine disruptor;
     private final OrderManager orderManager;

@@ -1,5 +1,6 @@
 package com.rj.fyers;
 
+import com.rj.config.ConfigManager;
 import com.rj.model.ApiResponse;
 import com.rj.model.PriceAlertBook;
 import com.tts.in.model.FyersClass;
@@ -12,7 +13,7 @@ public class FyersPriceAlerts {
     FyersClass fyersClass;
 
     public FyersPriceAlerts() {
-        fyersClass = FyersClass.getInstance();
+        fyersClass = new ConfigManager().getFyersClass();
     }
 
     public ApiResponse createPriceAlert(PriceAlertModel alert) {

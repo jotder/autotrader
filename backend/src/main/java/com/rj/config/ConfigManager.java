@@ -1,5 +1,6 @@
 package com.rj.config;
 
+import com.tts.in.model.FyersClass;
 import io.github.cdimascio.dotenv.Dotenv;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -12,7 +13,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Component
 public class ConfigManager implements IConfiguration {
@@ -30,6 +30,7 @@ public class ConfigManager implements IConfiguration {
     private RiskConfig riskConfig = RiskConfig.defaults();
     private StrategyConfig strategyConfig = StrategyConfig.defaults();
     private SymbolRegistry symbolRegistry;
+//    private boolean cfgLoaded = false;
 
     @PostConstruct
     @Override
@@ -82,7 +83,10 @@ public class ConfigManager implements IConfiguration {
         return true;
     }
 
-    @Override public String[] getActiveSymbols() { return activeSymbols; }
+    @Override
+    public String[] getActiveSymbols() {
+        return activeSymbols;
+    }
 
     @Override
     public boolean isSymbolActive(String symbol) {
@@ -90,7 +94,10 @@ public class ConfigManager implements IConfiguration {
         return symbol != null && activeSymbolSet.contains(symbol.trim());
     }
 
-    @Override public SymbolRegistry getSymbolRegistry() { return symbolRegistry; }
+    @Override
+    public SymbolRegistry getSymbolRegistry() {
+        return symbolRegistry;
+    }
 
     @Override
     public String getActiveStrategy(String symbol) {
@@ -98,8 +105,15 @@ public class ConfigManager implements IConfiguration {
         return override != null ? override : "ORB_15M";
     }
 
-    @Override public RiskConfig getRiskConfig() { return riskConfig; }
-    @Override public StrategyConfig getStrategyConfig() { return strategyConfig; }
+    @Override
+    public RiskConfig getRiskConfig() {
+        return riskConfig;
+    }
+
+    @Override
+    public StrategyConfig getStrategyConfig() {
+        return strategyConfig;
+    }
 
     /**
      * Updates a key in .env and reloads dotenv.
@@ -109,5 +123,17 @@ public class ConfigManager implements IConfiguration {
     public void updateEnvProperty(String key, String value) {
         envConfigPersistence.update(key, value);
         this.dotenv = Dotenv.configure().ignoreIfMissing().load();
+    }
+
+    static FyersClass fyersClass;
+
+    public FyersClass getFyersClass() {
+        if (dotenv == null) {
+            fyersClass = FyersClass.getInstance();
+            loadConfiguration();
+            fyersClass.clientId = getProperty("FYERS_APP_ID");
+            fyersClass.accessToken = getProperty("ACCESS_TOKEN");
+        }
+        return fyersClass;
     }
 }

@@ -1,5 +1,6 @@
 package com.rj.fyers;
 
+import com.rj.config.ConfigManager;
 import com.tts.in.model.FyersClass;
 import org.json.JSONObject;
 
@@ -7,7 +8,7 @@ public class FyersUser {
     FyersClass fyersClass;
 
     public FyersUser() {
-        fyersClass = FyersClass.getInstance();
+        fyersClass = new ConfigManager().getFyersClass();
     }
 
     /** Returns null on success (SDK returns null when logout succeeds), or error JSONObject. */

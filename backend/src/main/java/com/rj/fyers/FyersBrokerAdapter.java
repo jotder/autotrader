@@ -47,8 +47,8 @@ public class FyersBrokerAdapter implements IMarketDataAdapter, IOrderAdapter, IT
     private FyersSocketListener listener;
     private FyersSocket socket;
 
-    public FyersBrokerAdapter(FyersClass fyersClass, ConfigManager config) {
-        this.fyersClass = fyersClass;
+    public FyersBrokerAdapter(ConfigManager config) {
+        this.fyersClass = config.getFyersClass();;
         this.config = config;
     }
 
