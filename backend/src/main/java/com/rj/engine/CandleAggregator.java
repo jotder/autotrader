@@ -13,11 +13,16 @@ public final class CandleAggregator {
     private CandleAggregator() {}
 
     /**
-     * Aggregate {@code m1} bars into {@code tf}. Requires the input to be contiguous M1 bars
-     * sorted by timestamp. Partial trailing windows (fewer than the expected number of M1 bars)
-     * are dropped so consumers only see closed higher-timeframe bars.
+     * Aggregate {@code m1} bars into {@code tf}. Requires the input to be a contiguous, gap-free,
+     * ascending M1 sequence. Partial windows (fewer than the expected number of M1 bars) are
+     * dropped so consumers only see closed higher-timeframe bars.
      *
      * <p>{@link Timeframe#M1} is a no-op — returns an immutable copy.
+     *
+     * <p>Note for {@link Timeframe#H1}: {@link Timeframe#truncate} floors to UTC hour boundaries,
+     * which in IST fall at HH:30. The NSE session opens at 09:15 IST, so the first 15 bars of each
+     * session fall in the 08:30-IST bucket and are dropped as partial; the first full H1 bar of
+     * the day is 09:30-10:29 IST.
      */
     public static List<Candle> to(Timeframe tf, List<Candle> m1) {
         if (tf == Timeframe.M1) return List.copyOf(m1);
