@@ -8,8 +8,10 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 class YamlStrategyLoaderTest {
@@ -257,6 +259,44 @@ class YamlStrategyLoaderTest {
         assertTrue(strategies.containsKey("trend_following"));
         assertTrue(strategies.containsKey("mean_reversion"));
         assertTrue(strategies.containsKey("volatility_breakout"));
+    }
+
+    // ── Backtest block ────────────────────────────────────────────────────────
+
+    @Test
+    void load_parsesOptionalBacktestBlock(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("intraday.yaml");
+        Files.writeString(yaml, """
+            strategies:
+              trend_following:
+                enabled: true
+                symbols: ["NSE:SBIN-EQ"]
+                timeframe: M5
+                backtest:
+                  from: 2026-04-01
+                  to: 2026-04-10
+            """);
+
+        Map<String, StrategyYamlConfig> cfgs = new YamlStrategyLoader().load(yaml);
+        StrategyYamlConfig tf = cfgs.get("trend_following");
+        assertThat(tf.getBacktest()).isNotNull();
+        assertThat(tf.getBacktest().getFrom()).isEqualTo(LocalDate.of(2026, 4, 1));
+        assertThat(tf.getBacktest().getTo()).isEqualTo(LocalDate.of(2026, 4, 10));
+    }
+
+    @Test
+    void load_missingBacktestBlock_staysNull(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("intraday.yaml");
+        Files.writeString(yaml, """
+            strategies:
+              trend_following:
+                enabled: true
+                symbols: ["NSE:SBIN-EQ"]
+                timeframe: M5
+            """);
+
+        StrategyYamlConfig tf = new YamlStrategyLoader().load(yaml).get("trend_following");
+        assertThat(tf.getBacktest()).isNull();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

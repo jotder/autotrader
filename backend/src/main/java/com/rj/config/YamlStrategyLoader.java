@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -392,7 +393,23 @@ public class YamlStrategyLoader {
             cfg.setOrder(order);
         }
 
+        Object btRaw = map.get("backtest");
+        if (btRaw instanceof Map<?, ?> btMap) {
+            var bt = new StrategyYamlConfig.BacktestBlock();
+            Object f = btMap.get("from");
+            Object t = btMap.get("to");
+            if (f != null) bt.setFrom(parseDate(f));
+            if (t != null) bt.setTo(parseDate(t));
+            cfg.setBacktest(bt);
+        }
+
         return cfg;
+    }
+
+    private static LocalDate parseDate(Object v) {
+        if (v instanceof LocalDate d) return d;
+        if (v instanceof java.util.Date d) return d.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+        return LocalDate.parse(v.toString());
     }
 
     private boolean getBool(Map<String, Object> map, String key, boolean def) {
