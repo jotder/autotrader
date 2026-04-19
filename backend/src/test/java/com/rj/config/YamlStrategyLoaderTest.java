@@ -299,6 +299,22 @@ class YamlStrategyLoaderTest {
         assertThat(tf.getBacktest()).isNull();
     }
 
+    @Test
+    void load_invalidDateInBacktestBlock_throwsIllegalArgumentException(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("bad.yaml");
+        Files.writeString(yaml, """
+            strategies:
+              s1:
+                enabled: true
+                backtest:
+                  from: "not-a-date"
+                  to: 2026-04-10
+            """);
+        org.junit.jupiter.api.Assertions.assertThrows(
+            IllegalArgumentException.class,
+            () -> new YamlStrategyLoader().load(yaml));
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private Path resourcePath(String resourceName) throws URISyntaxException {

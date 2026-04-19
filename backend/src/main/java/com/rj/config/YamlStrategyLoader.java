@@ -406,10 +406,17 @@ public class YamlStrategyLoader {
         return cfg;
     }
 
+    private static final java.time.ZoneId IST = java.time.ZoneId.of("Asia/Kolkata");
+
     private static LocalDate parseDate(Object v) {
         if (v instanceof LocalDate d) return d;
-        if (v instanceof java.util.Date d) return d.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
-        return LocalDate.parse(v.toString());
+        if (v instanceof java.util.Date d) return d.toInstant().atZone(IST).toLocalDate();
+        try {
+            return LocalDate.parse(v.toString());
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new IllegalArgumentException(
+                    "Invalid date in backtest block (expected ISO-8601 yyyy-MM-dd): '" + v + "'", e);
+        }
     }
 
     private boolean getBool(Map<String, Object> map, String key, boolean def) {
