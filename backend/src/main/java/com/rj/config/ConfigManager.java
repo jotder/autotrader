@@ -18,8 +18,8 @@ import java.util.Set;
 public class ConfigManager implements IConfiguration {
     private static final Logger log = LoggerFactory.getLogger(ConfigManager.class);
     private static final Path SYMBOLS_YAML_PATH = Path.of("config/symbols.yaml");
-    private static final String[] REQUIRED_KEYS = {"FYERS_APP_ID", "FYERS_SECRET_KEY",
-            "FYERS_REDIRECT_URI", "FYERS_AUTH_CODE", "APP_ENV", "LOG_LEVEL"};
+    private static final String[] REQUIRED_KEYS = {"FYERS_APP_ID", "FYERS_SECRET_KEY", "FYERS_REDIRECT_URI",
+            "FYERS_AUTH_CODE", "APP_ENV", "LOG_LEVEL"};
 
     @Autowired
     private EnvConfigPersistence envConfigPersistence;
@@ -45,7 +45,8 @@ public class ConfigManager implements IConfiguration {
                 activeSymbols = symbolRegistry.allSymbols();
                 activeSymbolSet = new LinkedHashSet<>(Arrays.asList(activeSymbols));
                 log.info("Symbol registry loaded: {} symbols", symbolRegistry.size());
-            } else {
+            }
+            else {
                 log.warn("config/symbols.yaml not found — falling back to .env FYERS_SYMBOLS (deprecated)");
                 String symbolsEnv = getProperty("FYERS_SYMBOLS");
                 if (symbolsEnv != null && !symbolsEnv.isBlank()) {
@@ -121,6 +122,7 @@ public class ConfigManager implements IConfiguration {
      */
     @Deprecated
     public void updateEnvProperty(String key, String value) {
+        if (envConfigPersistence == null) envConfigPersistence = new EnvConfigPersistence();
         envConfigPersistence.update(key, value);
         this.dotenv = Dotenv.configure().ignoreIfMissing().load();
     }
@@ -128,7 +130,7 @@ public class ConfigManager implements IConfiguration {
     static FyersClass fyersClass;
 
     public FyersClass getFyersClass() {
-        if (dotenv == null) {
+        if (dotenv == null || fyersClass == null) {
             fyersClass = FyersClass.getInstance();
             loadConfiguration();
             fyersClass.clientId = getProperty("FYERS_APP_ID");
