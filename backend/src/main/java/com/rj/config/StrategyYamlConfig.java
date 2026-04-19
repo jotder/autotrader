@@ -20,6 +20,7 @@ public class StrategyYamlConfig {
     private Entry entry = new Entry();
     private Risk risk = new Risk();
     private Order order = new Order();
+    private BacktestBlock backtest;   // optional; null when not declared in YAML
 
     // ── Getters / Setters ────────────────────────────────────────────────────
 
@@ -52,6 +53,9 @@ public class StrategyYamlConfig {
 
     public Order getOrder() { return order; }
     public void setOrder(Order order) { this.order = order != null ? order : new Order(); }
+
+    public BacktestBlock getBacktest() { return backtest; }
+    public void setBacktest(BacktestBlock backtest) { this.backtest = backtest; }
 
     // ── Nested section: active_hours ─────────────────────────────────────────
 
@@ -164,5 +168,18 @@ public class StrategyYamlConfig {
 
         public String getProductType() { return productType; }
         public void setProductType(String productType) { this.productType = productType != null ? productType : "INTRADAY"; }
+    }
+
+    // ── Nested section: backtest ─────────────────────────────────────────────
+
+    public static class BacktestBlock {
+        private java.time.LocalDate from;
+        private java.time.LocalDate to;
+
+        public java.time.LocalDate getFrom() { return from; }
+        public void setFrom(java.time.LocalDate from) { this.from = from; }
+
+        public java.time.LocalDate getTo() { return to; }
+        public void setTo(java.time.LocalDate to) { this.to = to; }
     }
 }
