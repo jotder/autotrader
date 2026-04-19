@@ -31,16 +31,16 @@ public class SignalScanner {
         this.primary = primary;
         this.strategy = strategy;
         this.primaryAnalyzer = new CandleAnalyzer(symbol, primary);
-        this.m15Analyzer = (primary == Timeframe.M15) ? this.primaryAnalyzer : new CandleAnalyzer(symbol, Timeframe.M15);
-        this.h1Analyzer = (primary == Timeframe.H1) ? this.primaryAnalyzer : new CandleAnalyzer(symbol, Timeframe.H1);
+        this.m15Analyzer = (primary == Timeframe.M15) ? null : new CandleAnalyzer(symbol, Timeframe.M15);
+        this.h1Analyzer = (primary == Timeframe.H1) ? null : new CandleAnalyzer(symbol, Timeframe.H1);
     }
 
     public List<SignalEvent> scan(List<Candle> m1, LocalDate tradingDate) {
         if (m1 == null || m1.isEmpty()) return List.of();
 
         List<Candle> primaryBars = CandleAggregator.to(primary, m1);
-        List<Candle> m15Bars = (primary == Timeframe.M15) ? primaryBars : CandleAggregator.to(Timeframe.M15, m1);
-        List<Candle> h1Bars  = (primary == Timeframe.H1) ? primaryBars : CandleAggregator.to(Timeframe.H1, m1);
+        List<Candle> m15Bars = (m15Analyzer == null) ? List.of() : CandleAggregator.to(Timeframe.M15, m1);
+        List<Candle> h1Bars  = (h1Analyzer  == null) ? List.of() : CandleAggregator.to(Timeframe.H1, m1);
 
         Map<Timeframe, CandleRecommendation> latest = new EnumMap<>(Timeframe.class);
         List<SignalEvent> out = new ArrayList<>();
@@ -48,15 +48,17 @@ public class SignalScanner {
         int m15Idx = 0, h1Idx = 0;
         for (Candle bar : primaryBars) {
             // Advance higher-tf indexes through any bars that closed up to or at `bar`.
-            while (m15Idx < m15Bars.size() && !m15Bars.get(m15Idx).timestamp.isAfter(bar.timestamp)) {
-                Candle m15 = m15Bars.get(m15Idx);
-                latest.put(Timeframe.M15, feed(m15Analyzer, m15, Timeframe.M15));
-                m15Idx++;
+            if (m15Analyzer != null) {
+                while (m15Idx < m15Bars.size() && !m15Bars.get(m15Idx).timestamp.isAfter(bar.timestamp)) {
+                    latest.put(Timeframe.M15, feed(m15Analyzer, m15Bars.get(m15Idx), Timeframe.M15));
+                    m15Idx++;
+                }
             }
-            while (h1Idx < h1Bars.size() && !h1Bars.get(h1Idx).timestamp.isAfter(bar.timestamp)) {
-                Candle h1 = h1Bars.get(h1Idx);
-                latest.put(Timeframe.H1, feed(h1Analyzer, h1, Timeframe.H1));
-                h1Idx++;
+            if (h1Analyzer != null) {
+                while (h1Idx < h1Bars.size() && !h1Bars.get(h1Idx).timestamp.isAfter(bar.timestamp)) {
+                    latest.put(Timeframe.H1, feed(h1Analyzer, h1Bars.get(h1Idx), Timeframe.H1));
+                    h1Idx++;
+                }
             }
             latest.put(primary, feed(primaryAnalyzer, bar, primary));
 
