@@ -1,5 +1,6 @@
 package com.rj.config;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -173,13 +174,13 @@ public class StrategyYamlConfig {
     // ── Nested section: backtest ─────────────────────────────────────────────
 
     public static class BacktestBlock {
-        private java.time.LocalDate from;
-        private java.time.LocalDate to;
+        private LocalDate from;
+        private LocalDate to;
 
-        public java.time.LocalDate getFrom() { return from; }
-        public void setFrom(java.time.LocalDate from) { this.from = from; }
+        public LocalDate getFrom() { return from; }
+        public void setFrom(LocalDate from) { this.from = from; }
 
-        public java.time.LocalDate getTo() { return to; }
-        public void setTo(java.time.LocalDate to) { this.to = to; }
+        public LocalDate getTo() { return to; }
+        public void setTo(LocalDate to) { this.to = to; }
     }
 }
